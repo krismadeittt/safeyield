@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import useIsMobile from '../../hooks/useIsMobile';
 
 /**
  * Single-series SVG bar chart.
@@ -8,8 +9,9 @@ export default function SingleSeriesBar({
   pts, valKey = "value", color = "#005EB8", fmt, H = 160, PL = 50, PB = 30,
   labelKey = "label", sharedHov = null, onHov = null,
 }) {
+  const isMobile = useIsMobile();
   const containerRef = useRef(null);
-  const [width, setWidth] = useState(600);
+  const [width, setWidth] = useState(isMobile ? 340 : 600);
   const [hovered, setHovered] = useState(null);
 
   useEffect(() => {

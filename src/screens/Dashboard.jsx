@@ -3,10 +3,12 @@ import { projectPortfolioPerStock, seededPRNG } from '../utils/monteCarlo';
 import { calcMonthlyIncome } from '../utils/dividends';
 import { formatCurrency } from '../utils/format';
 import HistoricalProjectedChart from '../components/charts/HistoricalProjectedChart';
+import useIsMobile from '../hooks/useIsMobile';
 
 export default function Dashboard({
   totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth,
 }) {
+  const isMobile = useIsMobile();
   const [horizon, setHorizon] = useState(10);
   const [useVolatility, setUseVolatility] = useState(false);
   const [extraContrib, setExtraContrib] = useState(0);
@@ -40,16 +42,16 @@ export default function Dashboard({
 
       {/* Stats row — bordered strip */}
       <div style={{
-        display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0,
-        marginBottom: "2rem",
+        display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 0,
+        marginBottom: isMobile ? "1rem" : "2rem",
         borderTop: "1px solid #0a1e30", borderBottom: "1px solid #0a1e30",
         background: "transparent",
       }}>
-        <StatCell label="Portfolio Value" value={formatCurrency(portfolioValue)} sub={`${holdings.length} holdings`} />
-        <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" />
-        <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} />
-        <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg)} sub="estimated" />
-        <StatCell label="Wtd Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last />
+        <StatCell label="Portfolio Value" value={formatCurrency(portfolioValue)} sub={`${holdings.length} holdings`} isMobile={isMobile} />
+        <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" isMobile={isMobile} />
+        <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} isMobile={isMobile} />
+        <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg)} sub="estimated" isMobile={isMobile} />
+        <StatCell label="Wtd Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last isMobile={isMobile} />
       </div>
 
       {/* Single unified chart with all controls inside */}
@@ -76,28 +78,29 @@ export default function Dashboard({
   );
 }
 
-function StatCell({ label, value, sub, last }) {
+function StatCell({ label, value, sub, last, isMobile }) {
   return (
     <div style={{
-      padding: "1.8rem 2rem",
+      padding: isMobile ? "0.9rem 0.8rem" : "1.8rem 2rem",
       borderRight: last ? "none" : "1px solid #0a1e30",
+      borderBottom: isMobile ? "1px solid #0a1e30" : "none",
     }}>
       <div style={{
-        fontSize: "0.56rem", color: "#1e4060", textTransform: "uppercase",
-        letterSpacing: "0.2em", marginBottom: "0.65rem",
+        fontSize: isMobile ? "0.5rem" : "0.56rem", color: "#1e4060", textTransform: "uppercase",
+        letterSpacing: "0.2em", marginBottom: isMobile ? "0.4rem" : "0.65rem",
         fontFamily: "'EB Garamond', Georgia, serif",
       }}>
         {label}
       </div>
       <div style={{
-        fontSize: "1.5rem", fontWeight: 600, color: "#c8dff0", lineHeight: 1,
+        fontSize: isMobile ? "1.1rem" : "1.5rem", fontWeight: 600, color: "#c8dff0", lineHeight: 1,
         fontFamily: "'Playfair Display', Georgia, serif",
       }}>
         {value}
       </div>
       {sub && (
         <div style={{
-          fontSize: "0.7rem", color: "#1a3a58", marginTop: "0.4rem", fontStyle: "italic",
+          fontSize: isMobile ? "0.6rem" : "0.7rem", color: "#1a3a58", marginTop: "0.4rem", fontStyle: "italic",
         }}>
           {sub}
         </div>

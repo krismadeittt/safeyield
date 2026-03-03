@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import useIsMobile from '../../hooks/useIsMobile';
 
 let instanceCounter = 0;
 
@@ -15,8 +16,9 @@ export default function FinancialMetricChart({
   formatValue = v => String(v),
   height = 220,
 }) {
+  const isMobile = useIsMobile();
   const containerRef = useRef(null);
-  const [width, setWidth] = useState(600);
+  const [width, setWidth] = useState(isMobile ? 340 : 600);
   const [hovered, setHovered] = useState(null);
   const [filterId] = useState(() => `fmc-glow-${++instanceCounter}`);
 
@@ -41,7 +43,7 @@ export default function FinancialMetricChart({
   const barCount = allBars.length;
 
   // Layout
-  const padL = 55;
+  const padL = isMobile ? 35 : 55;
   const padR = 10;
   const svgW = Math.max(100, width - 32);
   const chartW = svgW - padL - padR;
@@ -128,7 +130,9 @@ export default function FinancialMetricChart({
         {statCards.length > 0 && (
           <div style={{
             display: "grid",
-            gridTemplateColumns: `repeat(${Math.min(statCards.length, 4)}, 1fr)`,
+            gridTemplateColumns: isMobile
+              ? `repeat(${Math.min(statCards.length, 2)}, 1fr)`
+              : `repeat(${Math.min(statCards.length, 4)}, 1fr)`,
             gap: 0, marginTop: "0.8rem",
           }}>
             {statCards.map((card, i) => (

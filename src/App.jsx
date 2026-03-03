@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import usePortfolio from './hooks/usePortfolio';
+import useIsMobile from './hooks/useIsMobile';
 import Onboarding from './screens/Onboarding';
 import Dashboard from './screens/Dashboard';
 import StockDetail from './screens/StockDetail';
@@ -21,6 +22,7 @@ export default function App() {
   } = usePortfolio();
 
   const sharesInputRef = useRef(null);
+  const isMobile = useIsMobile();
 
   // Onboarding screen
   if (isOnboarding) {
@@ -33,14 +35,14 @@ export default function App() {
       <div style={{ fontFamily: "Georgia, serif", background: "#050e1a", minHeight: "100vh", color: "#c8dff0" }}>
         <nav style={{
           background: "rgba(2,8,23,0.97)", borderBottom: "1px solid #1e293b",
-          padding: "0 1.5rem", display: "flex", alignItems: "center",
+          padding: isMobile ? "0 0.75rem" : "0 1.5rem", display: "flex", alignItems: "center",
           justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
             <Logo />
             <button onClick={() => setDetailView(null)} style={{
               background: "none", border: "1px solid #1a3a5c", color: "#5a8ab0",
-              padding: "4px 12px", cursor: "pointer", fontSize: "0.75rem",
+              padding: isMobile ? "6px 12px" : "4px 12px", cursor: "pointer", fontSize: "0.75rem",
               fontFamily: "'EB Garamond', Georgia, serif",
             }}>
               ← Back
@@ -50,7 +52,7 @@ export default function App() {
             {formatCurrency(summary.portfolioValue)}
           </span>
         </nav>
-        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "2rem 1.5rem" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: isMobile ? "1rem 0.75rem" : "2rem 1.5rem" }}>
           <StockDetail
             stock={detailView}
             live={liveData[detailView.ticker]}
@@ -68,10 +70,10 @@ export default function App() {
       {/* Navigation */}
       <nav style={{
         background: "rgba(2,8,23,0.97)", borderBottom: "1px solid #1e293b",
-        padding: "0 1.5rem", display: "flex", alignItems: "center",
+        padding: isMobile ? "0 0.75rem" : "0 1.5rem", display: "flex", alignItems: "center",
         justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.75rem" : "1.5rem" }}>
           <Logo />
           {["dashboard", "market"].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
@@ -101,7 +103,7 @@ export default function App() {
         </div>
       </nav>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.5rem" }}>
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "0.75rem" : "1.5rem" }}>
         {/* Dashboard tab */}
         {activeTab === "dashboard" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -150,7 +152,9 @@ export default function App() {
         }} onClick={() => setShowAddModal(false)}>
           <div style={{
             background: "#0a1628", border: "1px solid #1a3a5c",
-            padding: "2rem", width: 360,
+            padding: isMobile ? "1.5rem" : "2rem",
+            width: isMobile ? "calc(100vw - 2rem)" : 360,
+            maxWidth: 360,
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               fontWeight: 600, letterSpacing: "0.12em", fontSize: "0.72rem",

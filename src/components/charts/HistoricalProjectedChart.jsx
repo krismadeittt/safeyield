@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { formatCurrency } from '../../utils/format';
 import { fetchBatchHistory, calcHistoricalPortfolioValues, calcHistoricalDividendsByYear } from '../../api/history';
+import useIsMobile from '../../hooks/useIsMobile';
 
 const FALLBACK_HIST = 10; // synthetic fallback when no KV data
 const HORIZONS = [1, 5, 10, 15, 25, 30, 40, 50];
@@ -28,8 +29,9 @@ export default function HistoricalProjectedChart({
   noDripVals, dripVals, contribVals, totalIncome,
   monthlyData, holdings,
 }) {
+  const isMobile = useIsMobile();
   const containerRef = useRef(null);
-  const [width, setWidth] = useState(800);
+  const [width, setWidth] = useState(isMobile ? 340 : 800);
   const [hovered, setHovered] = useState(null);
   const [divHovered, setDivHovered] = useState(null);
   const [historyMap, setHistoryMap] = useState({});
@@ -243,7 +245,7 @@ export default function HistoricalProjectedChart({
   }, [barData, monthlyData, growth, granularity, realDivByYear]);
 
   // Chart layout
-  const padL = 55;
+  const padL = isMobile ? 35 : 55;
   const padR = 10;
   const svgW = Math.max(100, width - 48);
   const chartW = svgW - padL - padR;
@@ -272,7 +274,7 @@ export default function HistoricalProjectedChart({
   return (
     <div ref={containerRef} style={{ background: "#0a1628", border: "1px solid #1a3a5c" }}>
       {/* ==================== HEADER ==================== */}
-      <div style={{ padding: "1.5rem 1.5rem 0" }}>
+      <div style={{ padding: isMobile ? "0.8rem 0.8rem 0" : "1.5rem 1.5rem 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.3rem" }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#c8dff0", fontFamily: "'Playfair Display', Georgia, serif" }}>
@@ -297,7 +299,7 @@ export default function HistoricalProjectedChart({
         </div>
 
         {/* Stat cards: STARTING, CURRENT (DRIP), DRIP ADVANTAGE */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0, marginBottom: "1rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 0, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
           <StatCard label={`STARTING (${startingYear})`} value={formatCurrency(startingValue)} color="#1a7a3a" />
           <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="#005EB8" />
           <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="#5aaff8" last />
@@ -307,8 +309,8 @@ export default function HistoricalProjectedChart({
         <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem", flexWrap: "wrap" }}>
           {HORIZONS.map(h => (
             <button key={h} onClick={() => setHorizon(h)} style={{
-              padding: "5px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
-              fontSize: "0.78rem", fontWeight: horizon === h ? 700 : 400,
+              padding: isMobile ? "4px 8px" : "5px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
+              fontSize: isMobile ? "0.7rem" : "0.78rem", fontWeight: horizon === h ? 700 : 400,
               fontFamily: "'EB Garamond', Georgia, serif",
               background: horizon === h ? "#005EB8" : "transparent",
               color: horizon === h ? "#ffffff" : "#2a4a6a",
@@ -360,8 +362,8 @@ export default function HistoricalProjectedChart({
           {[{ l: "None", v: 0 }, { l: "$1k", v: 1000 }, { l: "$5k", v: 5000 }, { l: "$10k", v: 10000 },
             { l: "$20k", v: 20000 }, { l: "$25k", v: 25000 }, { l: "$50k", v: 50000 }].map(c => (
             <button key={c.v} onClick={() => { setExtraContrib(c.v); setCustomContrib(""); }} style={{
-              padding: "4px 10px", border: "1px solid #1a3a5c", cursor: "pointer",
-              fontSize: "0.75rem", fontWeight: 600, fontFamily: "'EB Garamond', Georgia, serif",
+              padding: isMobile ? "4px 6px" : "4px 10px", border: "1px solid #1a3a5c", cursor: "pointer",
+              fontSize: isMobile ? "0.65rem" : "0.75rem", fontWeight: 600, fontFamily: "'EB Garamond', Georgia, serif",
               background: extraContrib === c.v && !customContrib ? "#005EB8" : "transparent",
               color: extraContrib === c.v && !customContrib ? "#ffffff" : "#2a4a6a",
               marginRight: -1, transition: "all 0.15s",

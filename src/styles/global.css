@@ -64,3 +64,9 @@ svg { pointer-events: auto; }
   animation: neonSweep 2.4s ease-in-out infinite;
   pointer-events: none;
 }
+
+@media (max-width: 767px) {
+  body { overflow-x: hidden; }
+  thead th { padding: 0.45rem 0.5rem !important; font-size: 0.5rem !important; }
+  tbody td { padding: 0.5rem 0.5rem !important; }
+}

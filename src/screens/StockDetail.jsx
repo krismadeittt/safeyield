@@ -6,6 +6,7 @@ import { projectGrowth, projectSteady, projectLinearTrend } from '../utils/proje
 import FinancialMetricChart from '../components/charts/FinancialMetricChart';
 import { MONTHLY_PAYERS, QUARTERLY_ETFS } from '../data/dividendCalendar';
 import Fundamentals from './Fundamentals';
+import useIsMobile from '../hooks/useIsMobile';
 
 const PROJ_YEARS = 10;
 
@@ -87,6 +88,7 @@ function computeAnnualYield(divHistory, priceHistory) {
 }
 
 export default function StockDetail({ stock, live, loading, onBack }) {
+  const isMobile = useIsMobile();
   const [fd, setFd] = useState(null);
   const [fdLoading, setFdLoading] = useState(true);
   const [histData, setHistData] = useState(null);
@@ -264,10 +266,11 @@ export default function StockDetail({ stock, live, loading, onBack }) {
   }, [hasFinancials, ah]);
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "1rem" }}>
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: isMobile ? "0.5rem" : "1rem" }}>
       {/* Header */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 16, marginBottom: "1.5rem",
+        display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? 10 : 16, marginBottom: "1.5rem",
+        flexDirection: isMobile ? "column" : "row",
       }}>
         <button onClick={onBack} style={{
           background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
@@ -290,8 +293,8 @@ export default function StockDetail({ stock, live, loading, onBack }) {
 
       {/* Key metrics */}
       <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-        gap: 8, marginBottom: "1.5rem",
+        display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(120px, 1fr))",
+        gap: isMobile ? 4 : 8, marginBottom: "1.5rem",
       }}>
         {[
           { label: "Price", value: `$${price.toFixed(2)}` },
@@ -430,8 +433,8 @@ export default function StockDetail({ stock, live, loading, onBack }) {
       {(opMarginChart || netMarginChart || roeChart) && (
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-          gap: "0 1rem",
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fit, minmax(300px, 1fr))",
+          gap: isMobile ? 0 : "0 1rem",
         }}>
           {opMarginChart && (
             <FinancialMetricChart

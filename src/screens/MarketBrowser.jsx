@@ -5,6 +5,7 @@ import { fetchBatchFundamentals } from '../api/fundamentals';
 import { searchTickers } from '../api/search';
 import MiniProgressBar from '../components/MiniProgressBar';
 import { formatCurrency } from '../utils/format';
+import useIsMobile from '../hooks/useIsMobile';
 
 const SECTORS = [
   "All", "Technology", "Healthcare", "Financials", "Consumer Staples",
@@ -15,6 +16,7 @@ const SECTORS = [
 const PAGE_SIZE = 50;
 
 export default function MarketBrowser({ onSelect, liveData, onAdd, holdings }) {
+  const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState("All");
   const [sortKey, setSortKey] = useState("cap");
@@ -85,12 +87,13 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings }) {
   ];
 
   return (
-    <div style={{ background: "#071525", border: "1px solid #0a1e30", padding: "1.2rem" }}>
+    <div style={{ background: "#071525", border: "1px solid #0a1e30", padding: isMobile ? "0.8rem" : "1.2rem" }}>
       {/* Search & filter bar */}
       <div style={{
-        display: "flex", flexWrap: "wrap", gap: 8, marginBottom: "1rem", alignItems: "center",
+        display: "flex", flexDirection: isMobile ? "column" : "row",
+        flexWrap: "wrap", gap: 8, marginBottom: "1rem", alignItems: isMobile ? "stretch" : "center",
       }}>
-        <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
+        <div style={{ position: "relative", flex: 1, minWidth: isMobile ? "auto" : 200 }}>
           <input
             placeholder="Search ticker or company..."
             value={search}
@@ -129,67 +132,148 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings }) {
           style={{
             padding: "8px 12px", background: "#071020", border: "1px solid #0a1e30",
             color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif",
+            width: isMobile ? "100%" : "auto",
           }}
         >
           {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
-      {/* Table */}
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
+      {isMobile ? (
+        <>
+          {/* Mobile: sort dropdown */}
+          <div style={{ marginBottom: "0.8rem" }}>
+            <select
+              value={sortKey}
+              onChange={e => handleSort(e.target.value)}
+              style={{
+                padding: "6px 10px", background: "#071020", border: "1px solid #0a1e30",
+                color: "#c8dff0", fontSize: "0.75rem", fontFamily: "'EB Garamond', Georgia, serif",
+                width: "100%",
+              }}
+            >
               {columns.map(c => (
-                <th key={c.key} onClick={() => handleSort(c.key)} style={{ cursor: "pointer" }}>
-                  {c.label} {sortKey === c.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
-                </th>
+                <option key={c.key} value={c.key}>
+                  Sort: {c.label} {sortKey === c.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                </option>
               ))}
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
+            </select>
+          </div>
+          {/* Mobile card layout */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {pageItems.map(stock => {
-              const p = prices[stock.ticker] || liveData?.[stock.ticker];
               const inPortfolio = holdingTickers.has(stock.ticker);
               return (
-                <tr key={stock.ticker}
+                <div key={stock.ticker}
                   onClick={() => onSelect(stock)}
-                  style={{ cursor: "pointer" }}
+                  style={{
+                    padding: "0.8rem", borderBottom: "1px solid #0f2540",
+                    cursor: "pointer",
+                  }}
                 >
-                  <td>
-                    <span style={{ fontWeight: 600, color: "#5aaff8" }}>{stock.ticker}</span>
-                    <div style={{ fontSize: "0.7rem", color: "#7a9ab8" }}>{stock.name}</div>
-                  </td>
-                  <td>${stock.cap}B</td>
-                  <td>
-                    {stock.yld > 0 ? `${stock.yld.toFixed(2)}%` : "—"}
-                    {stock.yld > 0 && <MiniProgressBar value={stock.yld} max={8} />}
-                  </td>
-                  <td>{stock.div > 0 ? `$${stock.div.toFixed(2)}` : "—"}</td>
-                  <td style={{ color: stock.g5 > 0 ? "#00cc66" : "#7a9ab8" }}>
-                    {stock.g5 > 0 ? `${stock.g5}%` : "—"}
-                  </td>
-                  <td>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</td>
-                  <td style={{ fontSize: "0.75rem", color: "#7a9ab8" }}>{stock.sector}</td>
-                  <td>
+                  {/* Ticker + Add button */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <div>
+                      <span style={{ fontWeight: 700, color: "#5aaff8", fontSize: "0.95rem" }}>{stock.ticker}</span>
+                      <span style={{ color: "#7a9ab8", fontSize: "0.7rem", marginLeft: 8 }}>${stock.cap}B</span>
+                    </div>
                     {inPortfolio ? (
                       <span style={{ color: "#00cc66", fontSize: "0.7rem" }}>In Portfolio</span>
                     ) : (
                       <button onClick={e => { e.stopPropagation(); onAdd(stock); }} style={{
                         background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
-                        padding: "3px 10px", cursor: "pointer", fontSize: "0.7rem",
+                        padding: "6px 14px", cursor: "pointer", fontSize: "0.75rem",
+                        minHeight: 44,
                       }}>
                         + Add
                       </button>
                     )}
-                  </td>
-                </tr>
+                  </div>
+                  {/* Company name */}
+                  <div style={{ fontSize: "0.7rem", color: "#7a9ab8", marginBottom: 8 }}>{stock.name}</div>
+                  {/* Metrics row */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: "0.45rem", color: "#1a4060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Yield</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#005EB8" }}>{stock.yld > 0 ? `${stock.yld.toFixed(2)}%` : "—"}</div>
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: "0.45rem", color: "#1a4060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Growth</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: stock.g5 > 0 ? "#00cc66" : "#7a9ab8" }}>{stock.g5 > 0 ? `${stock.g5}%` : "—"}</div>
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: "0.45rem", color: "#1a4060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Streak</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#c8dff0" }}>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</div>
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: "0.45rem", color: "#1a4060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Sector</div>
+                      <div style={{ fontSize: "0.7rem", color: "#7a9ab8" }}>{stock.sector}</div>
+                    </div>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Desktop Table */}
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {columns.map(c => (
+                    <th key={c.key} onClick={() => handleSort(c.key)} style={{ cursor: "pointer" }}>
+                      {c.label} {sortKey === c.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                    </th>
+                  ))}
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageItems.map(stock => {
+                  const p = prices[stock.ticker] || liveData?.[stock.ticker];
+                  const inPortfolio = holdingTickers.has(stock.ticker);
+                  return (
+                    <tr key={stock.ticker}
+                      onClick={() => onSelect(stock)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <td>
+                        <span style={{ fontWeight: 600, color: "#5aaff8" }}>{stock.ticker}</span>
+                        <div style={{ fontSize: "0.7rem", color: "#7a9ab8" }}>{stock.name}</div>
+                      </td>
+                      <td>${stock.cap}B</td>
+                      <td>
+                        {stock.yld > 0 ? `${stock.yld.toFixed(2)}%` : "—"}
+                        {stock.yld > 0 && <MiniProgressBar value={stock.yld} max={8} />}
+                      </td>
+                      <td>{stock.div > 0 ? `$${stock.div.toFixed(2)}` : "—"}</td>
+                      <td style={{ color: stock.g5 > 0 ? "#00cc66" : "#7a9ab8" }}>
+                        {stock.g5 > 0 ? `${stock.g5}%` : "—"}
+                      </td>
+                      <td>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</td>
+                      <td style={{ fontSize: "0.75rem", color: "#7a9ab8" }}>{stock.sector}</td>
+                      <td>
+                        {inPortfolio ? (
+                          <span style={{ color: "#00cc66", fontSize: "0.7rem" }}>In Portfolio</span>
+                        ) : (
+                          <button onClick={e => { e.stopPropagation(); onAdd(stock); }} style={{
+                            background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
+                            padding: "3px 10px", cursor: "pointer", fontSize: "0.7rem",
+                          }}>
+                            + Add
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -197,17 +281,19 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings }) {
           display: "flex", justifyContent: "center", gap: 4, marginTop: "1rem",
         }}>
           <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} style={{
-            padding: "4px 12px", background: "transparent", border: "1px solid #0a1e30",
+            padding: isMobile ? "8px 16px" : "4px 12px", background: "transparent", border: "1px solid #0a1e30",
             color: page === 0 ? "#0a1e30" : "#5aaff8", cursor: page === 0 ? "default" : "pointer",
+            minHeight: isMobile ? 44 : "auto",
           }}>
             Prev
           </button>
-          <span style={{ padding: "4px 12px", color: "#7a9ab8", fontSize: "0.8rem" }}>
+          <span style={{ padding: "4px 12px", color: "#7a9ab8", fontSize: "0.8rem", display: "flex", alignItems: "center" }}>
             Page {page + 1} of {totalPages}
           </span>
           <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} style={{
-            padding: "4px 12px", background: "transparent", border: "1px solid #0a1e30",
+            padding: isMobile ? "8px 16px" : "4px 12px", background: "transparent", border: "1px solid #0a1e30",
             color: page >= totalPages - 1 ? "#0a1e30" : "#5aaff8", cursor: page >= totalPages - 1 ? "default" : "pointer",
+            minHeight: isMobile ? 44 : "auto",
           }}>
             Next
           </button>

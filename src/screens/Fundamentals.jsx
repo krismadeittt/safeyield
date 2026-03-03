@@ -1,11 +1,14 @@
 import React from 'react';
 import SingleSeriesBar from '../components/charts/SingleSeriesBar';
 import { formatCurrency } from '../utils/format';
+import useIsMobile from '../hooks/useIsMobile';
 
 /**
  * Financial fundamentals panel — key-value stats with quarterly bar charts.
  */
 export default function Fundamentals({ fd, loading }) {
+  const isMobile = useIsMobile();
+
   if (loading) {
     return (
       <div style={{ textAlign: "center", padding: "2rem", color: "#2a4a6a" }}>
@@ -73,7 +76,7 @@ export default function Fundamentals({ fd, loading }) {
             color="#005EB8"
             fmt={chartFmt || formatCurrency}
             H={120}
-            PL={50}
+            PL={isMobile ? 35 : 50}
             PB={24}
           />
         )}

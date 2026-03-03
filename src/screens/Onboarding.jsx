@@ -4,8 +4,10 @@ import { BALANCE_OPTIONS } from '../data/portfolioTemplates';
 import { REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE } from '../data/portfolioTemplates';
 import { buildPortfolioFromWeights, buildNoblPortfolio } from '../utils/portfolio';
 import { formatCurrency } from '../utils/format';
+import useIsMobile from '../hooks/useIsMobile';
 
 export default function Onboarding({ onLoad, prePrices, preLoading }) {
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState("pick"); // "pick" or "balance"
   const [strategy, setStrategy] = useState(null);
   const [balance, setBalance] = useState("");
@@ -38,10 +40,10 @@ export default function Onboarding({ onLoad, prePrices, preLoading }) {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "center", padding: "2rem",
+        alignItems: "center", justifyContent: "center", padding: isMobile ? "1rem" : "2rem",
       }}>
         <h1 style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: "2.5rem",
+          fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.6rem" : "2.5rem",
           color: "#c8dff0", fontWeight: 700, marginBottom: "0.5rem",
         }}>
           SafeYield
@@ -106,7 +108,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading }) {
   return (
     <div style={{
       minHeight: "100vh", display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", padding: "2rem",
+      alignItems: "center", justifyContent: "center", padding: isMobile ? "1rem" : "2rem",
     }}>
       <div style={{
         fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em",
@@ -115,12 +117,12 @@ export default function Onboarding({ onLoad, prePrices, preLoading }) {
         {strategy.name}
       </div>
       <h2 style={{
-        fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.5rem",
+        fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
         color: "#c8dff0", marginBottom: "1.5rem",
       }}>
         Starting Balance
       </h2>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: "1rem" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: "1rem", justifyContent: "center" }}>
         {BALANCE_OPTIONS.map(opt => (
           <button key={opt.value} onClick={() => setBalance(String(opt.value))} style={{
             padding: "8px 20px", cursor: "pointer", fontSize: "0.9rem",
@@ -138,7 +140,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading }) {
         value={balance ? formatCurrency(parseFloat(balance.replace(/[,$]/g, "")) || 0) : ""}
         onChange={e => setBalance(e.target.value.replace(/[^0-9.]/g, ""))}
         style={{
-          width: 200, padding: "10px 16px", textAlign: "center", fontSize: "1.2rem",
+          width: isMobile ? "100%" : 200, maxWidth: 300, padding: "10px 16px", textAlign: "center", fontSize: "1.2rem",
           background: "#071020", border: "1px solid #1e293b", color: "#c8dff0",
           fontFamily: "'EB Garamond', Georgia, serif", marginBottom: "1rem",
         }}
