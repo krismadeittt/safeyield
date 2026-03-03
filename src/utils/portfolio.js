@@ -12,9 +12,10 @@ export function buildPortfolioFromWeights(template, balance, prices) {
       || ETF_DATABASE[ticker]
       || { name: ticker, score: 60, yld: 1.5, div: 1, payout: 40, g5: 5, streak: 0, sector: "Technology" };
     const allocation = balance * (weight / totalWeight);
-    const price = prices?.[ticker]?.price;
+    const priceData = prices?.[ticker];
+    const price = priceData?.price || 0;
     const shares = price > 0 ? allocation / price : allocation / 100;
-    return { ...entry, ticker, shares, _initValue: allocation };
+    return { ...entry, ticker, shares, price, _initValue: allocation };
   });
 }
 
@@ -24,9 +25,10 @@ export function buildPortfolioFromWeights(template, balance, prices) {
 export function buildNoblPortfolio(balance, prices) {
   return NOBL_HOLDINGS.map(stock => {
     const allocation = balance / NOBL_HOLDINGS.length;
-    const price = prices?.[stock.ticker]?.price;
+    const priceData = prices?.[stock.ticker];
+    const price = priceData?.price || 0;
     const shares = price > 0 ? allocation / price : allocation / 100;
-    return { ...stock, shares, _initValue: allocation };
+    return { ...stock, shares, price, _initValue: allocation };
   });
 }
 

@@ -103,6 +103,10 @@ export default function usePortfolio() {
     setStrategy(strategyId);
     setIsOnboarding(false);
     if (strategyId === "nobl") setIsSample(true);
+    // Seed liveData with pre-loaded prices so portfolio has values immediately
+    if (Object.keys(prePrices).length > 0) {
+      setLiveData(prev => ({ ...prev, ...prePrices }));
+    }
   }
 
   // Add stock to portfolio
