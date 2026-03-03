@@ -36,6 +36,7 @@ export default function HistoricalProjectedChart({
   const [histLoading, setHistLoading] = useState(false);
   const [granularity, setGranularity] = useState("quarterly");
   const [showDivReturn, setShowDivReturn] = useState(true);
+  const [histRange, setHistRange] = useState(10); // 0=Off, 5, 10, 15, 20
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -59,9 +60,9 @@ export default function HistoricalProjectedChart({
   const projYears = horizon;
 
   const realHistData = useMemo(() => {
-    if (Object.keys(historyMap).length === 0) return null;
-    return calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue);
-  }, [historyMap, holdings, portfolioValue]);
+    if (Object.keys(historyMap).length === 0 || histRange === 0) return null;
+    return calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, histRange);
+  }, [historyMap, holdings, portfolioValue, histRange]);
 
   // Real dividend income from KV history data (actual payments, not estimates)
   const realDivByYear = useMemo(() => {
@@ -76,15 +77,17 @@ export default function HistoricalProjectedChart({
   const dripAdvantage = finalDrip - finalNoDrip;
   const incomeAtHorizon = Math.round(totalIncome * Math.pow(1 + (growth || 5) / 100, horizon));
 
-  // Starting value (earliest available year)
+  // Starting value (earliest available year based on histRange)
+  const effectiveHistYears = histRange || 0;
   const startingValue = useMemo(() => {
     if (realHistData && realHistData.length > 1) return realHistData[0].value;
-    return Math.round(portfolioValue / Math.pow(1.10, FALLBACK_HIST));
-  }, [realHistData, portfolioValue]);
+    if (effectiveHistYears === 0) return portfolioValue;
+    return Math.round(portfolioValue / Math.pow(1.10, effectiveHistYears));
+  }, [realHistData, portfolioValue, effectiveHistYears]);
   const startingYear = useMemo(() => {
     if (realHistData && realHistData.length > 1) return realHistData[0].year;
-    return currentYear - FALLBACK_HIST;
-  }, [realHistData, currentYear]);
+    return currentYear - effectiveHistYears;
+  }, [realHistData, currentYear, effectiveHistYears]);
 
   // Growth percentage from starting to current
   const growthPct = startingValue > 0 ? ((portfolioValue / startingValue - 1) * 100).toFixed(1) : "0";
@@ -99,62 +102,63 @@ export default function HistoricalProjectedChart({
 
     const result = [];
 
-    // --- HISTORICAL: use ALL available years from KV data ---
-    // Growth ratios start from year 0 where both DRIP and noDRIP are equal,
-    // so the chart correctly shows DRIP bonus accumulating from zero.
-    let histYearlyValues;
-    if (realHistData && realHistData.length > 1) {
-      histYearlyValues = realHistData;
-    } else {
-      // Synthetic fallback when KV data hasn't loaded yet
-      let backVal = portfolioValue;
-      const vals = [{ year: currentYear, value: portfolioValue, noDripValue: portfolioValue }];
-      for (let i = 1; i <= FALLBACK_HIST; i++) {
-        const pastYield = yieldRate * Math.pow(1 + growthRate, -i);
-        const totalGrowth = 1 + annualReturn + pastYield;
-        backVal = backVal / totalGrowth;
-        vals.unshift({
-          year: currentYear - i,
-          value: Math.round(backVal),
-          noDripValue: Math.round(backVal),
-        });
-      }
-      histYearlyValues = vals;
-    }
+    // --- HISTORICAL ---
+    let nowNoDrip = portfolioValue;
 
-    // Interpolate yearly into quarterly/monthly
-    for (let yi = 0; yi < histYearlyValues.length - 1; yi++) {
-      const from = histYearlyValues[yi];
-      const to = histYearlyValues[yi + 1];
-      for (let p = 0; p < periodsPerYear; p++) {
-        const t = p / periodsPerYear;
-        const value = Math.round(from.value + (to.value - from.value) * t);
-        const noDripValue = Math.round(
-          (from.noDripValue || from.value) + ((to.noDripValue || to.value) - (from.noDripValue || from.value)) * t
-        );
-        result.push({
-          label: isQuarterly
-            ? `Q${p+1} ${from.year}`
-            : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${from.year}`,
-          axisLabel: p === 0 ? axisLabel(from.year, p, isQuarterly) : "",
-          fullLabel: isQuarterly
-            ? `Q${p+1} ${from.year} (actual)`
-            : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${from.year} (actual)`,
-          total: value,            // with DRIP (adjusted close)
-          noDrip: noDripValue,     // without DRIP (raw close)
-          dripBonus: Math.max(0, value - noDripValue),
-          isHistorical: true,
-          isCurrent: false,
-          year: from.year,
-          periodIndex: p,
-          yearsFromNow: from.year - currentYear,
-        });
+    if (effectiveHistYears > 0) {
+      let histYearlyValues;
+      if (realHistData && realHistData.length > 1) {
+        histYearlyValues = realHistData;
+      } else {
+        // Synthetic fallback when KV data hasn't loaded yet
+        let backVal = portfolioValue;
+        const vals = [{ year: currentYear, value: portfolioValue, noDripValue: portfolioValue }];
+        for (let i = 1; i <= effectiveHistYears; i++) {
+          const pastYield = yieldRate * Math.pow(1 + growthRate, -i);
+          const totalGrowth = 1 + annualReturn + pastYield;
+          backVal = backVal / totalGrowth;
+          vals.unshift({
+            year: currentYear - i,
+            value: Math.round(backVal),
+            noDripValue: Math.round(backVal),
+          });
+        }
+        histYearlyValues = vals;
       }
-    }
 
-    // "Now" bar — use the last historical data point's noDrip for accurate spread
-    const lastHist = histYearlyValues[histYearlyValues.length - 1];
-    const nowNoDrip = lastHist?.noDripValue || portfolioValue;
+      // Interpolate yearly into quarterly/monthly
+      for (let yi = 0; yi < histYearlyValues.length - 1; yi++) {
+        const from = histYearlyValues[yi];
+        const to = histYearlyValues[yi + 1];
+        for (let p = 0; p < periodsPerYear; p++) {
+          const t = p / periodsPerYear;
+          const value = Math.round(from.value + (to.value - from.value) * t);
+          const noDripValue = Math.round(
+            (from.noDripValue || from.value) + ((to.noDripValue || to.value) - (from.noDripValue || from.value)) * t
+          );
+          result.push({
+            label: isQuarterly
+              ? `Q${p+1} ${from.year}`
+              : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${from.year}`,
+            axisLabel: p === 0 ? axisLabel(from.year, p, isQuarterly) : "",
+            fullLabel: isQuarterly
+              ? `Q${p+1} ${from.year} (actual)`
+              : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${from.year} (actual)`,
+            total: value,
+            noDrip: noDripValue,
+            dripBonus: Math.max(0, value - noDripValue),
+            isHistorical: true,
+            isCurrent: false,
+            year: from.year,
+            periodIndex: p,
+            yearsFromNow: from.year - currentYear,
+          });
+        }
+      }
+
+      const lastHist = histYearlyValues[histYearlyValues.length - 1];
+      nowNoDrip = lastHist?.noDripValue || portfolioValue;
+    }
     result.push({
       label: "Now",
       axisLabel: "Now",
@@ -200,7 +204,7 @@ export default function HistoricalProjectedChart({
     }
 
     return { bars: result, nowBarIndex };
-  }, [portfolioValue, avgYield, growth, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals]);
+  }, [portfolioValue, avgYield, growth, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears]);
 
   const { bars: barData, nowBarIndex } = bars;
 
@@ -328,6 +332,24 @@ export default function HistoricalProjectedChart({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Historical range selector */}
+        <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "0.72rem", color: "#2a4a6a", marginRight: 8, fontFamily: "Georgia, serif" }}>
+            Historical:
+          </span>
+          {[{ l: "Off", v: 0 }, { l: "5Y", v: 5 }, { l: "10Y", v: 10 }, { l: "15Y", v: 15 }, { l: "20Y", v: 20 }].map(opt => (
+            <button key={opt.v} onClick={() => setHistRange(opt.v)} style={{
+              padding: "4px 10px", border: "1px solid #1a3a5c", cursor: "pointer",
+              fontSize: "0.75rem", fontWeight: 600, fontFamily: "'EB Garamond', Georgia, serif",
+              background: histRange === opt.v ? "#1a7a3a" : "transparent",
+              color: histRange === opt.v ? "#ffffff" : "#2a4a6a",
+              marginRight: -1, transition: "all 0.15s",
+            }}>
+              {opt.l}
+            </button>
+          ))}
         </div>
 
         {/* Contribution + volatility */}

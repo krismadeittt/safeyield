@@ -112,9 +112,10 @@ export function calcHistoricalDividendsByYear(historyMap, holdings) {
  * @param {Object} historyMap - { ticker: { p: [...], d: [...] }, ... }
  * @param {Array} holdings - [{ ticker, shares, ... }, ...]
  * @param {number} portfolioValue - Current portfolio value (for anchoring)
+ * @param {number} [maxYearsBack=20] - How many years of history to compute
  * @returns {Array} - [{ year, value, noDripValue }, ...]
  */
-export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue) {
+export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, maxYearsBack = 20) {
   const currentYear = new Date().getFullYear();
 
   // Helper: last trading day's price in a given year
@@ -128,7 +129,7 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
     return { ac: last.ac || last.c, c: last.c };
   }
 
-  // Find earliest year with data
+  // Find earliest year with data, capped by maxYearsBack
   let minDataYear = currentYear;
   holdings.forEach(h => {
     const hist = historyMap[h.ticker];
@@ -137,7 +138,7 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
       if (firstYear < minDataYear) minDataYear = firstYear;
     }
   });
-  const startYear = Math.max(minDataYear, currentYear - 20);
+  const startYear = Math.max(minDataYear, currentYear - maxYearsBack);
 
   // Only use tickers that have price data at the start year
   const basePrices = {};

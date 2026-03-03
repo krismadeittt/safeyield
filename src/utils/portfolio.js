@@ -22,15 +22,13 @@ function estimatePrice(entry) {
  * - Final normalization pass ensures the total matches the target balance exactly
  */
 export function buildPortfolioFromWeights(template, balance, prices) {
-  const totalWeight = template.reduce((sum, t) => sum + t.weight, 0) || 100;
-
-  // First pass: build holdings with best available price
-  const holdings = template.map(({ ticker, weight }) => {
+  // First pass: build holdings — split balance EVENLY across all stocks
+  const holdings = template.map(({ ticker }) => {
     const entry = ARISTOCRATS.find(a => a.ticker === ticker)
       || ETF_DATABASE[ticker]
       || { name: ticker, score: 60, yld: 1.5, div: 1, payout: 40, g5: 5, streak: 0, sector: "Technology" };
 
-    const allocation = balance * (weight / totalWeight);
+    const allocation = balance / template.length;
     const priceData = prices?.[ticker];
 
     // Price priority: API price > estimated from static data
