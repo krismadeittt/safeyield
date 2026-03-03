@@ -3,13 +3,12 @@ import HoldingRow from './HoldingRow';
 import { formatCurrency } from '../utils/format';
 
 const SORT_FIELDS = [
-  { key: "ticker", label: "Ticker" },
+  { key: "ticker", label: "Symbol" },
   { key: "shares", label: "Shares" },
   { key: "price", label: "Price" },
-  { key: "value", label: "Value" },
   { key: "yld", label: "Yield" },
-  { key: "div", label: "Annual Div" },
-  { key: "payout", label: "Payout" },
+  { key: "div", label: "Annual Div." },
+  { key: "payout", label: "Payout Ratio" },
   { key: "g5", label: "5Y Growth" },
   { key: "streak", label: "Streak" },
   { key: "weight", label: "Weight" },
@@ -21,6 +20,7 @@ export default function HoldingsTable({
 }) {
   const [sortKey, setSortKey] = useState("value");
   const [sortDir, setSortDir] = useState("desc");
+  const [searchFocus, setSearchFocus] = useState(false);
 
   const totalValue = useMemo(() =>
     holdings.reduce((sum, h) => {
@@ -50,54 +50,70 @@ export default function HoldingsTable({
   }
 
   return (
-    <div style={{ background: "#071525", border: "1px solid #0a1e30", padding: "1.2rem" }}>
+    <div style={{
+      background: "#0a1628", border: "1px solid #1a3a5c", overflow: "hidden",
+    }}>
+      {/* Header bar */}
       <div style={{
+        padding: "0.9rem 1.5rem", borderBottom: "1px solid #1a3a5c",
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: "1rem",
+        background: "#071020",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{
-            fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em", textTransform: "uppercase",
-          }}>
-            {title || "Portfolio Holdings"} ({holdings.length})
-          </div>
-          <div style={{
-            fontSize: "0.55rem", color: "#2a4a6a",
-          }}>
-            Total: <span style={{ color: "#5aaff8" }}>{formatCurrency(totalValue)}</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <span style={{
+          fontWeight: 600, letterSpacing: "0.12em", fontSize: "0.72rem",
+          textTransform: "uppercase", color: "#7a9ab8",
+          fontFamily: "'EB Garamond', Georgia, serif",
+        }}>
+          {title || "My Holdings"} ({holdings.length})
+        </span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <input
             placeholder="Search..."
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocus(true)}
+            onBlur={() => setSearchFocus(false)}
             style={{
-              background: "#071020", border: "1px solid #0a1e30", color: "#c8dff0",
-              padding: "6px 12px", fontSize: "0.8rem", width: 160,
+              background: "rgba(255,255,255,0.04)",
+              border: `1px solid ${searchFocus ? "rgba(0,94,184,0.6)" : "rgba(255,255,255,0.08)"}`,
+              color: "#c8dff0", padding: "0.4rem 0.8rem",
+              fontSize: "0.82rem", width: 190, outline: "none",
               fontFamily: "'EB Garamond', Georgia, serif",
+              transition: "border-color 0.2s",
             }}
           />
           {onAdd && (
             <button onClick={onAdd} style={{
-              background: "#005EB8", color: "#c8dff0", border: "none",
-              padding: "6px 16px", cursor: "pointer", fontSize: "0.8rem",
+              padding: "0.4rem 1rem", background: "#005EB8", border: "none",
+              color: "white", fontWeight: 700, cursor: "pointer",
+              fontSize: "0.8rem", letterSpacing: "0.02em",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
             }}>
               + Add
             </button>
           )}
         </div>
       </div>
+
+      {/* Table */}
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr>
+            <tr style={{ borderBottom: "1px solid #1e293b" }}>
               {SORT_FIELDS.map(f => (
-                <th key={f.key} onClick={() => handleSort(f.key)} style={{ cursor: "pointer" }}>
+                <th key={f.key} onClick={() => handleSort(f.key)} style={{
+                  cursor: "pointer", padding: "0.7rem 1rem", textAlign: "left",
+                  fontSize: "0.6rem", color: "#1a3a5c", textTransform: "uppercase",
+                  letterSpacing: "0.12em", whiteSpace: "nowrap",
+                  borderBottom: "1px solid rgba(255,255,255,0.04)",
+                }}>
                   {f.label} {sortKey === f.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
                 </th>
               ))}
-              <th></th>
+              <th style={{
+                padding: "0.7rem 1rem", fontSize: "0.6rem",
+                borderBottom: "1px solid rgba(255,255,255,0.04)",
+              }}></th>
             </tr>
           </thead>
           <tbody>
@@ -121,9 +137,13 @@ export default function HoldingsTable({
           </tbody>
         </table>
       </div>
+
+      {/* Footer */}
       {filtered.length > 0 && (
         <div style={{
-          textAlign: "center", padding: "0.8rem", color: "#1a4060", fontSize: "0.7rem",
+          padding: "0.5rem 1.5rem", borderTop: "1px solid #1e293b",
+          fontSize: "0.7rem", color: "#1e3a58",
+          fontFamily: "'EB Garamond', Georgia, serif",
         }}>
           Click any row for charts, live data & 10-year projection
         </div>

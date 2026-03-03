@@ -68,7 +68,7 @@ export default function DripComparisonBar({
           const y = padTop + chartH * (1 - pct);
           return (
             <g key={pct}>
-              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#0a1e30" strokeWidth={0.5} />
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#081828" strokeWidth={0.5} />
               <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#1a4060">
                 {fmtY ? fmtY(maxVal * pct) : n(maxVal * pct)}
               </text>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { projectPortfolio, seededPRNG } from '../utils/monteCarlo';
 import { calcMonthlyIncome } from '../utils/dividends';
 import { formatCurrency, MONTHS } from '../utils/format';
@@ -69,9 +69,9 @@ export default function Dashboard({
   }, [noDripVals, dripVals, contribVals, horizon]);
 
   const lineKeys = contribVals ? ["noDrip", "drip", "contrib"] : ["noDrip", "drip"];
-  const lineColors = contribVals ? ["#1a3a5c", "#005EB8", "#5aaff8"] : ["#1a3a5c", "#005EB8"];
+  const lineColors = contribVals ? ["#1a3a5c", "#005EB8", "#1a5a9e"] : ["#1a3a5c", "#005EB8"];
 
-  // Key projection values for stats cards
+  // Key projection values
   const finalNoDrip = noDripVals[noDripVals.length - 1] || 0;
   const finalDrip = (contribVals || dripVals)[horizon] || 0;
   const dripAdvantage = finalDrip - finalNoDrip;
@@ -83,111 +83,65 @@ export default function Dashboard({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.2rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
 
-      {/* 4 Stats Cards — TODAY / NO DRIP / DRIP / DRIP ADVANTAGE */}
+      {/* Stats row — bordered strip like old monolith */}
       <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8,
+        display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0,
+        marginBottom: "2.5rem",
+        borderTop: "1px solid #0a1e30", borderBottom: "1px solid #0a1e30",
+        background: "transparent",
       }}>
-        <StatCard
-          label="TODAY"
-          value={formatCurrency(portfolioValue)}
-          sub={`${formatCurrency(totalIncome)}/yr · ${formatCurrency(monthlyAvg)}/mo`}
-          accent="#5aaff8"
-        />
-        <StatCard
-          label={`NO DRIP · ${horizon}Y`}
-          value={formatCurrency(finalNoDrip)}
-          sub={`${avgYield.toFixed(2)}% yield · no reinvestment`}
-          accent="#3a5a78"
-        />
-        <StatCard
-          label={`DRIP · ${horizon}Y`}
-          value={formatCurrency(finalDrip)}
-          sub={`${growth.toFixed(1)}% div growth · reinvested`}
-          accent="#005EB8"
-        />
-        <StatCard
-          label="DRIP ADVANTAGE"
-          value={`+${formatCurrency(dripAdvantage)}`}
-          sub={finalNoDrip > 0
-            ? `+${((dripAdvantage / finalNoDrip) * 100).toFixed(1)}% more with DRIP`
-            : ""}
-          accent="#00cc66"
-        />
+        <StatCell label="Portfolio Value" value={formatCurrency(portfolioValue)} sub={`${holdings.length} holdings`} />
+        <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" />
+        <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} />
+        <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg)} sub="estimated" />
+        <StatCell label="Wtd Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last />
       </div>
 
-      {/* Controls bar */}
-      <div style={{
-        background: "#0a1628", border: "1px solid #0a1e30", padding: "0.8rem 1rem",
-        display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center",
-      }}>
-        {/* Horizon */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: "0.55rem", color: "#1a4060", letterSpacing: "0.15em", marginRight: 4 }}>
-            HORIZON
-          </span>
-          {HORIZONS.map(h => (
-            <button key={h} onClick={() => setHorizon(h)} style={{
-              padding: "3px 8px", fontSize: "0.7rem", cursor: "pointer",
-              background: horizon === h ? "#005EB8" : "transparent",
-              color: horizon === h ? "#c8dff0" : "#2a4a6a",
-              border: `1px solid ${horizon === h ? "#005EB8" : "#0a1e30"}`,
-            }}>
-              {h}Y
-            </button>
-          ))}
-        </div>
-
-        <div style={{ width: 1, height: 20, background: "#0a1e30" }} />
-
-        {/* Volatility toggle */}
-        <button onClick={() => setUseVolatility(v => !v)} style={{
-          padding: "3px 10px", fontSize: "0.7rem", cursor: "pointer",
-          background: useVolatility ? "#005EB8" : "transparent",
-          color: useVolatility ? "#c8dff0" : "#2a4a6a",
-          border: `1px solid ${useVolatility ? "#005EB8" : "#0a1e30"}`,
-        }}>
-          {useVolatility ? "Volatility ON" : "Real World Returns"}
-        </button>
-
-        <div style={{ width: 1, height: 20, background: "#0a1e30" }} />
-
-        {/* LINE / MONTHLY BAR toggle */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: "0.55rem", color: "#1a4060", letterSpacing: "0.15em", marginRight: 4 }}>
-            VIEW
-          </span>
-          {[
-            { key: "line", label: "LINE" },
-            { key: "monthly", label: "MONTHLY BAR" },
-          ].map(m => (
-            <button key={m.key} onClick={() => setChartMode(m.key)} style={{
-              padding: "3px 10px", fontSize: "0.7rem", cursor: "pointer",
-              background: chartMode === m.key ? "#005EB8" : "transparent",
-              color: chartMode === m.key ? "#c8dff0" : "#2a4a6a",
-              border: `1px solid ${chartMode === m.key ? "#005EB8" : "#0a1e30"}`,
-            }}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Historical & Projected Income */}
+      <HistoricalProjectedChart
+        portfolioValue={portfolioValue}
+        avgYield={avgYield}
+        growth={growth}
+        horizon={horizon}
+        setHorizon={setHorizon}
+        useVolatility={useVolatility}
+        setUseVolatility={setUseVolatility}
+        chartMode={chartMode}
+        setChartMode={setChartMode}
+        extraContrib={contrib}
+        noDripVals={noDripVals}
+        dripVals={dripVals}
+        contribVals={contribVals}
+        totalIncome={totalIncome}
+        lineData={lineData}
+        lineKeys={lineKeys}
+        lineColors={lineColors}
+        monthlyData={monthlyData}
+        holdings={holdings}
+      />
 
       {/* Extra contributions */}
       <div style={{
-        background: "#0a1628", border: "1px solid #0a1e30", padding: "0.8rem 1rem",
+        background: "#0a1628", border: "1px solid #1a3a5c", padding: "0.9rem 1.5rem",
         display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center",
+        marginTop: "1.5rem",
       }}>
-        <span style={{ fontSize: "0.55rem", color: "#1a4060", letterSpacing: "0.15em" }}>
-          ANNUAL CONTRIBUTION
+        <span style={{
+          fontSize: "0.6rem", color: "#2a4a6a", letterSpacing: "0.07em",
+          textTransform: "uppercase", fontFamily: "system-ui",
+        }}>
+          Annual Contribution
         </span>
         {CONTRIBUTIONS.map(c => (
           <button key={c} onClick={() => { setExtraContrib(c); setCustomContrib(""); }} style={{
-            padding: "3px 8px", fontSize: "0.7rem", cursor: "pointer",
-            background: extraContrib === c && !customContrib ? "#005EB8" : "transparent",
-            color: extraContrib === c && !customContrib ? "#c8dff0" : "#2a4a6a",
-            border: `1px solid ${extraContrib === c && !customContrib ? "#005EB8" : "#0a1e30"}`,
+            padding: "0.28rem 0.6rem", fontSize: "0.75rem", fontWeight: 700,
+            cursor: "pointer", fontFamily: "system-ui",
+            background: extraContrib === c && !customContrib ? "#071020" : "#0f2035",
+            color: extraContrib === c && !customContrib ? "#005EB8" : "#2a4a6a",
+            border: `1px solid ${extraContrib === c && !customContrib ? "#005EB8" : "#1a3a5c"}`,
+            transition: "all 0.15s",
           }}>
           {c === 0 ? "$0" : `$${(c/1000).toFixed(0)}k`}
           </button>
@@ -197,117 +151,47 @@ export default function Dashboard({
           value={customContrib}
           onChange={e => setCustomContrib(e.target.value.replace(/[^0-9]/g, ""))}
           style={{
-            width: 80, padding: "3px 8px", fontSize: "0.7rem",
-            background: "#071020", border: "1px solid #0a1e30", color: "#c8dff0",
-            fontFamily: "'EB Garamond', Georgia, serif",
+            width: 80, padding: "0.28rem 0.6rem", fontSize: "0.75rem",
+            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
+            color: "#c8dff0", fontFamily: "system-ui", outline: "none",
           }}
         />
       </div>
 
-      {/* DRIP vs No-DRIP chart + Legend */}
-      <div style={{ background: "#071525", border: "1px solid #0a1e30", padding: "1.2rem" }}>
-        <div style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          marginBottom: "0.8rem",
-        }}>
-          <div style={{
-            fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em",
-            textTransform: "uppercase",
-          }}>
-            DRIP vs No-DRIP — Portfolio Value
-          </div>
-          {/* Legend */}
-          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <div style={{ width: 10, height: 10, background: "#1a3050" }} />
-              <span style={{ fontSize: "0.6rem", color: "#3a5a78" }}>No DRIP</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <div style={{ width: 10, height: 10, background: "#005EB8" }} />
-              <span style={{ fontSize: "0.6rem", color: "#3a5a78" }}>DRIP Bonus</span>
-            </div>
-            {contribVals && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <div style={{ width: 10, height: 10, background: "#5aaff8" }} />
-                <span style={{ fontSize: "0.6rem", color: "#3a5a78" }}>+ Contributions</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {chartMode === "line" ? (
-          <MultiLineChart
-            pts={lineData}
-            keys={lineKeys}
-            colors={lineColors}
-            dashes={["4,4"]}
-            fmt={formatCurrency}
-            H={220}
-          />
-        ) : (
-          <PortfolioBalanceMonthly
-            dripVals={dripVals}
-            contribVals={contribVals}
-            monthlyData={monthlyData}
-            totalIncome={totalIncome}
-            avgYield={avgYield}
-            horizon={horizon}
-            extraContrib={contrib}
-          />
-        )}
-      </div>
-
-      {/* DRIP Comparison (stacked bars) — always show */}
-      <DripComparisonBar
-        projData={{ noDrip: noDripVals, drip: dripVals }}
-        contribVals={contribVals}
-        horizon={horizon}
-        extraContrib={contrib}
-        fmtY={formatCurrency}
-      />
-
-      {/* Historical & Projected Income */}
-      <HistoricalProjectedChart
-        portfolioValue={portfolioValue}
-        avgYield={avgYield}
-        growth={growth}
-        horizon={horizon}
-        holdings={holdings}
-      />
-
       {/* Monthly dividend heatmap */}
-      <MonthlyHeatmap
-        fullYearData={fullYearData}
-        avgYield={avgYield}
-        monthlyData={monthlyData}
-      />
+      <div style={{ marginTop: "1.5rem" }}>
+        <MonthlyHeatmap
+          fullYearData={fullYearData}
+          avgYield={avgYield}
+          monthlyData={monthlyData}
+        />
+      </div>
     </div>
   );
 }
 
-/**
- * Single stat card used in the top row.
- */
-function StatCard({ label, value, sub, accent }) {
+function StatCell({ label, value, sub, last }) {
   return (
     <div style={{
-      background: "#0a1628", border: "1px solid #0a1e30", padding: "1rem 1.2rem",
+      padding: "1.8rem 2rem",
+      borderRight: last ? "none" : "1px solid #0a1e30",
     }}>
       <div style={{
-        fontSize: "0.5rem", color: "#1a4060", letterSpacing: "0.2em",
-        textTransform: "uppercase", marginBottom: 6,
+        fontSize: "0.56rem", color: "#1e4060", textTransform: "uppercase",
+        letterSpacing: "0.2em", marginBottom: "0.65rem",
+        fontFamily: "'EB Garamond', Georgia, serif",
       }}>
         {label}
       </div>
       <div style={{
-        fontSize: "1.4rem", fontWeight: 700, color: accent || "#c8dff0",
+        fontSize: "1.5rem", fontWeight: 600, color: "#c8dff0", lineHeight: 1,
         fontFamily: "'Playfair Display', Georgia, serif",
       }}>
         {value}
       </div>
       {sub && (
         <div style={{
-          fontSize: "0.65rem", color: "#2a4a6a", marginTop: 4,
+          fontSize: "0.7rem", color: "#1a3a58", marginTop: "0.4rem", fontStyle: "italic",
         }}>
           {sub}
         </div>

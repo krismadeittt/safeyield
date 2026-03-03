@@ -22,7 +22,7 @@ export function EditRow({ stock, weightPct, onRemove, onEdit }) {
 
   return (
     <tr ref={ref} style={{ background: "rgba(0,94,184,0.06)" }}>
-      <td style={{ fontWeight: 600, color: "#5aaff8" }}>{stock.ticker}</td>
+      <td style={{ fontWeight: 700, color: "#ffffff", letterSpacing: "0.06em" }}>{stock.ticker}</td>
       <td>
         <input
           type="number"
@@ -35,21 +35,21 @@ export function EditRow({ stock, weightPct, onRemove, onEdit }) {
             }
           }}
           style={{
-            width: 90, background: "#071020", border: "1px solid #1e293b",
+            width: 90, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
             color: "#c8dff0", padding: "4px 8px", fontFamily: "'EB Garamond', Georgia, serif",
           }}
           autoFocus
         />
       </td>
-      <td colSpan={8} style={{ color: "#7a9ab8", fontSize: "0.85rem" }}>
+      <td colSpan={8} style={{ color: "#2a4a6a", fontSize: "0.82rem" }}>
         Press Enter to save · {weightPct != null ? `${weightPct.toFixed(1)}% of portfolio` : ""}
       </td>
       <td>
         <button
           onClick={() => onRemove(stock.ticker)}
           style={{
-            background: "none", border: "none", color: "#ff4466",
-            cursor: "pointer", fontSize: "0.85rem",
+            background: "none", border: "none", color: "#3a7abd",
+            cursor: "pointer", fontSize: "0.82rem",
           }}
         >
           Remove
@@ -60,14 +60,13 @@ export function EditRow({ stock, weightPct, onRemove, onEdit }) {
 }
 
 /**
- * Display row — rich design matching old monolith.
- * Shows: ticker+LIVE+name, shares, price+change%, value, yield+bar, annual div "per share",
- * payout+bar, 5Y Growth, Streak, Weight%, edit/remove icons.
+ * Display row — matches old monolith exactly.
  */
 export default function HoldingRow({
   stock, live, loading, onClick, onRemove, weightPct, onEdit,
 }) {
   const [editing, setEditing] = useState(false);
+  const [rowHover, setRowHover] = useState(false);
   const data = live || stock;
   const price = data.price || 0;
   const value = price * (stock.shares || 0);
@@ -75,7 +74,6 @@ export default function HoldingRow({
   const annualDiv = data.annualDiv ?? stock.div ?? 0;
   const payout = data.payout ?? stock.payout ?? null;
   const change = data.change ?? 0;
-  const income = annualDiv * (stock.shares || 0);
   const g5 = stock.g5 ?? 0;
   const streak = stock.streak ?? 0;
 
@@ -96,32 +94,45 @@ export default function HoldingRow({
   return (
     <tr
       onClick={() => onClick?.(stock)}
-      style={{ cursor: onClick ? "pointer" : "default" }}
+      onMouseEnter={() => setRowHover(true)}
+      onMouseLeave={() => setRowHover(false)}
+      style={{
+        cursor: onClick ? "pointer" : "default",
+        borderBottom: "1px solid #0f2540",
+        background: rowHover ? "rgba(0,94,184,0.08)" : "transparent",
+        transition: "background 0.12s",
+      }}
     >
       {/* Ticker + LIVE badge + Company name */}
       <td>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontWeight: 700, color: "#5aaff8", fontSize: "0.95rem" }}>
+          <span style={{
+            fontWeight: 700, color: "#ffffff", fontSize: "0.88rem",
+            letterSpacing: "0.06em", fontFamily: "'EB Garamond', Georgia, serif",
+          }}>
             {stock.ticker}
           </span>
           {live && (
             <span style={{
-              fontSize: "0.45rem", color: "#00cc66", letterSpacing: "0.15em",
-              padding: "1px 5px", border: "1px solid rgba(0,204,102,0.3)",
-              fontWeight: 600, lineHeight: 1.4,
+              fontSize: "0.48rem", color: "#5aabff", letterSpacing: "0.1em",
+              padding: "1px 5px", border: "1px solid rgba(0,94,184,0.4)",
+              fontWeight: 700, background: "rgba(0,94,184,0.25)",
             }}>
               LIVE
             </span>
           )}
         </div>
-        <div style={{ fontSize: "0.72rem", color: "#3a5a78", marginTop: 1 }}>
+        <div style={{
+          fontSize: "0.67rem", color: "#2a4a6a", marginTop: 2,
+          maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
           {stock.name || stock.ticker}
         </div>
       </td>
 
       {/* Shares */}
       <td
-        style={{ color: "#7a9ab8", cursor: "pointer", fontSize: "0.9rem" }}
+        style={{ color: "#c8dff0", cursor: "pointer" }}
         onClick={e => { e.stopPropagation(); setEditing(true); }}
         title="Click to edit"
       >
@@ -131,80 +142,93 @@ export default function HoldingRow({
       {/* Price + Change % */}
       <td>
         {loading ? (
-          <span style={{ color: "#2a4a6a" }}>...</span>
+          <span style={{ color: "#005EB8", fontSize: "0.7rem" }}>···</span>
         ) : (
           <div>
-            <div style={{ color: "#c8dff0", fontSize: "0.9rem" }}>
+            <div style={{ fontWeight: 700, color: "#c8dff0" }}>
               ${price.toFixed(2)}
             </div>
             {change !== 0 && (
               <div style={{
-                fontSize: "0.68rem", marginTop: 1,
-                color: change > 0 ? "#00cc66" : "#ff4466",
+                fontSize: "0.68rem",
+                color: change > 0 ? "#005EB8" : "#3a7abd",
               }}>
-                {change > 0 ? "+" : ""}{change.toFixed(2)}%
+                {change > 0 ? "▲" : "▼"}{Math.abs(change).toFixed(2)}%
               </div>
             )}
           </div>
         )}
       </td>
 
-      {/* Value */}
-      <td style={{ color: "#c8dff0", fontWeight: 600, fontSize: "0.9rem" }}>
-        {formatCurrency(value)}
-      </td>
-
       {/* Yield + mini bar */}
       <td>
-        <div style={{ fontSize: "0.9rem", color: "#c8dff0" }}>
-          {yld > 0 ? `${yld.toFixed(2)}%` : "—"}
-        </div>
-        {yld > 0 && <MiniProgressBar value={yld} max={10} />}
+        {yld > 0 ? (
+          <div>
+            <span style={{ fontWeight: 700, color: "#005EB8" }}>
+              {yld.toFixed(2)}%
+            </span>
+            <MiniProgressBar value={yld} max={10} color="#005EB8" />
+          </div>
+        ) : (
+          <span style={{ fontWeight: 600, color: "#1e3a58", fontSize: "0.82rem" }}>—</span>
+        )}
       </td>
 
       {/* Annual Div per share */}
       <td>
-        <div style={{ color: "#c8dff0", fontSize: "0.9rem" }}>
-          {annualDiv > 0 ? `$${annualDiv.toFixed(2)}` : "—"}
-        </div>
-        {annualDiv > 0 && (
-          <div style={{ fontSize: "0.6rem", color: "#2a4a6a", marginTop: 1 }}>per share</div>
+        {annualDiv > 0 ? (
+          <div>
+            <span style={{ fontWeight: 700, color: "#c8dff0" }}>
+              ${annualDiv.toFixed(2)}
+            </span>
+            <div style={{ fontSize: "0.68rem", color: "#2a4a6a" }}>per share</div>
+          </div>
+        ) : (
+          <span style={{ color: "#1e3a58" }}>—</span>
         )}
       </td>
 
       {/* Payout + mini bar */}
       <td>
-        <div style={{ fontSize: "0.9rem", color: "#c8dff0" }}>
-          {payout != null ? `${payout}%` : "—"}
-        </div>
-        {payout != null && (
-          <MiniProgressBar
-            value={payout}
-            max={100}
-            color={payout > 80 ? "#ff4466" : payout > 60 ? "#ffaa33" : "#005EB8"}
-          />
+        {payout != null ? (
+          <div>
+            <span style={{ fontWeight: 700, color: payout > 80 ? "#3a7abd" : "#005EB8" }}>
+              {payout.toFixed ? payout.toFixed(0) : payout}%
+            </span>
+            <MiniProgressBar
+              value={payout}
+              max={100}
+              color={payout > 80 ? "#3a7abd" : "#005EB8"}
+            />
+          </div>
+        ) : (
+          <span style={{ color: "#1e3a58" }}>—</span>
         )}
       </td>
 
       {/* 5Y Growth */}
       <td>
         {g5 > 0 ? (
-          <span style={{ color: "#00cc66", fontSize: "0.85rem" }}>
+          <span style={{ fontWeight: 700, color: "#005EB8" }}>
             +{g5.toFixed(1)}%
           </span>
+        ) : g5 < 0 ? (
+          <span style={{ fontWeight: 700, color: "#3a7abd" }}>
+            {g5.toFixed(1)}%
+          </span>
         ) : (
-          <span style={{ color: "#2a4a6a" }}>—</span>
+          <span style={{ color: "#1e3a58" }}>—</span>
         )}
       </td>
 
       {/* Streak */}
       <td>
         {streak > 0 ? (
-          <span style={{ color: "#7a9ab8", fontSize: "0.85rem" }}>
+          <span style={{ fontFamily: "'EB Garamond', Georgia, serif", color: "#5a8ab0" }}>
             {streak}y
           </span>
         ) : (
-          <span style={{ color: "#2a4a6a" }}>—</span>
+          <span style={{ color: "#1e3a58" }}>—</span>
         )}
       </td>
 
@@ -221,7 +245,7 @@ export default function HoldingRow({
             title="Edit shares"
             style={{
               background: "none", border: "none", color: "#2a4a6a",
-              cursor: "pointer", fontSize: "0.85rem", padding: 2,
+              cursor: "pointer", fontSize: "0.82rem", padding: 2,
             }}
           >
             ✎
