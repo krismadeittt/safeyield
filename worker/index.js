@@ -97,6 +97,19 @@ function quarterly(section, field, scale) {
     .filter(Boolean);
 }
 
+function annual(section, field, scale) {
+  scale = scale || 1;
+  if (!section || typeof section !== "object") return [];
+  return Object.entries(section)
+    .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
+    .slice(-12)
+    .map(function(entry) {
+      var val = sf(entry[1] && entry[1][field], scale);
+      return val !== null ? { date: entry[0], value: val } : null;
+    })
+    .filter(Boolean);
+}
+
 function parseFundamentals(raw) {
   if (!raw || typeof raw !== "object") return {};
 
@@ -131,6 +144,10 @@ function parseFundamentals(raw) {
   var incQ = (FI.Income_Statement && FI.Income_Statement.quarterly) || {};
   var balQ = (FI.Balance_Sheet    && FI.Balance_Sheet.quarterly)    || {};
   var cfQ  = (FI.Cash_Flow        && FI.Cash_Flow.quarterly)        || {};
+
+  var incY = (FI.Income_Statement && FI.Income_Statement.yearly) || {};
+  var balY = (FI.Balance_Sheet    && FI.Balance_Sheet.yearly)    || {};
+  var cfY  = (FI.Cash_Flow        && FI.Cash_Flow.yearly)        || {};
 
   var fcfHistory = Object.entries(cfQ)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
@@ -171,6 +188,10 @@ function parseFundamentals(raw) {
 
   var revenue      = sf(H.RevenueTTM);
   var eps          = sf(H.EarningsShare);
+  // Compute payout from annualDiv / EPS if EODHD doesn't provide it
+  if (payout == null && annualDiv > 0 && eps > 0) {
+    payout = (annualDiv / eps) * 100;
+  }
   var epsGrowth    = sf(H.QuarterlyEarningsGrowthYOY,  100);
   var salesGrowth  = sf(H.QuarterlyRevenueGrowthYOY,   100);
   var roe          = sf(H.ReturnOnEquityTTM, 100);
@@ -191,6 +212,7 @@ function parseFundamentals(raw) {
   var netDebtToEbitda  = (latestNetDebt != null && ebitda) ? latestNetDebt / ebitda : null;
   var lastEbit         = ebitHistory.length ? ebitHistory[ebitHistory.length - 1] : null;
   var latestCoverage   = lastEbit ? lastEbit.coverage : null;
+  var annHist          = buildAnnualHistory(incY, balY, cfY);
 
   return {
     name:    G.Name   || null,
@@ -229,6 +251,146 @@ function parseFundamentals(raw) {
       shares:    quarterly(balQ, "commonStockSharesOutstanding", 1 / 1e6),
       ebit:      ebitHistory.map(function(d) { return { date: d.date, value: d.value }; }),
     },
+    annualHistory: annHist,
+    g5:     annHist.dps ? computeG5(annHist.dps) : null,
+    streak: annHist.dps ? computeStreak(annHist.dps) : null,
+  };
+}
+
+// Compute 5-year DPS CAGR from annual dividend per share data
+function computeG5(dps) {
+  if (!dps || dps.length < 2) return null;
+  // Use last 5 years (or whatever we have, minimum 2)
+  var recent = dps.slice(-6); // 6 entries = 5 years of growth
+  if (recent.length < 2) return null;
+  var first = recent[0].value;
+  var last  = recent[recent.length - 1].value;
+  if (!first || first <= 0 || !last || last <= 0) return null;
+  var years = recent.length - 1;
+  var cagr  = (Math.pow(last / first, 1 / years) - 1) * 100;
+  return round(cagr, 1);
+}
+
+// Compute consecutive years of dividend increases
+function computeStreak(dps) {
+  if (!dps || dps.length < 2) return 0;
+  var streak = 0;
+  for (var i = dps.length - 1; i > 0; i--) {
+    if (dps[i].value > dps[i - 1].value) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function buildAnnualHistory(incY, balY, cfY) {
+  var revenue = annual(incY, "totalRevenue");
+  var netIncome = annual(incY, "netIncome");
+
+  // Compute EPS = netIncome / sharesOutstanding (dilutedEPS not in income stmt)
+  var incEntries0 = Object.entries(incY).sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
+  var balEntries0 = Object.entries(balY).sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
+  var sharesMap0 = {};
+  balEntries0.forEach(function(e) {
+    var s = parseFloat((e[1] || {}).commonStockSharesOutstanding);
+    if (!isNaN(s) && s > 0) sharesMap0[e[0]] = s;
+  });
+  var eps = incEntries0.slice(-12).map(function(entry) {
+    var ni = parseFloat((entry[1] || {}).netIncome);
+    var s = sharesMap0[entry[0]];
+    if (isNaN(ni) || !s) return null;
+    return { date: entry[0], value: round(ni / s, 2) };
+  }).filter(Boolean);
+
+  // FCF = operating cash flow + capital expenditures (capex is negative)
+  var fcf = Object.entries(cfY)
+    .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
+    .slice(-12)
+    .map(function(entry) {
+      var row = entry[1] || {};
+      var ocf = parseFloat(row.totalCashFromOperatingActivities);
+      var capex = parseFloat(row.capitalExpenditures);
+      if (isNaN(ocf)) return null;
+      return { date: entry[0], value: isNaN(capex) ? ocf : ocf + capex };
+    })
+    .filter(Boolean);
+
+  // Net debt = total debt - cash
+  var netDebt = Object.entries(balY)
+    .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
+    .slice(-12)
+    .map(function(entry) {
+      var row = entry[1] || {};
+      var debt = parseFloat(row.shortLongTermDebtTotal || row.longTermDebt || 0);
+      var cash = parseFloat(row.cash || 0);
+      if (isNaN(debt) && isNaN(cash)) return null;
+      return { date: entry[0], value: (isNaN(debt) ? 0 : debt) - (isNaN(cash) ? 0 : cash) };
+    })
+    .filter(Boolean);
+
+  var shares = annual(balY, "commonStockSharesOutstanding", 1 / 1e6);
+
+  // Margins: operating margin & net margin (computed from revenue and income)
+  var margins = Object.entries(incY)
+    .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
+    .slice(-12)
+    .map(function(entry) {
+      var row = entry[1] || {};
+      var rev = parseFloat(row.totalRevenue);
+      var opIncome = parseFloat(row.operatingIncome || row.ebit);
+      var ni = parseFloat(row.netIncome);
+      if (isNaN(rev) || rev === 0) return null;
+      return {
+        date: entry[0],
+        opMargin: !isNaN(opIncome) ? round(opIncome / rev * 100, 1) : null,
+        netMargin: !isNaN(ni) ? round(ni / rev * 100, 1) : null,
+      };
+    })
+    .filter(Boolean);
+
+  // ROE = net income / total stockholder equity
+  var roeData = [];
+  var incEntries = Object.entries(incY).sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
+  var balEntries = Object.entries(balY).sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
+  var balMap = {};
+  balEntries.forEach(function(e) { balMap[e[0]] = e[1]; });
+  incEntries.slice(-12).forEach(function(entry) {
+    var ni = parseFloat((entry[1] || {}).netIncome);
+    var bal = balMap[entry[0]] || {};
+    var equity = parseFloat(bal.totalStockholderEquity);
+    if (!isNaN(ni) && !isNaN(equity) && equity !== 0) {
+      roeData.push({ date: entry[0], value: round(ni / equity * 100, 1) });
+    }
+  });
+
+  // DPS = dividends paid / shares outstanding (both annual)
+  var dps = [];
+  var cfEntries = Object.entries(cfY).sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
+  var sharesMap = {};
+  balEntries.forEach(function(e) {
+    var s = parseFloat((e[1] || {}).commonStockSharesOutstanding);
+    if (!isNaN(s) && s > 0) sharesMap[e[0]] = s;
+  });
+  cfEntries.slice(-12).forEach(function(entry) {
+    var divPaid = parseFloat((entry[1] || {}).dividendsPaid);
+    var s = sharesMap[entry[0]];
+    if (!isNaN(divPaid) && s) {
+      dps.push({ date: entry[0], value: round(Math.abs(divPaid) / s, 4) });
+    }
+  });
+
+  return {
+    revenue: revenue,
+    eps: eps,
+    netIncome: netIncome,
+    fcf: fcf,
+    netDebt: netDebt,
+    shares: shares,
+    margins: margins,
+    roe: roeData,
+    dps: dps,
   };
 }
 
@@ -294,6 +456,8 @@ export default {
           divYield:   divYield  != null ? parseFloat(divYield.toFixed(3))  : null,
           annualDiv:  annualDiv != null ? parseFloat(annualDiv.toFixed(4)) : null,
           payout:     f.payout     || null,
+          g5:         f.g5         != null ? f.g5 : null,
+          streak:     f.streak     != null ? f.streak : null,
           marketCap:  f.marketCap  || null,
           week52High: f.week52High || null,
           week52Low:  f.week52Low  || null,

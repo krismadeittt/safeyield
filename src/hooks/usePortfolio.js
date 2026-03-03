@@ -61,7 +61,25 @@ export default function usePortfolio() {
     if (missing.length > 0) {
       fetchBatchUpdate(missing).then(data => setLiveData(prev => ({ ...prev, ...data })));
     }
-    fetchBatchFundamentals(tickers);
+    // Fetch fundamentals and merge live dividend metrics into liveData
+    fetchBatchFundamentals(tickers).then(fdMap => {
+      if (!fdMap || !Object.keys(fdMap).length) return;
+      setLiveData(prev => {
+        const merged = { ...prev };
+        for (const [ticker, fd] of Object.entries(fdMap)) {
+          if (!fd || fd.error) continue;
+          merged[ticker] = {
+            ...merged[ticker],
+            divYield: fd.divYield ?? merged[ticker]?.divYield ?? null,
+            annualDiv: fd.annualDiv ?? merged[ticker]?.annualDiv ?? null,
+            payout: fd.payout ?? merged[ticker]?.payout ?? null,
+            g5: fd.g5 ?? merged[ticker]?.g5 ?? null,
+            streak: fd.streak ?? merged[ticker]?.streak ?? null,
+          };
+        }
+        return merged;
+      });
+    });
   }, [holdings.length]);
 
   // Poll prices every 5 minutes
@@ -97,7 +115,7 @@ export default function usePortfolio() {
     try {
       const data = await fetchEnrichedQuote(ticker);
       if (data) {
-        setLiveData(prev => ({ ...prev, [ticker]: data }));
+        setLiveData(prev => ({ ...prev, [ticker]: { ...prev[ticker], ...data } }));
         // Update holding data if it has enriched info
         setHoldings(prev => prev.map(h => {
           if (h.ticker !== ticker) return h;
@@ -106,6 +124,8 @@ export default function usePortfolio() {
             name: data.name || h.name,
             sector: data.sector || h.sector,
             price: data.price || h.price,
+            g5: data.g5 ?? h.g5,
+            streak: data.streak ?? h.streak,
           };
         }));
       }
@@ -146,8 +166,8 @@ export default function usePortfolio() {
         yld: yldOverride || data?.divYield || 0,
         div: data?.annualDiv || 0,
         payout: data?.payout || null,
-        g5: 5,
-        streak: 0,
+        g5: data?.g5 ?? 5,
+        streak: data?.streak ?? 0,
         score: 50,
       };
 
@@ -193,7 +213,7 @@ export default function usePortfolio() {
       const value = price * (h.shares || 0);
       const yld = live?.divYield ?? h.yld ?? 0;
       const div = live?.annualDiv ?? h.div ?? 0;
-      const g5 = h.g5 ?? 5;
+      const g5 = live?.g5 ?? h.g5 ?? 5;
       pv += value;
       annualIncome += div * (h.shares || 0);
       if (yld > 0) { yieldSum += yld * value; growthSum += g5 * value; }

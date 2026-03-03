@@ -55,7 +55,8 @@ export async function fetchSingleFundamentals(ticker) {
   const cached = getCachedFundamentals(ticker);
   if (cached) return cached;
 
-  const data = await apiFetch(`/fundamentals?symbol=${ticker}`, 15000);
+  const raw = await apiFetch(`/fundamentals?symbol=${ticker}`, 15000);
+  const data = raw?.result || raw;
   if (data && !data.error) {
     setCachedFundamentals(ticker, data);
   }

@@ -75,8 +75,9 @@ export default function HoldingRow({
   const annualDiv = data.annualDiv ?? stock.div ?? 0;
   const payout = data.payout ?? stock.payout ?? null;
   const change = data.change ?? 0;
-  const g5 = stock.g5 ?? 0;
-  const streak = stock.streak ?? 0;
+  const g5 = data.g5 ?? stock.g5 ?? 0;
+  // Use the higher of API streak (max 11yr window) and static streak (curated)
+  const streak = Math.max(data.streak ?? 0, stock.streak ?? 0);
 
   if (editing) {
     return (

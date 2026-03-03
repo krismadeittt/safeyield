@@ -22,6 +22,99 @@ export function boxMuller(rng) {
 }
 
 /**
+ * Monte Carlo simulation using Geometric Brownian Motion (GBM) + CAPM.
+ *
+ * Model: ln(S(t+1)/S(t)) ~ N(μ - σ²/2, σ²)
+ * CAPM: expected return = risk-free + β × equity risk premium
+ * Volatility: σ = |β| × σ_market (floored at 12%)
+ *
+ * Runs `numSims` independent paths, each projecting `horizon` years.
+ * Returns percentile bands (P10, P25, P50, P75, P90) per year for:
+ *   - sharePrice: price per share
+ *   - totalValue: price × shares (DRIP reinvests dividends quarterly)
+ *   - cumDividends: total dividends received (if not reinvested)
+ *
+ * @param {Object} params
+ * @param {number} params.price       - Current share price
+ * @param {number} params.beta        - Stock beta (default 1.0)
+ * @param {number} params.yieldPct    - Current dividend yield (%)
+ * @param {number} params.divGrowthPct - Annual dividend growth rate (%)
+ * @param {number} params.horizon     - Years to project (default 10)
+ * @param {number} params.numSims     - Number of simulations (default 1000)
+ * @param {number} params.seed        - PRNG seed for reproducibility
+ * @returns {{ years: number[], bands: { p10, p25, p50, p75, p90 }[] }}
+ */
+export function runMonteCarloGBM({
+  price, beta = 1.0, yieldPct = 0, divGrowthPct = 5,
+  horizon = 10, numSims = 1000, seed = 42,
+}) {
+  if (!price || price <= 0) return null;
+
+  const riskFree = 0.03;
+  const equityPremium = 0.07;
+  const marketVol = 0.16;
+
+  // CAPM expected return; clamp to reasonable range
+  const mu = Math.max(0.02, Math.min(riskFree + (beta || 1) * equityPremium, 0.20));
+  // Stock volatility from beta; floor at 12% (even low-beta stocks have some vol)
+  const sigma = Math.max(0.12, Math.abs(beta || 1) * marketVol);
+
+  const divYield = Math.max(0, (yieldPct || 0) / 100);
+  const divGrowth = Math.max(-0.1, Math.min((divGrowthPct || 0) / 100, 0.25));
+
+  // GBM drift (price appreciation = total return minus dividend payout)
+  const priceDrift = mu - divYield - 0.5 * sigma * sigma;
+
+  // Collect all simulation endpoints per year
+  const allValues = []; // allValues[year] = [totalValue_sim1, totalValue_sim2, ...]
+  for (let y = 0; y <= horizon; y++) allValues.push([]);
+
+  for (let sim = 0; sim < numSims; sim++) {
+    const rng = seededPRNG(seed + sim * 7919);
+    let sharePrice = price;
+    let shares = 1; // normalized to 1 share
+    let divPerShare = price * divYield;
+
+    allValues[0].push(sharePrice * shares);
+
+    for (let year = 1; year <= horizon; year++) {
+      // Grow dividend
+      divPerShare *= (1 + divGrowth);
+
+      // Quarterly DRIP: reinvest dividends into more shares
+      for (let q = 0; q < 4; q++) {
+        const qDiv = shares * divPerShare / 4;
+        if (sharePrice > 0) shares += qDiv / sharePrice;
+      }
+
+      // GBM price step (annual)
+      const z = boxMuller(rng);
+      sharePrice = Math.max(0.01, sharePrice * Math.exp(priceDrift + sigma * z));
+
+      allValues[year].push(sharePrice * shares);
+    }
+  }
+
+  // Compute percentiles per year
+  const years = [];
+  const bands = [];
+  for (let y = 0; y <= horizon; y++) {
+    years.push(y);
+    const sorted = allValues[y].slice().sort((a, b) => a - b);
+    const pct = p => sorted[Math.floor(p * (sorted.length - 1))];
+    bands.push({
+      p10: pct(0.10),
+      p25: pct(0.25),
+      p50: pct(0.50),
+      p75: pct(0.75),
+      p90: pct(0.90),
+    });
+  }
+
+  return { years, bands };
+}
+
+/**
  * Simple single-stock projection (used by StockDetail view).
  */
 export function projectPortfolio(horizon, drip, extraContrib, startValue, yieldPct, baseReturnPct, useVolatility, rng, divGrowthPct) {

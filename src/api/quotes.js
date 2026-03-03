@@ -55,6 +55,8 @@ export async function fetchEnrichedQuote(ticker) {
         divYield: result.divYield ?? staticEntry?.yld ?? null,
         annualDiv: result.annualDiv ?? staticEntry?.div ?? null,
         payout: result.payout ?? staticEntry?.payout ?? null,
+        g5: result.g5 ?? staticEntry?.g5 ?? null,
+        streak: result.streak ?? staticEntry?.streak ?? null,
         marketCap: result.marketCap || null,
         week52High: result.week52High || null,
         week52Low: result.week52Low || null,
@@ -86,15 +88,15 @@ export async function fetchBatchUpdate(tickers) {
         for (const [key, val] of Object.entries(prices)) {
           const t = key.toUpperCase();
           const staticEntry = ETF_DATABASE[t] || ARISTOCRATS.find(a => a.ticker === t) || null;
+          // Only set price/change from batch — dividend metrics come from fundamentals
+          const existing = getCachedQuote(t);
           results[t] = {
+            ...existing,
             ticker: t,
-            name: staticEntry?.name || t,
-            sector: staticEntry?.sector || null,
+            name: existing?.name || staticEntry?.name || t,
+            sector: existing?.sector || staticEntry?.sector || null,
             price: val.price || 0,
             change: val.change || 0,
-            divYield: staticEntry?.yld ?? null,
-            annualDiv: staticEntry?.div ?? null,
-            payout: staticEntry?.payout ?? null,
           };
           setCachedQuote(t, results[t]);
         }
