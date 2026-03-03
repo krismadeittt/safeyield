@@ -48,16 +48,18 @@ export default function DripComparisonBar({
       }}>
         DRIP vs No-DRIP — Portfolio Value
       </div>
-      {hovered != null && (
-        <div style={{ fontSize: "0.8rem", color: "#c8dff0", marginBottom: 4 }}>
-          Year {hovered}: No-DRIP {formatCurrency(noDrip[hovered])} · DRIP {formatCurrency(vals[hovered])}
-          {vals[hovered] > noDrip[hovered] && (
-            <span style={{ color: "#00cc66", marginLeft: 8 }}>
-              +{formatCurrency(vals[hovered] - noDrip[hovered])} advantage
-            </span>
-          )}
-        </div>
-      )}
+      <div style={{ fontSize: "0.8rem", color: "#c8dff0", marginBottom: 4, minHeight: "1.2em", opacity: hovered != null ? 1 : 0, transition: "opacity 0.15s" }}>
+        {hovered != null ? (
+          <>
+            Year {hovered}: No-DRIP {formatCurrency(noDrip[hovered])} · DRIP {formatCurrency(vals[hovered])}
+            {vals[hovered] > noDrip[hovered] && (
+              <span style={{ color: "#00cc66", marginLeft: 8 }}>
+                +{formatCurrency(vals[hovered] - noDrip[hovered])} advantage
+              </span>
+            )}
+          </>
+        ) : "\u00A0"}
+      </div>
       <svg width={width} height={H} style={{ display: "block" }}>
         {/* Y-axis labels */}
         {[0, 0.25, 0.5, 0.75, 1].map(pct => {

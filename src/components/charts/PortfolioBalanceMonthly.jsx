@@ -58,11 +58,9 @@ export default function PortfolioBalanceMonthly({
       }}>
         Portfolio Balance — Monthly View
       </div>
-      {hovBar && (
-        <div style={{ fontSize: "0.8rem", color: "#c8dff0", marginBottom: 4 }}>
-          {hovBar.label}: {formatCurrency(hovBar.value)}
-        </div>
-      )}
+      <div style={{ fontSize: "0.8rem", color: "#c8dff0", marginBottom: 4, minHeight: "1.2em", opacity: hovBar ? 1 : 0, transition: "opacity 0.15s" }}>
+        {hovBar ? `${hovBar.label}: ${formatCurrency(hovBar.value)}` : "\u00A0"}
+      </div>
       <svg width={totalW} height={H} style={{ display: "block" }}>
         {/* Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map(pct => {
