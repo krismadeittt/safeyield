@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { formatCurrency } from '../../utils/format';
 import { fetchBatchHistory, calcHistoricalPortfolioValues, calcHistoricalDividendsByYear } from '../../api/history';
 
-const HIST_YEARS = 10;
+const FALLBACK_HIST = 10; // synthetic fallback when no KV data
 const HORIZONS = [1, 5, 10, 15, 25, 30, 40, 50];
 const CONTRIBUTIONS = [0, 1000, 5000, 10000, 20000, 25000, 50000];
 
@@ -76,14 +76,14 @@ export default function HistoricalProjectedChart({
   const dripAdvantage = finalDrip - finalNoDrip;
   const incomeAtHorizon = Math.round(totalIncome * Math.pow(1 + (growth || 5) / 100, horizon));
 
-  // Starting value (10 years ago)
+  // Starting value (earliest available year)
   const startingValue = useMemo(() => {
     if (realHistData && realHistData.length > 1) return realHistData[0].value;
-    return Math.round(portfolioValue / Math.pow(1.10, HIST_YEARS));
+    return Math.round(portfolioValue / Math.pow(1.10, FALLBACK_HIST));
   }, [realHistData, portfolioValue]);
   const startingYear = useMemo(() => {
     if (realHistData && realHistData.length > 1) return realHistData[0].year;
-    return currentYear - HIST_YEARS;
+    return currentYear - FALLBACK_HIST;
   }, [realHistData, currentYear]);
 
   // Growth percentage from starting to current
@@ -99,24 +99,24 @@ export default function HistoricalProjectedChart({
 
     const result = [];
 
-    // --- HISTORICAL: exactly 10 years back ---
+    // --- HISTORICAL: use ALL available years from KV data ---
+    // Growth ratios start from year 0 where both DRIP and noDRIP are equal,
+    // so the chart correctly shows DRIP bonus accumulating from zero.
     let histYearlyValues;
     if (realHistData && realHistData.length > 1) {
-      // Filter to last 10 years only
-      const cutoffYear = currentYear - HIST_YEARS;
-      histYearlyValues = realHistData.filter(d => d.year >= cutoffYear);
-      if (histYearlyValues.length === 0) histYearlyValues = realHistData.slice(-11);
+      histYearlyValues = realHistData;
     } else {
+      // Synthetic fallback when KV data hasn't loaded yet
       let backVal = portfolioValue;
       const vals = [{ year: currentYear, value: portfolioValue, noDripValue: portfolioValue }];
-      for (let i = 1; i <= HIST_YEARS; i++) {
+      for (let i = 1; i <= FALLBACK_HIST; i++) {
         const pastYield = yieldRate * Math.pow(1 + growthRate, -i);
         const totalGrowth = 1 + annualReturn + pastYield;
         backVal = backVal / totalGrowth;
         vals.unshift({
           year: currentYear - i,
           value: Math.round(backVal),
-          noDripValue: Math.round(backVal * 0.85),
+          noDripValue: Math.round(backVal),
         });
       }
       histYearlyValues = vals;
@@ -152,14 +152,16 @@ export default function HistoricalProjectedChart({
       }
     }
 
-    // "Now" bar
+    // "Now" bar — use the last historical data point's noDrip for accurate spread
+    const lastHist = histYearlyValues[histYearlyValues.length - 1];
+    const nowNoDrip = lastHist?.noDripValue || portfolioValue;
     result.push({
       label: "Now",
       axisLabel: "Now",
       fullLabel: `${currentYear} (current)`,
       total: portfolioValue,
-      noDrip: portfolioValue,
-      dripBonus: 0,
+      noDrip: nowNoDrip,
+      dripBonus: Math.max(0, portfolioValue - nowNoDrip),
       isHistorical: true,
       isCurrent: true,
       year: currentYear,
@@ -284,10 +286,10 @@ export default function HistoricalProjectedChart({
 
         {/* Legend */}
         <div style={{ display: "flex", gap: 16, alignItems: "center", margin: "0.8rem 0 0.6rem" }}>
-          <LegendItem color="#2a8a4a" label="Hist DRIP" />
-          <LegendItem color="#6aaa4a" label="Hist" />
-          <LegendItem color="#005EB8" label="Proj DRIP" />
-          <LegendItem color="#1a3a5c" label="Proj" />
+          <LegendItem color="#60e850" label="Div Return" />
+          <LegendItem color="#1e5a28" label="Price" />
+          <LegendItem color="#3a9aff" label="Proj DRIP" />
+          <LegendItem color="#1a3a5c" label="Proj Base" />
         </div>
 
         {/* Stat cards: STARTING, CURRENT (DRIP), DRIP ADVANTAGE */}
@@ -419,18 +421,18 @@ export default function HistoricalProjectedChart({
             const bonusH = Math.max(0, totalH - noDripH);
             const showStack = bar.isHistorical ? (showDivReturn && bar.dripBonus > 0) : true;
 
-            // Colors: historical = green, projected = blue
+            // Colors: historical = green (base dark, DRIP bright), projected = blue
             let bottomFill, topFill;
             if (bar.isHistorical) {
-              if (isHov) { bottomFill = "#c8f0d0"; topFill = "#ffffff"; }
-              else if (hovered != null && i > hovered) { bottomFill = "#0f2018"; topFill = "#0a1810"; }
-              else if (hovered != null) { bottomFill = "#6aaa4a"; topFill = "#3aaa5a"; }
-              else { bottomFill = "#6aaa4a"; topFill = "#2a8a4a"; }
+              if (isHov) { bottomFill = "#b0e8b0"; topFill = "#ffffff"; }
+              else if (hovered != null && i > hovered) { bottomFill = "#0a1a10"; topFill = "#081208"; }
+              else if (hovered != null) { bottomFill = "#1e5a28"; topFill = "#60e850"; }
+              else { bottomFill = "#1e5a28"; topFill = "#60e850"; }
             } else {
               if (isHov) { bottomFill = "#c8dff0"; topFill = "#ffffff"; }
               else if (hovered != null && i > hovered) { bottomFill = "#0f1e30"; topFill = "#0a1520"; }
-              else if (hovered != null) { bottomFill = "#3a6a9a"; topFill = "#5a9ad0"; }
-              else { bottomFill = "#1a3a5c"; topFill = "#005EB8"; }
+              else if (hovered != null) { bottomFill = "#1a3a5c"; topFill = "#3a9aff"; }
+              else { bottomFill = "#1a3a5c"; topFill = "#3a9aff"; }
             }
 
             const bottomBarH = showStack ? noDripH : totalH;
