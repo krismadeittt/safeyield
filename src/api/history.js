@@ -102,12 +102,67 @@ export function calcHistoricalDividendsByYear(historyMap, holdings) {
 }
 
 /**
+ * Compute split-adjusted close prices from raw KV price data.
+ *
+ * KV stores raw `c` (unadjusted close) which has discontinuities at stock
+ * splits (e.g., SCHD 3:1 split: $84 → $28). The `ac` (adjusted close)
+ * handles splits smoothly. We detect splits by finding days where `c`
+ * drops dramatically but `ac` stays stable, then normalize all `c` values
+ * to the most recent (post-split) basis.
+ *
+ * @param {Array} prices - [{ d, c, ac }, ...]
+ * @returns {Array<number>} - split-adjusted close for each price entry
+ */
+function computeSplitAdjustedClose(prices) {
+  const n = prices.length;
+  if (n === 0) return [];
+
+  // Work backward from the most recent price.
+  // Post-all-splits basis: most recent c is already correct (factor = 1).
+  // When we detect a split going backward, pre-split c values are too high
+  // and need to be divided by the split ratio.
+  const adjustedC = new Array(n);
+  let factor = 1;
+  adjustedC[n - 1] = prices[n - 1].c;
+
+  for (let i = n - 1; i > 0; i--) {
+    const cPrev = prices[i - 1].c;
+    const cCurr = prices[i].c;
+    if (!cPrev || !cCurr) { adjustedC[i - 1] = cPrev / factor; continue; }
+
+    const cRatio = cCurr / cPrev;
+    const acCurr = prices[i].ac || cCurr;
+    const acPrev = prices[i - 1].ac || cPrev;
+    const acRatio = acCurr / acPrev;
+
+    // Forward split: c drops significantly but ac is roughly stable
+    if (cRatio < 0.7 && cRatio > 0.05 && acRatio > 0.85 && acRatio < 1.15) {
+      const splitRatio = Math.round(1 / cRatio);
+      if (splitRatio >= 2 && splitRatio <= 10) {
+        factor *= splitRatio;
+      }
+    }
+    // Reverse split: c jumps significantly but ac is roughly stable
+    else if (cRatio > 1.5 && acRatio > 0.85 && acRatio < 1.15) {
+      const reverseSplitRatio = Math.round(cRatio);
+      if (reverseSplitRatio >= 2 && reverseSplitRatio <= 10) {
+        factor /= reverseSplitRatio;
+      }
+    }
+
+    adjustedC[i - 1] = cPrev / factor;
+  }
+
+  return adjustedC;
+}
+
+/**
  * Get yearly portfolio values from real historical price data.
  *
  * Uses growth-ratio approach: for each ticker, compute total return
- * (adjusted close) and price-only return (raw close) ratios from the
- * starting year forward. This ensures DRIP value >= noDrip value at
- * every point, since total return always >= price return.
+ * (adjusted close) and price-only return (split-adjusted close) ratios
+ * from the starting year forward. Split-adjusted close accounts for
+ * stock splits but NOT dividend reinvestment, so DRIP value >= noDrip.
  *
  * @param {Object} historyMap - { ticker: { p: [...], d: [...] }, ... }
  * @param {Array} holdings - [{ ticker, shares, ... }, ...]
@@ -118,15 +173,32 @@ export function calcHistoricalDividendsByYear(historyMap, holdings) {
 export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, maxYearsBack = 20) {
   const currentYear = new Date().getFullYear();
 
+  // Pre-compute split-adjusted close prices for each ticker
+  const splitAdjusted = {};
+  Object.entries(historyMap).forEach(([ticker, data]) => {
+    if (data?.p?.length) {
+      splitAdjusted[ticker] = computeSplitAdjustedClose(data.p);
+    }
+  });
+
   // Helper: last trading day's price in a given year
+  // Returns { ac: adjusted_close, c: split_adjusted_close }
   function getYearPrice(ticker, year) {
     const hist = historyMap[ticker];
     if (!hist?.p) return null;
     const yearStr = String(year);
-    const yearPrices = hist.p.filter(p => p.d.startsWith(yearStr));
-    if (yearPrices.length === 0) return null;
-    const last = yearPrices[yearPrices.length - 1];
-    return { ac: last.ac || last.c, c: last.c };
+
+    // Find the last price entry for this year
+    const prices = hist.p;
+    let lastIdx = -1;
+    for (let i = prices.length - 1; i >= 0; i--) {
+      if (prices[i].d.startsWith(yearStr)) { lastIdx = i; break; }
+    }
+    if (lastIdx === -1) return null;
+
+    const last = prices[lastIdx];
+    const sc = splitAdjusted[ticker]?.[lastIdx] ?? last.c;
+    return { ac: last.ac || last.c, c: sc };
   }
 
   // Find earliest year with data, capped by maxYearsBack
@@ -163,7 +235,7 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
 
       const weight = (h.shares || 0) * base.c; // weight by starting dollar value
       weightedTotal += weight * (yearP.ac / base.ac); // total return (includes divs)
-      weightedPrice += weight * (yearP.c / base.c);   // price-only return
+      weightedPrice += weight * (yearP.c / base.c);   // price-only return (split-adjusted)
       totalWeight += weight;
     });
 
@@ -185,6 +257,6 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
   return results.map(r => ({
     year: r.year,
     value: Math.round(startValue * r.totalGrowth),       // with DRIP (always >= noDripValue)
-    noDripValue: Math.round(startValue * r.priceGrowth), // price only
+    noDripValue: Math.round(startValue * r.priceGrowth), // price only (split-adjusted)
   }));
 }
