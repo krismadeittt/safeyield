@@ -15,8 +15,7 @@
 
 const ALLOWED_ORIGINS = [
   "https://safeyield.pages.dev",
-  "https://safeyield.app",
-  "https://www.safeyield.app",
+  "https://justasite.pages.dev",
   "http://localhost:5173",
   "http://localhost:4173",
 ];

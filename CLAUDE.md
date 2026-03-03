@@ -7,7 +7,7 @@ Dividend intelligence dashboard — helps investors analyze dividend stocks/ETFs
 **Frontend:** Single-page React 18 app (`index.html`, ~360KB monolithic bundle)
 - MUI components, custom SVG charting, dark theme
 - Google Fonts: Playfair Display, EB Garamond
-- Deployed on **Cloudflare Pages** at `safeyield.app`
+- Deployed on **Cloudflare Pages** (`safeyield.pages.dev` / `justasite.pages.dev`)
 
 **Backend:** Cloudflare Worker (`worker/index.js`)
 - Proxies the EODHD financial API
@@ -28,7 +28,7 @@ Dividend intelligence dashboard — helps investors analyze dividend stocks/ETFs
 | `/history-batch` | Monthly prices for up to 10 tickers |
 | `/div-history-batch` | Dividend history for multiple tickers |
 
-All routes support CORS for: `safeyield.app`, `www.safeyield.app`, `justasite.pages.dev`, `localhost:3000`.
+All routes support CORS for: `safeyield.pages.dev`, `justasite.pages.dev`, `localhost:3000`, `localhost:5173`.
 
 ## Project Structure
 

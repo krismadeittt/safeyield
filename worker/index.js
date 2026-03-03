@@ -10,8 +10,6 @@ function cors(origin) {
   const allowed = [
     "https://justasite.pages.dev",
     "https://safeyield.pages.dev",
-    "https://safeyield.app",
-    "https://www.safeyield.app",
     "http://localhost:3000",
     "http://localhost:5173",
   ];
