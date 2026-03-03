@@ -233,10 +233,12 @@ function parseFundamentals(raw) {
 }
 
 function normPrice(d) {
+  var price  = parseFloat(d.close || d.open || 0) || 0;
+  var change = parseFloat(d.change_p || 0) || 0;
   return {
     ticker: stripEx(d.code),
-    price:  parseFloat((d.close || d.open || 0).toFixed(2)),
-    change: parseFloat((d.change_p || 0).toFixed(3)),
+    price:  parseFloat(price.toFixed(2)),
+    change: parseFloat(change.toFixed(3)),
     volume: d.volume || null,
   };
 }
