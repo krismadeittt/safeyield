@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { formatCurrency } from '../../utils/format';
-import { fetchBatchHistory, calcHistoricalPortfolioValues } from '../../api/history';
+import { fetchBatchHistory, calcHistoricalPortfolioValues, calcHistoricalDividendsByYear } from '../../api/history';
 
 const HIST_YEARS = 10;
 const HORIZONS = [1, 5, 10, 15, 25, 30, 40, 50];
@@ -56,12 +56,18 @@ export default function HistoricalProjectedChart({
   }, [holdings]);
 
   const currentYear = new Date().getFullYear();
-  const projYears = Math.min(horizon, 10);
+  const projYears = horizon;
 
   const realHistData = useMemo(() => {
     if (Object.keys(historyMap).length === 0) return null;
     return calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue);
   }, [historyMap, holdings, portfolioValue]);
+
+  // Real dividend income from KV history data (actual payments, not estimates)
+  const realDivByYear = useMemo(() => {
+    if (Object.keys(historyMap).length === 0) return null;
+    return calcHistoricalDividendsByYear(historyMap, holdings);
+  }, [historyMap, holdings]);
 
   // Stat card values
   const finalNoDrip = noDripVals?.[horizon] || noDripVals?.[noDripVals.length - 1] || 0;
@@ -196,24 +202,39 @@ export default function HistoricalProjectedChart({
 
   const { bars: barData, nowBarIndex } = bars;
 
-  // Dividend income bars
+  // Dividend income bars — use REAL dividend data from KV for historical, growth estimate for projected
   const divBars = useMemo(() => {
     if (!monthlyData?.length) return [];
     const growthRate = (growth || 5) / 100;
     const isQuarterly = granularity === "quarterly";
+
     return barData.map(bar => {
-      const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
       let divIncome;
-      if (isQuarterly) {
-        const qStart = (bar.periodIndex || 0) * 3;
-        divIncome = 0;
-        for (let m = qStart; m < qStart + 3 && m < 12; m++) divIncome += (monthlyData[m] || 0);
+
+      // For historical bars: use actual dividend payments from KV worker data
+      if (bar.isHistorical && realDivByYear && realDivByYear[bar.year]) {
+        const yearData = realDivByYear[bar.year];
+        if (isQuarterly) {
+          divIncome = yearData.quarters[bar.periodIndex] || 0;
+        } else {
+          divIncome = yearData.months[bar.periodIndex] || 0;
+        }
       } else {
-        divIncome = monthlyData[bar.periodIndex || 0] || 0;
+        // Projected or no real data: estimate from current monthlyData with growth
+        const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
+        if (isQuarterly) {
+          const qStart = (bar.periodIndex || 0) * 3;
+          divIncome = 0;
+          for (let m = qStart; m < qStart + 3 && m < 12; m++) divIncome += (monthlyData[m] || 0);
+        } else {
+          divIncome = monthlyData[bar.periodIndex || 0] || 0;
+        }
+        divIncome = divIncome * growthFactor;
       }
-      return { ...bar, value: Math.max(0, Math.round(divIncome * growthFactor)) };
+
+      return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity]);
+  }, [barData, monthlyData, growth, granularity, realDivByYear]);
 
   // Chart layout
   const padL = 55;

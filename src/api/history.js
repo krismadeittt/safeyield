@@ -66,6 +66,42 @@ export async function fetchBatchHistory(tickers) {
 }
 
 /**
+ * Calculate actual historical dividend income by year from real dividend data.
+ * Returns { 2015: { annual, quarters: [q1..q4], months: [m0..m11] }, ... }
+ */
+export function calcHistoricalDividendsByYear(historyMap, holdings) {
+  const result = {};
+
+  holdings.forEach(h => {
+    const hist = historyMap[h.ticker];
+    if (!hist?.d?.length || !h.shares) return;
+
+    hist.d.forEach(div => {
+      const year = parseInt(div.d.substring(0, 4));
+      const month = parseInt(div.d.substring(5, 7)) - 1; // 0-11
+      const quarter = Math.floor(month / 3);
+      const income = div.v * h.shares;
+
+      if (!result[year]) {
+        result[year] = { annual: 0, quarters: [0, 0, 0, 0], months: new Array(12).fill(0) };
+      }
+      result[year].annual += income;
+      result[year].quarters[quarter] += income;
+      result[year].months[month] += income;
+    });
+  });
+
+  // Round all values
+  Object.values(result).forEach(yr => {
+    yr.annual = Math.round(yr.annual);
+    yr.quarters = yr.quarters.map(v => Math.round(v));
+    yr.months = yr.months.map(v => Math.round(v));
+  });
+
+  return result;
+}
+
+/**
  * Get yearly portfolio values from real historical price data.
  *
  * Uses growth-ratio approach: for each ticker, compute total return
