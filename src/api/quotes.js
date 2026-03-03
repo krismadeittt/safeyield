@@ -79,9 +79,10 @@ export async function fetchBatchUpdate(tickers) {
       chunks.push(tickers.slice(i, i + 50));
     }
     const results = {};
-    await Promise.all(chunks.map(async (chunk) => {
+    for (let i = 0; i < chunks.length; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, 300));
       try {
-        const prices = await fetchBatchPrices(chunk);
+        const prices = await fetchBatchPrices(chunks[i]);
         for (const [key, val] of Object.entries(prices)) {
           const t = key.toUpperCase();
           const staticEntry = ETF_DATABASE[t] || ARISTOCRATS.find(a => a.ticker === t) || null;
@@ -100,7 +101,7 @@ export async function fetchBatchUpdate(tickers) {
       } catch (err) {
         console.warn("Batch chunk failed:", err.message);
       }
-    }));
+    }
     return results;
   } catch (err) {
     console.warn("fetchBatchUpdate failed:", err.message);

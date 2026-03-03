@@ -22,9 +22,10 @@ export async function fetchBatchFundamentals(tickers) {
   }
 
   const fetched = {};
-  await Promise.all(chunks.map(async (chunk) => {
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) await new Promise(r => setTimeout(r, 500));
     try {
-      const data = (await apiFetch(`/batch-fundamentals?symbols=${chunk.join(",")}`, 25000))?.results || {};
+      const data = (await apiFetch(`/batch-fundamentals?symbols=${chunks[i].join(",")}`, 25000))?.results || {};
       for (const [ticker, fundamentals] of Object.entries(data)) {
         if (!fundamentals.error) {
           setCachedFundamentals(ticker, fundamentals);
@@ -34,7 +35,7 @@ export async function fetchBatchFundamentals(tickers) {
     } catch (err) {
       console.warn("Batch fundamentals chunk failed:", err.message);
     }
-  }));
+  }
 
   // Merge cached + freshly fetched
   tickers.forEach(t => {
