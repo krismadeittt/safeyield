@@ -4,9 +4,6 @@ import { calcMonthlyIncome } from '../utils/dividends';
 import { formatCurrency } from '../utils/format';
 import HistoricalProjectedChart from '../components/charts/HistoricalProjectedChart';
 
-const HORIZONS = [1, 5, 10, 15, 25, 30, 40, 50];
-const CONTRIBUTIONS = [0, 1000, 5000, 10000, 20000, 25000, 50000];
-
 export default function Dashboard({
   totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth,
 }) {
@@ -38,11 +35,6 @@ export default function Dashboard({
   const monthlyData = useMemo(() => calcMonthlyIncome(holdings), [holdings]);
   const monthlyAvg = monthlyData.reduce((a, b) => a + b, 0) / 12;
 
-  // Key projection values
-  const finalNoDrip = noDripVals[noDripVals.length - 1] || 0;
-  const finalDrip = (contribVals || dripVals)[horizon] || 0;
-  const dripAdvantage = finalDrip - finalNoDrip;
-
   // Expose for history widget compatibility
   if (typeof window !== "undefined") {
     window._h = holdings;
@@ -55,7 +47,7 @@ export default function Dashboard({
       {/* Stats row — bordered strip */}
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0,
-        marginBottom: "2.5rem",
+        marginBottom: "2rem",
         borderTop: "1px solid #0a1e30", borderBottom: "1px solid #0a1e30",
         background: "transparent",
       }}>
@@ -66,7 +58,7 @@ export default function Dashboard({
         <StatCell label="Wtd Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last />
       </div>
 
-      {/* Single unified chart — portfolio value + dividend income */}
+      {/* Single unified chart with all controls inside */}
       <HistoricalProjectedChart
         portfolioValue={portfolioValue}
         avgYield={avgYield}
@@ -75,7 +67,10 @@ export default function Dashboard({
         setHorizon={setHorizon}
         useVolatility={useVolatility}
         setUseVolatility={setUseVolatility}
-        extraContrib={contrib}
+        extraContrib={extraContrib}
+        setExtraContrib={setExtraContrib}
+        customContrib={customContrib}
+        setCustomContrib={setCustomContrib}
         noDripVals={noDripVals}
         dripVals={dripVals}
         contribVals={contribVals}
@@ -83,42 +78,6 @@ export default function Dashboard({
         monthlyData={monthlyData}
         holdings={holdings}
       />
-
-      {/* Extra contributions */}
-      <div style={{
-        background: "#0a1628", border: "1px solid #1a3a5c", padding: "0.9rem 1.5rem",
-        display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center",
-        marginTop: "1.5rem",
-      }}>
-        <span style={{
-          fontSize: "0.6rem", color: "#2a4a6a", letterSpacing: "0.07em",
-          textTransform: "uppercase", fontFamily: "system-ui",
-        }}>
-          Annual Contribution
-        </span>
-        {CONTRIBUTIONS.map(c => (
-          <button key={c} onClick={() => { setExtraContrib(c); setCustomContrib(""); }} style={{
-            padding: "0.28rem 0.6rem", fontSize: "0.75rem", fontWeight: 700,
-            cursor: "pointer", fontFamily: "system-ui",
-            background: extraContrib === c && !customContrib ? "#071020" : "#0f2035",
-            color: extraContrib === c && !customContrib ? "#005EB8" : "#2a4a6a",
-            border: `1px solid ${extraContrib === c && !customContrib ? "#005EB8" : "#1a3a5c"}`,
-            transition: "all 0.15s",
-          }}>
-          {c === 0 ? "$0" : `$${(c/1000).toFixed(0)}k`}
-          </button>
-        ))}
-        <input
-          placeholder="Custom $"
-          value={customContrib}
-          onChange={e => setCustomContrib(e.target.value.replace(/[^0-9]/g, ""))}
-          style={{
-            width: 80, padding: "0.28rem 0.6rem", fontSize: "0.75rem",
-            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-            color: "#c8dff0", fontFamily: "system-ui", outline: "none",
-          }}
-        />
-      </div>
     </div>
   );
 }
