@@ -67,7 +67,11 @@ export async function fetchBatchHistory(tickers) {
 
 /**
  * Get yearly portfolio values from real historical price data.
- * Takes holdings and returns yearly values going back as far as data allows.
+ *
+ * Uses growth-ratio approach: for each ticker, compute total return
+ * (adjusted close) and price-only return (raw close) ratios from the
+ * starting year forward. This ensures DRIP value >= noDrip value at
+ * every point, since total return always >= price return.
  *
  * @param {Object} historyMap - { ticker: { p: [...], d: [...] }, ... }
  * @param {Array} holdings - [{ ticker, shares, ... }, ...]
@@ -76,74 +80,74 @@ export async function fetchBatchHistory(tickers) {
  */
 export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue) {
   const currentYear = new Date().getFullYear();
-  const years = [];
 
-  // Get the range of years we have data for
-  let minYear = currentYear;
-  let maxYear = 2006; // earliest data
+  // Helper: last trading day's price in a given year
+  function getYearPrice(ticker, year) {
+    const hist = historyMap[ticker];
+    if (!hist?.p) return null;
+    const yearStr = String(year);
+    const yearPrices = hist.p.filter(p => p.d.startsWith(yearStr));
+    if (yearPrices.length === 0) return null;
+    const last = yearPrices[yearPrices.length - 1];
+    return { ac: last.ac || last.c, c: last.c };
+  }
+
+  // Find earliest year with data
+  let minDataYear = currentYear;
   holdings.forEach(h => {
     const hist = historyMap[h.ticker];
     if (hist?.p?.length) {
       const firstYear = parseInt(hist.p[0].d.substring(0, 4));
-      const lastYear = parseInt(hist.p[hist.p.length - 1].d.substring(0, 4));
-      if (firstYear < minYear) minYear = firstYear;
-      if (lastYear > maxYear) maxYear = lastYear;
+      if (firstYear < minDataYear) minDataYear = firstYear;
     }
   });
+  const startYear = Math.max(minDataYear, currentYear - 20);
 
-  // For each year, calculate the portfolio value using actual prices
-  // Use December 31st (or closest trading day) prices
-  for (let year = Math.max(minYear, currentYear - 20); year <= currentYear; year++) {
-    let totalValue = 0;
-    let totalNoDripValue = 0;
-    let hasData = false;
+  // Only use tickers that have price data at the start year
+  const basePrices = {};
+  const validHoldings = holdings.filter(h => {
+    const p = getYearPrice(h.ticker, startYear);
+    if (p && p.ac > 0 && p.c > 0) { basePrices[h.ticker] = p; return true; }
+    return false;
+  });
+  if (validHoldings.length === 0) return [];
 
-    holdings.forEach(h => {
-      const hist = historyMap[h.ticker];
-      if (!hist?.p) return;
+  // Year by year: compute weighted growth ratios from startYear
+  const results = [];
+  for (let year = startYear; year <= currentYear; year++) {
+    let weightedTotal = 0;
+    let weightedPrice = 0;
+    let totalWeight = 0;
 
-      // Find the last price in this year
-      const yearPrices = hist.p.filter(p => p.d.startsWith(String(year)));
-      if (yearPrices.length === 0) return;
+    validHoldings.forEach(h => {
+      const base = basePrices[h.ticker];
+      const yearP = getYearPrice(h.ticker, year);
+      if (!yearP) return;
 
-      hasData = true;
-      const lastPrice = yearPrices[yearPrices.length - 1];
-      const adjustedClose = lastPrice.ac || lastPrice.c;
-
-      // Use adjusted close for DRIP value (includes reinvested dividends)
-      // Use raw close for no-DRIP value
-      const currentPrice = hist.p[hist.p.length - 1];
-      const currentAC = currentPrice.ac || currentPrice.c;
-      const currentClose = currentPrice.c;
-
-      // Scale shares by the ratio of current value to keep portfolio anchored
-      const shareValue = h.shares || 0;
-
-      // DRIP value uses adjusted close (accounts for dividend reinvestment)
-      totalValue += shareValue * adjustedClose;
-
-      // No-DRIP uses close price (raw, no dividend reinvestment adjustment)
-      totalNoDripValue += shareValue * lastPrice.c;
+      const weight = (h.shares || 0) * base.c; // weight by starting dollar value
+      weightedTotal += weight * (yearP.ac / base.ac); // total return (includes divs)
+      weightedPrice += weight * (yearP.c / base.c);   // price-only return
+      totalWeight += weight;
     });
 
-    if (hasData) {
-      years.push({
+    if (totalWeight > 0) {
+      results.push({
         year,
-        value: Math.round(totalValue),
-        noDripValue: Math.round(totalNoDripValue),
+        totalGrowth: weightedTotal / totalWeight,
+        priceGrowth: weightedPrice / totalWeight,
       });
     }
   }
 
-  // Scale all values so the current year matches portfolioValue
-  if (years.length > 0) {
-    const lastEntry = years[years.length - 1];
-    const scale = lastEntry.value > 0 ? portfolioValue / lastEntry.value : 1;
-    years.forEach(y => {
-      y.value = Math.round(y.value * scale);
-      y.noDripValue = Math.round(y.noDripValue * scale);
-    });
-  }
+  if (results.length === 0) return [];
 
-  return years;
+  // Anchor: last year's DRIP value = portfolioValue
+  const last = results[results.length - 1];
+  const startValue = last.totalGrowth > 0 ? portfolioValue / last.totalGrowth : portfolioValue;
+
+  return results.map(r => ({
+    year: r.year,
+    value: Math.round(startValue * r.totalGrowth),       // with DRIP (always >= noDripValue)
+    noDripValue: Math.round(startValue * r.priceGrowth), // price only
+  }));
 }
