@@ -28,27 +28,38 @@ export default function usePortfolio() {
   const [addYield, setAddYield] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
-  // Pre-load prices for all template tickers on mount
+  // Pre-load prices for all template tickers on mount (sequential to avoid rate limits)
   useEffect(() => {
-    const allTickers = getAllTemplateTickers([REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE]);
-    const chunks = [];
-    for (let i = 0; i < allTickers.length; i += 50) chunks.push(allTickers.slice(i, i + 50));
+    async function loadPrices() {
+      const allTickers = getAllTemplateTickers([REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE]);
+      const chunks = [];
+      for (let i = 0; i < allTickers.length; i += 50) chunks.push(allTickers.slice(i, i + 50));
 
-    Promise.all(chunks.map(chunk => fetchBatchUpdate(chunk)))
-      .then(results => {
-        const merged = {};
-        results.forEach(r => Object.assign(merged, r));
-        setPrePrices(merged);
-        setPricesLoading(false);
-      })
-      .catch(() => setPricesLoading(false));
+      const merged = {};
+      for (let i = 0; i < chunks.length; i++) {
+        if (i > 0) await new Promise(r => setTimeout(r, 500));
+        try {
+          const data = await fetchBatchUpdate(chunks[i]);
+          Object.assign(merged, data);
+        } catch (err) {
+          console.warn("Pre-price chunk failed:", err.message);
+        }
+      }
+      setPrePrices(merged);
+      setPricesLoading(false);
+    }
+    loadPrices();
   }, []);
 
   // Refresh prices + fundamentals when holdings change
   useEffect(() => {
     if (!holdings.length) return;
     const tickers = holdings.map(h => h.ticker);
-    fetchBatchUpdate(tickers).then(data => setLiveData(prev => ({ ...prev, ...data })));
+    // Only fetch prices for tickers not already in liveData
+    const missing = tickers.filter(t => !liveData[t]);
+    if (missing.length > 0) {
+      fetchBatchUpdate(missing).then(data => setLiveData(prev => ({ ...prev, ...data })));
+    }
     fetchBatchFundamentals(tickers);
   }, [holdings.length]);
 
