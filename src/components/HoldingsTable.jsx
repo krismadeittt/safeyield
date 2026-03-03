@@ -153,17 +153,17 @@ export default function HoldingsTable({
 }
 
 function getSortVal(stock, key, liveData, totalValue) {
-  const data = liveData?.[stock.ticker] || stock;
-  const price = data.price || 0;
+  const live = liveData?.[stock.ticker];
+  const price = (live?.price > 0 ? live.price : null) || stock.price || 0;
   const value = price * (stock.shares || 0);
   switch (key) {
     case "ticker": return stock.ticker;
     case "shares": return stock.shares || 0;
-    case "price": return data.price || 0;
+    case "price": return price;
     case "value": return value;
-    case "yld": return data.divYield ?? stock.yld ?? 0;
-    case "div": return data.annualDiv ?? stock.div ?? 0;
-    case "payout": return data.payout ?? stock.payout ?? 0;
+    case "yld": return live?.divYield ?? stock.yld ?? 0;
+    case "div": return live?.annualDiv ?? stock.div ?? 0;
+    case "payout": return live?.payout ?? stock.payout ?? 0;
     case "g5": return stock.g5 ?? 0;
     case "streak": return stock.streak ?? 0;
     case "weight": return totalValue > 0 ? value / totalValue : 0;

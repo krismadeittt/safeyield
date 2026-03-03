@@ -67,8 +67,9 @@ export default function HoldingRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [rowHover, setRowHover] = useState(false);
-  const data = live || stock;
-  const price = data.price || 0;
+  const data = live || {};
+  // Use live price if available and > 0, otherwise fall back to holding's stored price
+  const price = (live?.price > 0 ? live.price : null) || stock.price || 0;
   const value = price * (stock.shares || 0);
   const yld = data.divYield ?? stock.yld ?? 0;
   const annualDiv = data.annualDiv ?? stock.div ?? 0;

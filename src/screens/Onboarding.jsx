@@ -31,7 +31,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading }) {
     else if (strategy.id === "voo") holdings = buildPortfolioFromWeights(HIGH_YIELD_TEMPLATE, val, prePrices);
     else holdings = [];
 
-    onLoad(holdings, strategy.id);
+    onLoad(holdings, strategy.id, val);
   }
 
   if (mode === "pick") {

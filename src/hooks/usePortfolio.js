@@ -19,6 +19,7 @@ export default function usePortfolio() {
   const [detailView, setDetailView] = useState(null);
   const [liveData, setLiveData] = useState({});
   const [loadingStates, setLoadingStates] = useState({});
+  const [targetBalance, setTargetBalance] = useState(0);
 
   // Add stock modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -109,11 +110,12 @@ export default function usePortfolio() {
   }
 
   // Handle onboarding complete
-  function handleLoad(newHoldings, strategyId) {
+  function handleLoad(newHoldings, strategyId, balance) {
     setHoldings(newHoldings);
     setStrategy(strategyId);
     setIsOnboarding(false);
-    if (strategyId === "nobl") setIsSample(true);
+    setIsSample(strategyId !== "custom");
+    setTargetBalance(balance || 0);
     // Seed liveData with pre-loaded prices so portfolio has values immediately
     if (Object.keys(prePrices).length > 0) {
       setLiveData(prev => ({ ...prev, ...prePrices }));
@@ -146,6 +148,7 @@ export default function usePortfolio() {
 
       if (data) setLiveData(prev => ({ ...prev, [ticker]: data }));
       setHoldings(prev => [...prev.filter(h => h.ticker !== ticker), newHolding]);
+      setTargetBalance(0); // clear anchor since portfolio was manually modified
       setShowAddModal(false);
       setAddTicker("");
       setAddShares("");
@@ -159,11 +162,13 @@ export default function usePortfolio() {
   // Remove stock
   function removeStock(ticker) {
     setHoldings(prev => prev.filter(h => h.ticker !== ticker));
+    setTargetBalance(0); // clear anchor since portfolio was manually modified
   }
 
   // Edit shares
   function editShares(ticker, newShares) {
     setHoldings(prev => prev.map(h => h.ticker === ticker ? { ...h, shares: newShares } : h));
+    setTargetBalance(0); // clear anchor since portfolio was manually modified
   }
 
   // Select stock for detail view
@@ -173,28 +178,40 @@ export default function usePortfolio() {
     window.scrollTo(0, 0);
   }
 
-  // Portfolio summary
+  // Portfolio summary — uses best available price for each holding
   const summary = useMemo(() => {
-    let pv = 0, annualIncome = 0, yieldSum = 0, growthSum = 0, count = 0;
+    let pv = 0, annualIncome = 0, yieldSum = 0, growthSum = 0;
     holdings.forEach(h => {
-      const data = liveData[h.ticker] || h;
-      const price = data.price || 0;
+      const live = liveData[h.ticker];
+      // Use live price if available and > 0, otherwise fall back to holding's stored price
+      const price = (live?.price > 0 ? live.price : null) || h.price || 0;
       const value = price * (h.shares || 0);
-      const yld = data.divYield ?? h.yld ?? 0;
-      const div = data.annualDiv ?? h.div ?? 0;
+      const yld = live?.divYield ?? h.yld ?? 0;
+      const div = live?.annualDiv ?? h.div ?? 0;
       const g5 = h.g5 ?? 5;
       pv += value;
       annualIncome += div * (h.shares || 0);
-      if (yld > 0) { yieldSum += yld * value; growthSum += g5 * value; count++; }
+      if (yld > 0) { yieldSum += yld * value; growthSum += g5 * value; }
     });
+
+    // If we have a target balance from onboarding and the calculated value is
+    // within 2% (meaning same prices, just floating-point drift), anchor to target
+    let portfolioValue = pv;
+    if (targetBalance > 0 && pv > 0) {
+      const drift = Math.abs(pv - targetBalance) / targetBalance;
+      if (drift < 0.02) {
+        portfolioValue = targetBalance;
+      }
+    }
+
     return {
-      portfolioValue: pv,
+      portfolioValue,
       annualIncome: Math.round(annualIncome),
       weightedYield: pv > 0 ? yieldSum / pv : 0,
       weightedGrowth: pv > 0 ? growthSum / pv : 0,
       monthlyAvg: Math.round(annualIncome / 12),
     };
-  }, [holdings, liveData]);
+  }, [holdings, liveData, targetBalance]);
 
   return {
     isOnboarding, activeTab, setActiveTab,
