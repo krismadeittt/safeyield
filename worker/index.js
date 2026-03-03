@@ -12,9 +12,11 @@ function cors(origin) {
     "https://safeyield.app",
     "https://www.safeyield.app",
     "http://localhost:3000",
+    "http://localhost:5173",
   ];
   return {
-    "Access-Control-Allow-Origin":  allowed.includes(origin) ? origin : "*",
+    "Access-Control-Allow-Origin":  allowed.includes(origin) ? origin : "",
+    "Vary": "Origin",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age":       "86400",
@@ -35,6 +37,12 @@ function json(data, origin, status, cache) {
 
 function err(msg, origin, status) {
   return json({ error: msg }, origin, status || 400, 0);
+}
+
+var TICKER_RE = /^[A-Z]{1,5}(\.[A-Z]{1,4})?$/;
+
+function validTicker(t) {
+  return TICKER_RE.test(t);
 }
 
 function toEOD(t) {
@@ -234,14 +242,19 @@ function normPrice(d) {
 
 export default {
   async fetch(request, env) {
-    var KEY    = env.EODHD_KEY || "69a69d8372a7a0.54100635";
-    var origin = request.headers.get("Origin") || "*";
+    var origin = request.headers.get("Origin") || "";
 
+    try {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: cors(origin) });
     }
     if (request.method !== "GET") {
       return err("Method not allowed", origin, 405);
+    }
+
+    var KEY = env.EODHD_KEY;
+    if (!KEY) {
+      return err("API key not configured", origin, 500);
     }
 
     var reqUrl = new URL(request.url);
@@ -254,6 +267,7 @@ export default {
     if (path === "/quote") {
       var symbol = (reqUrl.searchParams.get("symbol") || "").toUpperCase().trim();
       if (!symbol) return err("symbol required", origin);
+      if (!validTicker(symbol)) return err("invalid ticker format", origin);
       try {
         var results = await Promise.all([
           fetchPrices([symbol], KEY),
@@ -306,6 +320,7 @@ export default {
     if (path === "/fundamentals") {
       var sym = (reqUrl.searchParams.get("symbol") || "").toUpperCase().trim();
       if (!sym) return err("symbol required", origin);
+      if (!validTicker(sym)) return err("invalid ticker format", origin);
       try {
         var fundRaw2 = await fetchFundamentals(sym, KEY);
         var data     = parseFundamentals(fundRaw2);
@@ -434,5 +449,9 @@ export default {
     }
 
     return err("Valid routes: /health /quote /batch /batch-fundamentals /fundamentals /search /history /history-batch /div-history-batch", origin, 404);
+
+    } catch (uncaught) {
+      return err("Internal error", origin, 500);
+    }
   },
 };

@@ -1,0 +1,26 @@
+name: Deploy Workers
+on:
+  push:
+    branches: [main]
+    paths: ['worker/**']
+
+jobs:
+  deploy-api:
+    runs-on: ubuntu-latest
+    name: Deploy API Worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: worker
+
+  deploy-history:
+    runs-on: ubuntu-latest
+    name: Deploy History Worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          workingDirectory: worker/history
