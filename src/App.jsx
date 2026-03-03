@@ -116,9 +116,7 @@ export default function App() {
               onSelect={selectStock}
               liveData={liveData}
               loading={loadingStates}
-              showIncome
               onRemove={removeStock}
-              showWeight
               onEdit={editShares}
             />
           </div>

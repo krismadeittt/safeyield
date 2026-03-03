@@ -105,6 +105,36 @@ export default function MultiLineChart({
           </g>
         )}
 
+        {/* SVG tooltip */}
+        {hovIdx != null && hovIdx >= 0 && hovIdx < pts.length && (() => {
+          const tipW = 130;
+          const tipH = 16 + keys.length * 16;
+          let tx = getX(hovIdx) + 12;
+          if (tx + tipW > width - PR) tx = getX(hovIdx) - tipW - 12;
+          const ty = padTop + 6;
+          return (
+            <g>
+              <rect x={tx} y={ty} width={tipW} height={tipH}
+                fill="#071020" stroke="#1a3a5c" strokeWidth={1} />
+              <text x={tx + 6} y={ty + 13} fontSize={9} fontWeight={700}
+                fill="#c8dff0" fontFamily="system-ui">
+                {pts[hovIdx].label || `Year ${hovIdx}`}
+              </text>
+              {keys.map((key, ki) => {
+                const val = pts[hovIdx]?.[key];
+                if (val == null) return null;
+                const labels = { noDrip: "No DRIP", drip: "DRIP", contrib: "DRIP+Contrib" };
+                return (
+                  <text key={key} x={tx + 6} y={ty + 13 + (ki + 1) * 16}
+                    fontSize={9} fill={colors[ki] || "#5a8ab0"} fontFamily="system-ui">
+                    {labels[key] || key}: {fmt ? fmt(val) : val.toFixed(0)}
+                  </text>
+                );
+              })}
+            </g>
+          );
+        })()}
+
         {/* Invisible hover rects */}
         {pts.map((_, i) => (
           <rect

@@ -10,12 +10,14 @@ const SORT_FIELDS = [
   { key: "yld", label: "Yield" },
   { key: "div", label: "Annual Div" },
   { key: "payout", label: "Payout" },
-  { key: "tax", label: "Tax Class" },
+  { key: "g5", label: "5Y Growth" },
+  { key: "streak", label: "Streak" },
+  { key: "weight", label: "Weight" },
 ];
 
 export default function HoldingsTable({
   holdings, search, setSearch, onAdd, onSelect, liveData, loading,
-  showIncome, onRemove, showWeight, onEdit, title,
+  onRemove, onEdit, title,
 }) {
   const [sortKey, setSortKey] = useState("value");
   const [sortDir, setSortDir] = useState("desc");
@@ -34,12 +36,13 @@ export default function HoldingsTable({
       list = list.filter(h => h.ticker.includes(q) || (h.name || "").toUpperCase().includes(q));
     }
     list.sort((a, b) => {
-      const av = getSortVal(a, sortKey, liveData);
-      const bv = getSortVal(b, sortKey, liveData);
+      const av = getSortVal(a, sortKey, liveData, totalValue);
+      const bv = getSortVal(b, sortKey, liveData, totalValue);
+      if (typeof av === "string") return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
       return sortDir === "asc" ? av - bv : bv - av;
     });
     return list;
-  }, [holdings, search, sortKey, sortDir, liveData]);
+  }, [holdings, search, sortKey, sortDir, liveData, totalValue]);
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -52,10 +55,17 @@ export default function HoldingsTable({
         display: "flex", justifyContent: "space-between", alignItems: "center",
         marginBottom: "1rem",
       }}>
-        <div style={{
-          fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em", textTransform: "uppercase",
-        }}>
-          {title || "Portfolio Holdings"} ({holdings.length})
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{
+            fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em", textTransform: "uppercase",
+          }}>
+            {title || "Portfolio Holdings"} ({holdings.length})
+          </div>
+          <div style={{
+            fontSize: "0.55rem", color: "#2a4a6a",
+          }}>
+            Total: <span style={{ color: "#5aaff8" }}>{formatCurrency(totalValue)}</span>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <input
@@ -87,8 +97,6 @@ export default function HoldingsTable({
                   {f.label} {sortKey === f.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
                 </th>
               ))}
-              {showIncome && <th>Income</th>}
-              {showWeight && <th>Weight</th>}
               <th></th>
             </tr>
           </thead>
@@ -104,9 +112,7 @@ export default function HoldingsTable({
                   live={liveData?.[h.ticker]}
                   loading={loading?.[h.ticker]}
                   onClick={onSelect}
-                  showIncome={showIncome}
                   onRemove={onRemove}
-                  showWeight={showWeight}
                   weightPct={weightPct}
                   onEdit={onEdit}
                 />
@@ -126,17 +132,21 @@ export default function HoldingsTable({
   );
 }
 
-function getSortVal(stock, key, liveData) {
+function getSortVal(stock, key, liveData, totalValue) {
   const data = liveData?.[stock.ticker] || stock;
+  const price = data.price || 0;
+  const value = price * (stock.shares || 0);
   switch (key) {
     case "ticker": return stock.ticker;
     case "shares": return stock.shares || 0;
     case "price": return data.price || 0;
-    case "value": return (data.price || 0) * (stock.shares || 0);
+    case "value": return value;
     case "yld": return data.divYield ?? stock.yld ?? 0;
     case "div": return data.annualDiv ?? stock.div ?? 0;
     case "payout": return data.payout ?? stock.payout ?? 0;
-    case "tax": return 0;
+    case "g5": return stock.g5 ?? 0;
+    case "streak": return stock.streak ?? 0;
+    case "weight": return totalValue > 0 ? value / totalValue : 0;
     default: return 0;
   }
 }
