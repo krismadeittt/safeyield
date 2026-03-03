@@ -1,0 +1,7 @@
+name = "safeyield-history"
+main = "index.js"
+compatibility_date = "2024-09-23"
+
+[[kv_namespaces]]
+binding = "HISTORY"
+id = "e4b018e2817c4346a0f7119db9eb54c4"

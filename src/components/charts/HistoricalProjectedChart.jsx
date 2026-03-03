@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { formatCurrency } from '../../utils/format';
+import { fetchBatchHistory, calcHistoricalPortfolioValues } from '../../api/history';
 import MultiLineChart from './MultiLineChart';
 import PortfolioBalanceMonthly from './PortfolioBalanceMonthly';
 
@@ -15,6 +16,8 @@ export default function HistoricalProjectedChart({
   const containerRef = useRef(null);
   const [width, setWidth] = useState(800);
   const [hovered, setHovered] = useState(null);
+  const [historyMap, setHistoryMap] = useState({});
+  const [histLoading, setHistLoading] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -25,43 +28,73 @@ export default function HistoricalProjectedChart({
     return () => obs.disconnect();
   }, []);
 
+  // Fetch real history data for portfolio holdings
+  useEffect(() => {
+    if (!holdings?.length) return;
+    const tickers = holdings.map(h => h.ticker);
+    setHistLoading(true);
+    fetchBatchHistory(tickers)
+      .then(map => setHistoryMap(map))
+      .finally(() => setHistLoading(false));
+  }, [holdings]);
+
   const currentYear = new Date().getFullYear();
   const projYears = Math.min(horizon, 10);
 
-  // Backward historical values + forward projections
+  // Use real historical data if available, otherwise fall back to calculated
+  const realHistData = useMemo(() => {
+    if (Object.keys(historyMap).length === 0) return null;
+    return calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue);
+  }, [historyMap, holdings, portfolioValue]);
+
+  // Build chart data: historical + projected
   const data = useMemo(() => {
     const yieldRate = (avgYield || 2.5) / 100;
     const growthRate = (growth || 5) / 100;
     const annualReturn = 0.08;
-
     const bars = [];
-    const histValues = [portfolioValue];
-    let backVal = portfolioValue;
-    for (let i = 1; i <= HIST_YEARS; i++) {
-      const pastYield = yieldRate * Math.pow(1 + growthRate, -i);
-      const totalGrowth = 1 + annualReturn + pastYield;
-      backVal = backVal / totalGrowth;
-      histValues.unshift(Math.round(backVal));
-    }
 
-    const histNoDrip = [histValues[0]];
-    let noDripVal = histValues[0];
-    for (let i = 1; i <= HIST_YEARS; i++) {
-      noDripVal = noDripVal * (1 + annualReturn);
-      histNoDrip.push(Math.round(noDripVal));
-    }
-
-    for (let i = 0; i <= HIST_YEARS; i++) {
-      bars.push({
-        year: currentYear - HIST_YEARS + i,
-        label: String(currentYear - HIST_YEARS + i),
-        value: histValues[i],
-        noDripValue: histNoDrip[i],
-        isHistorical: true,
-        isCurrent: i === HIST_YEARS,
+    if (realHistData && realHistData.length > 1) {
+      // Use REAL historical data from KV
+      realHistData.forEach((entry, i) => {
+        bars.push({
+          year: entry.year,
+          label: String(entry.year),
+          value: entry.value,
+          noDripValue: entry.noDripValue,
+          isHistorical: true,
+          isCurrent: entry.year === currentYear,
+        });
       });
+    } else {
+      // Fallback: backward calculation
+      const histValues = [portfolioValue];
+      let backVal = portfolioValue;
+      for (let i = 1; i <= HIST_YEARS; i++) {
+        const pastYield = yieldRate * Math.pow(1 + growthRate, -i);
+        const totalGrowth = 1 + annualReturn + pastYield;
+        backVal = backVal / totalGrowth;
+        histValues.unshift(Math.round(backVal));
+      }
+      const histNoDrip = [histValues[0]];
+      let noDripVal = histValues[0];
+      for (let i = 1; i <= HIST_YEARS; i++) {
+        noDripVal = noDripVal * (1 + annualReturn);
+        histNoDrip.push(Math.round(noDripVal));
+      }
+      for (let i = 0; i <= HIST_YEARS; i++) {
+        bars.push({
+          year: currentYear - HIST_YEARS + i,
+          label: String(currentYear - HIST_YEARS + i),
+          value: histValues[i],
+          noDripValue: histNoDrip[i],
+          isHistorical: true,
+          isCurrent: i === HIST_YEARS,
+        });
+      }
     }
 
+    // Forward projections
     let projDrip = portfolioValue;
     let projNoDrip = portfolioValue;
     let currentYieldRate = yieldRate;
@@ -81,11 +114,12 @@ export default function HistoricalProjectedChart({
     }
 
     return bars;
-  }, [portfolioValue, avgYield, growth, projYears, currentYear]);
+  }, [portfolioValue, avgYield, growth, projYears, currentYear, realHistData]);
 
   // Stats
   const startingValue = data[0]?.value || 0;
-  const currentNoDrip = data[HIST_YEARS]?.noDripValue || portfolioValue;
+  const currentEntry = data.find(d => d.isCurrent);
+  const currentNoDrip = currentEntry?.noDripValue || portfolioValue;
   const dripAdvantage = portfolioValue - currentNoDrip;
   const projectedFinal = data[data.length - 1]?.value || 0;
   const pctGain = startingValue > 0 ? ((portfolioValue - startingValue) / startingValue * 100) : 0;
@@ -115,8 +149,9 @@ export default function HistoricalProjectedChart({
     flipLeft = tipX > width - 190;
   }
 
-  const nowIdx = HIST_YEARS;
-  const nowX = padL + nowIdx * stepW + stepW;
+  // Find the NOW divider position (last historical bar)
+  const nowIdx = data.findIndex(d => d.isCurrent);
+  const nowX = nowIdx >= 0 ? padL + nowIdx * stepW + stepW : 0;
 
   return (
     <div ref={containerRef} style={{
@@ -137,6 +172,19 @@ export default function HistoricalProjectedChart({
           }}>
             {formatCurrency(totalIncome)}/yr
           </span>
+          {realHistData && (
+            <span style={{
+              fontSize: "0.55rem", color: "#1a7a3a", fontFamily: "system-ui",
+              padding: "2px 6px", border: "1px solid rgba(26,122,58,0.3)",
+            }}>
+              REAL DATA
+            </span>
+          )}
+          {histLoading && (
+            <span style={{ fontSize: "0.6rem", color: "#2a4a6a", fontFamily: "system-ui" }}>
+              Loading history...
+            </span>
+          )}
         </div>
 
         {/* Controls */}
