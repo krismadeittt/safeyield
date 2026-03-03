@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchBatchUpdate, fetchEnrichedQuote } from '../api/quotes';
 import { fetchBatchFundamentals } from '../api/fundamentals';
 import { searchTickers } from '../api/search';
@@ -74,9 +74,14 @@ export default function usePortfolio() {
     return () => clearInterval(id);
   }, [holdings]);
 
+  // Track when user picks a result so we don't re-search that exact ticker
+  const pickedTickerRef = useRef("");
+
   // Typeahead search for add stock modal
   useEffect(() => {
     if (addTicker.length < 1) { setAddResults([]); return; }
+    // Skip search if user just selected this ticker from dropdown
+    if (addTicker === pickedTickerRef.current) return;
     const timer = setTimeout(async () => {
       try {
         const results = await searchTickers(addTicker);
@@ -213,6 +218,13 @@ export default function usePortfolio() {
     };
   }, [holdings, liveData, targetBalance]);
 
+  // Select a ticker from search results — clears dropdown, won't re-search
+  function pickTicker(ticker) {
+    pickedTickerRef.current = ticker;
+    setAddTicker(ticker);
+    setAddResults([]);
+  }
+
   return {
     isOnboarding, activeTab, setActiveTab,
     holdings, prePrices, pricesLoading, isSample, strategy,
@@ -223,6 +235,7 @@ export default function usePortfolio() {
     addTicker, setAddTicker, addResults, addShares, setAddShares,
     addYield, setAddYield, isAdding,
     handleLoad, addStock, removeStock, editShares, selectStock, refreshStock,
+    pickTicker,
     summary,
   };
 }

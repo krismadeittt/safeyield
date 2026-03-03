@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import usePortfolio from './hooks/usePortfolio';
 import Onboarding from './screens/Onboarding';
 import Dashboard from './screens/Dashboard';
@@ -16,8 +16,11 @@ export default function App() {
     addTicker, setAddTicker, addResults, addShares, setAddShares,
     addYield, setAddYield, isAdding,
     handleLoad, addStock, removeStock, editShares, selectStock,
+    pickTicker,
     summary,
   } = usePortfolio();
+
+  const sharesInputRef = useRef(null);
 
   // Onboarding screen
   if (isOnboarding) {
@@ -178,7 +181,10 @@ export default function App() {
                   maxHeight: 150, overflowY: "auto", zIndex: 10,
                 }}>
                   {addResults.map(r => (
-                    <div key={r.ticker} onClick={() => { setAddTicker(r.ticker); setAddResults([]); }}
+                    <div key={r.ticker} onClick={() => {
+                      pickTicker(r.ticker);
+                      setTimeout(() => sharesInputRef.current?.focus(), 50);
+                    }}
                       style={{
                         padding: "6px 12px", cursor: "pointer",
                         borderBottom: "1px solid #0f2540",
@@ -194,6 +200,7 @@ export default function App() {
 
             {/* Shares input */}
             <input
+              ref={sharesInputRef}
               placeholder="Shares (default: 1)"
               value={addShares}
               onChange={e => setAddShares(e.target.value)}
