@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { projectPortfolio, seededPRNG } from '../utils/monteCarlo';
+import { projectPortfolioPerStock, seededPRNG } from '../utils/monteCarlo';
 import { calcMonthlyIncome } from '../utils/dividends';
 import { formatCurrency } from '../utils/format';
 import HistoricalProjectedChart from '../components/charts/HistoricalProjectedChart';
@@ -18,18 +18,12 @@ export default function Dashboard({
   const avgYield = weightedYield || 2.5;
   const growth = weightedGrowth || 5;
 
-  // Run projections
-  const noDripVals = useMemo(() =>
-    projectPortfolio(horizon, false, 0, portfolioValue, avgYield, 8, useVolatility, rng, growth),
-  [horizon, portfolioValue, avgYield, useVolatility, growth]);
+  // Per-stock projection: each holding compounds with its own yield, g5, and expected return
+  const projections = useMemo(() =>
+    projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng),
+  [horizon, holdings, liveData, contrib, useVolatility]);
 
-  const dripVals = useMemo(() =>
-    projectPortfolio(horizon, true, 0, portfolioValue, avgYield, 8, useVolatility, rng, growth),
-  [horizon, portfolioValue, avgYield, useVolatility, growth]);
-
-  const contribVals = useMemo(() =>
-    contrib > 0 ? projectPortfolio(horizon, true, contrib, portfolioValue, avgYield, 8, useVolatility, rng, growth) : null,
-  [horizon, portfolioValue, avgYield, contrib, useVolatility, growth]);
+  const { noDripVals, dripVals, contribVals } = projections;
 
   // Monthly income data
   const monthlyData = useMemo(() => calcMonthlyIncome(holdings), [holdings]);
