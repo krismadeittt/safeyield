@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { MONTHS, formatCurrency } from '../../utils/format';
 
 /**
- * Portfolio balance monthly view — shows bars for each month across the projection horizon.
+ * Portfolio balance monthly view — SVG tooltip (no layout shift).
  */
 export default function PortfolioBalanceMonthly({
   dripVals, contribVals, monthlyData, totalIncome, avgYield, horizon, extraContrib,
@@ -46,6 +46,7 @@ export default function PortfolioBalanceMonthly({
   const chartH = H - padLeft - padBot;
 
   const hovBar = hovered ? bars.find(b => b.yr === hovered.yr && b.mo === hovered.mo) : null;
+  const hovIdx = hovBar ? bars.indexOf(hovBar) : -1;
 
   return (
     <div style={{
@@ -57,9 +58,6 @@ export default function PortfolioBalanceMonthly({
         textTransform: "uppercase", marginBottom: "0.8rem",
       }}>
         Portfolio Balance — Monthly View
-      </div>
-      <div style={{ fontSize: "0.8rem", color: "#c8dff0", marginBottom: 4, minHeight: "1.2em", opacity: hovBar ? 1 : 0, transition: "opacity 0.15s" }}>
-        {hovBar ? `${hovBar.label}: ${formatCurrency(hovBar.value)}` : "\u00A0"}
       </div>
       <svg width={totalW} height={H} style={{ display: "block" }}>
         {/* Grid lines */}
@@ -89,9 +87,29 @@ export default function PortfolioBalanceMonthly({
               opacity={isHov ? 1 : 0.8}
               onMouseEnter={() => setHovered({ yr: bar.yr, mo: bar.mo })}
               onMouseLeave={() => setHovered(null)}
+              style={{ cursor: "pointer" }}
             />
           );
         })}
+
+        {/* SVG tooltip */}
+        {hovBar && hovIdx >= 0 && (
+          <g>
+            <rect
+              x={Math.min(hovIdx * stepW + barW + 6, totalW - 140)}
+              y={padTop}
+              width={130} height={24}
+              fill="#071020" stroke="#1a3a5c" strokeWidth={1}
+            />
+            <text
+              x={Math.min(hovIdx * stepW + barW + 12, totalW - 134)}
+              y={padTop + 16}
+              fontSize={10} fill="#c8dff0" fontFamily="system-ui"
+            >
+              {hovBar.label}: {formatCurrency(hovBar.value)}
+            </text>
+          </g>
+        )}
       </svg>
     </div>
   );
