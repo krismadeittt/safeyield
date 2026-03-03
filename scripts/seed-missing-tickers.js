@@ -258,7 +258,7 @@ Options:
   let existingIndex = [];
   try {
     const result = execSync(
-      `npx wrangler kv:key get --namespace-id=${KV_NAMESPACE_ID} "_tickers"`,
+      `npx wrangler kv key get --namespace-id=${KV_NAMESPACE_ID} --remote "_tickers"`,
       { cwd: WORKER_DIR, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
     );
     existingIndex = JSON.parse(result);
@@ -374,7 +374,7 @@ Options:
     console.log(`\nUploading chunk ${i + 1}/${chunkFiles.length}...`);
     try {
       execSync(
-        `npx wrangler kv:bulk put --namespace-id=${KV_NAMESPACE_ID} "${filePath}"`,
+        `npx wrangler kv bulk put --namespace-id=${KV_NAMESPACE_ID} --remote "${filePath}"`,
         { cwd: WORKER_DIR, stdio: 'inherit' }
       );
       console.log(`  Chunk ${i} uploaded successfully.`);
