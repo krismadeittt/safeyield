@@ -1,11 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { projectPortfolio, seededPRNG } from '../utils/monteCarlo';
 import { calcMonthlyIncome } from '../utils/dividends';
-import { formatCurrency, MONTHS } from '../utils/format';
-import PortfolioBalanceMonthly from '../components/charts/PortfolioBalanceMonthly';
-import DripComparisonBar from '../components/charts/DripComparisonBar';
-import MonthlyHeatmap from '../components/charts/MonthlyHeatmap';
-import MultiLineChart from '../components/charts/MultiLineChart';
+import { formatCurrency } from '../utils/format';
 import HistoricalProjectedChart from '../components/charts/HistoricalProjectedChart';
 
 const HORIZONS = [1, 5, 10, 15, 25, 30, 40, 50];
@@ -18,7 +14,6 @@ export default function Dashboard({
   const [useVolatility, setUseVolatility] = useState(false);
   const [extraContrib, setExtraContrib] = useState(0);
   const [customContrib, setCustomContrib] = useState("");
-  const [chartMode, setChartMode] = useState("line"); // "line" or "monthly"
 
   const contrib = customContrib ? parseFloat(customContrib) || 0 : extraContrib;
   const rng = useMemo(() => seededPRNG(42), []);
@@ -43,34 +38,6 @@ export default function Dashboard({
   const monthlyData = useMemo(() => calcMonthlyIncome(holdings), [holdings]);
   const monthlyAvg = monthlyData.reduce((a, b) => a + b, 0) / 12;
 
-  // Build yearly dividend heatmap data
-  const fullYearData = useMemo(() => {
-    const years = [];
-    for (let yr = 0; yr <= Math.min(horizon, 30); yr++) {
-      const growthFactor = Math.pow(1 + (growth / 100), yr);
-      const months = monthlyData.map(m => Math.round(m * growthFactor));
-      years.push({ months });
-    }
-    return years;
-  }, [horizon, monthlyData, growth]);
-
-  // Line chart data for multi-line view
-  const lineData = useMemo(() => {
-    const pts = [];
-    for (let i = 0; i <= horizon; i++) {
-      pts.push({
-        label: `Y${i}`,
-        noDrip: noDripVals[i],
-        drip: dripVals[i],
-        ...(contribVals ? { contrib: contribVals[i] } : {}),
-      });
-    }
-    return pts;
-  }, [noDripVals, dripVals, contribVals, horizon]);
-
-  const lineKeys = contribVals ? ["noDrip", "drip", "contrib"] : ["noDrip", "drip"];
-  const lineColors = contribVals ? ["#1a3a5c", "#005EB8", "#1a5a9e"] : ["#1a3a5c", "#005EB8"];
-
   // Key projection values
   const finalNoDrip = noDripVals[noDripVals.length - 1] || 0;
   const finalDrip = (contribVals || dripVals)[horizon] || 0;
@@ -85,7 +52,7 @@ export default function Dashboard({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
 
-      {/* Stats row — bordered strip like old monolith */}
+      {/* Stats row — bordered strip */}
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0,
         marginBottom: "2.5rem",
@@ -99,7 +66,7 @@ export default function Dashboard({
         <StatCell label="Wtd Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last />
       </div>
 
-      {/* Historical & Projected Income */}
+      {/* Single unified chart — portfolio value + dividend income */}
       <HistoricalProjectedChart
         portfolioValue={portfolioValue}
         avgYield={avgYield}
@@ -108,16 +75,11 @@ export default function Dashboard({
         setHorizon={setHorizon}
         useVolatility={useVolatility}
         setUseVolatility={setUseVolatility}
-        chartMode={chartMode}
-        setChartMode={setChartMode}
         extraContrib={contrib}
         noDripVals={noDripVals}
         dripVals={dripVals}
         contribVals={contribVals}
         totalIncome={totalIncome}
-        lineData={lineData}
-        lineKeys={lineKeys}
-        lineColors={lineColors}
         monthlyData={monthlyData}
         holdings={holdings}
       />
@@ -155,15 +117,6 @@ export default function Dashboard({
             background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
             color: "#c8dff0", fontFamily: "system-ui", outline: "none",
           }}
-        />
-      </div>
-
-      {/* Monthly dividend heatmap */}
-      <div style={{ marginTop: "1.5rem" }}>
-        <MonthlyHeatmap
-          fullYearData={fullYearData}
-          avgYield={avgYield}
-          monthlyData={monthlyData}
         />
       </div>
     </div>
