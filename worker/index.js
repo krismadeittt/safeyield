@@ -13,36 +13,37 @@ import {
 
 const EODHD_BASE = "https://eodhd.com/api";
 
+// ── KV cache helpers ──
+async function kvGet(env, key) {
+  if (!env.CACHE) return null;
+  var raw = await env.CACHE.get(key);
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function kvPut(env, key, data, ttl) {
+  if (!env.CACHE) return;
+  await env.CACHE.put(key, JSON.stringify(data), { expirationTtl: ttl });
+}
+
 // ── In-flight dedup map for fundamentals requests ──
 var inflight = new Map();
 
-function dedupedFetchFundamentals(ticker, key) {
+function dedupedFetchFundamentals(ticker, key, env) {
   if (inflight.has(ticker)) return inflight.get(ticker);
-  var p = cachedFetchFundamentals(ticker, key).finally(function() {
+  var p = kvCachedFetchFundamentals(ticker, key, env).finally(function() {
     inflight.delete(ticker);
   });
   inflight.set(ticker, p);
   return p;
 }
 
-async function cachedFetchFundamentals(ticker, key) {
-  var cacheKey = "https://safeyield-cache/fundamentals/" + ticker;
-  var cache = caches.default;
-
-  // Check cache
-  var cached = await cache.match(cacheKey);
-  if (cached) return cached.json();
-
-  // Miss — fetch from EODHD and parse
+async function kvCachedFetchFundamentals(ticker, key, env) {
+  var cached = await kvGet(env, "fd:" + ticker);
+  if (cached) return cached;
   var raw = await fetchFundamentals(ticker, key);
   var parsed = parseFundamentals(raw);
   parsed.ticker = ticker;
-
-  // Store in cache with 12hr TTL
-  var cacheResp = new Response(JSON.stringify(parsed), {
-    headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=43200" },
-  });
-  await cache.put(cacheKey, cacheResp);
+  await kvPut(env, "fd:" + ticker, parsed, 43200);
   return parsed;
 }
 
@@ -485,12 +486,18 @@ export default {
       if (!symbol) return err("symbol required", origin);
       if (!validTicker(symbol)) return err("invalid ticker format", origin);
       try {
+        // Check KV for cached price
+        var qCached = await kvGet(env, "price:" + symbol);
         var results = await Promise.all([
-          fetchPrices([symbol], KEY),
-          dedupedFetchFundamentals(symbol, KEY).catch(function() { return {}; }),
+          qCached ? Promise.resolve(null) : fetchPrices([symbol], KEY),
+          dedupedFetchFundamentals(symbol, KEY, env).catch(function() { return {}; }),
         ]);
-        var rows   = results[0];
-        var p = rows[0] ? normPrice(rows[0]) : null;
+        var p = qCached;
+        if (!p) {
+          var rows = results[0];
+          p = rows[0] ? normPrice(rows[0]) : null;
+          if (p) await kvPut(env, "price:" + p.ticker, p, 120);
+        }
         var f = results[1];
         var divYield  = f.divYield;
         var annualDiv = f.annualDiv;
@@ -523,8 +530,11 @@ export default {
       if (!pSym) return err("symbol required", origin);
       if (!validTicker(pSym)) return err("invalid ticker format", origin);
       try {
+        var pCached = await kvGet(env, "price:" + pSym);
+        if (pCached) return json({ result: pCached }, origin, 200, 60);
         var pRows = await fetchPrices([pSym], KEY);
         var pData = pRows[0] ? normPrice(pRows[0]) : null;
+        if (pData) await kvPut(env, "price:" + pData.ticker, pData, 120);
         return json({ result: pData }, origin, 200, 60);
       } catch (e) {
         return err("Price failed: " + e.message, origin, 502);
@@ -536,13 +546,21 @@ export default {
       if (!raw) return err("symbols required", origin);
       var tickers = Array.from(new Set(raw.split(",").map(function(s) { return s.trim(); }).filter(Boolean))).slice(0, 50);
       try {
-        var rows2 = await fetchPrices(tickers, KEY);
-        var out   = {};
-        for (var i = 0; i < rows2.length; i++) {
-          var p2 = normPrice(rows2[i]);
-          out[p2.ticker] = p2;
+        var bOut = {}, bMisses = [];
+        for (var bi = 0; bi < tickers.length; bi++) {
+          var bc = await kvGet(env, "price:" + tickers[bi]);
+          if (bc) bOut[tickers[bi]] = bc;
+          else bMisses.push(tickers[bi]);
         }
-        return json({ results: out, count: Object.keys(out).length }, origin, 200, 300);
+        if (bMisses.length > 0) {
+          var rows2 = await fetchPrices(bMisses, KEY);
+          for (var bj = 0; bj < rows2.length; bj++) {
+            var p2 = normPrice(rows2[bj]);
+            bOut[p2.ticker] = p2;
+            await kvPut(env, "price:" + p2.ticker, p2, 120);
+          }
+        }
+        return json({ results: bOut, count: Object.keys(bOut).length }, origin, 200, 120);
       } catch (e) {
         return err("Batch failed: " + e.message, origin, 502);
       }
@@ -553,7 +571,7 @@ export default {
       if (!sym) return err("symbol required", origin);
       if (!validTicker(sym)) return err("invalid ticker format", origin);
       try {
-        var data     = await dedupedFetchFundamentals(sym, KEY);
+        var data     = await dedupedFetchFundamentals(sym, KEY, env);
         return json({ result: Object.assign({ ticker: sym }, data) }, origin, 200, 21600);
       } catch (e) {
         return err("Fundamentals failed: " + e.message, origin, 502);
@@ -564,12 +582,16 @@ export default {
       var q = (reqUrl.searchParams.get("q") || "").trim();
       if (!q) return err("q required", origin);
       try {
+        var sCacheKey = "search:" + q.toLowerCase();
+        var sCached = await kvGet(env, sCacheKey);
+        if (sCached) return json({ results: sCached }, origin, 200, 300);
         var r2 = await fetch(EODHD_BASE + "/search/" + encodeURIComponent(q) + "?api_token=" + KEY + "&limit=10&fmt=json");
         if (!r2.ok) throw new Error("Search " + r2.status);
         var data2   = await r2.json();
         var results2 = (Array.isArray(data2) ? data2 : []).map(function(item) {
           return { ticker: item.Code, exchange: item.Exchange, name: item.Name, type: item.Type };
         });
+        await kvPut(env, sCacheKey, results2, 3600);
         return json({ results: results2 }, origin, 200, 300);
       } catch (e) {
         return err("Search failed: " + e.message, origin, 502);
@@ -587,7 +609,7 @@ export default {
       try {
         var bfResults = {};
         var bfPromises = bfSyms.map(function(bfSym) {
-          return dedupedFetchFundamentals(bfSym, KEY)
+          return dedupedFetchFundamentals(bfSym, KEY, env)
             .then(function(bfParsed) {
               bfResults[bfSym] = Object.assign({ ticker: bfSym }, bfParsed);
             })
@@ -607,11 +629,13 @@ export default {
     if (path === "/history") {
       var hTicker = reqUrl.searchParams.get("ticker") || "";
       if (!hTicker) return err("ticker param required", origin, 400);
-      var hCode = toEOD(hTicker);
-      var hFrom = "2020-01-01";
-      var hTo   = new Date().toISOString().slice(0, 10);
-      var hUrl  = EODHD_BASE + "/eod/" + hCode + "?api_token=" + KEY + "&fmt=json&period=m&from=" + hFrom + "&to=" + hTo;
       try {
+        var hCached = await kvGet(env, "hist:" + hTicker.toUpperCase());
+        if (hCached) return json({ ticker: hTicker, prices: hCached }, origin, 200, 86400);
+        var hCode = toEOD(hTicker);
+        var hFrom = "2020-01-01";
+        var hTo   = new Date().toISOString().slice(0, 10);
+        var hUrl  = EODHD_BASE + "/eod/" + hCode + "?api_token=" + KEY + "&fmt=json&period=m&from=" + hFrom + "&to=" + hTo;
         var hResp = await fetch(hUrl);
         if (!hResp.ok) return err("EODHD history " + hResp.status, origin, 502);
         var hData = await hResp.json();
@@ -619,7 +643,8 @@ export default {
         var hPrices = hData.map(function(d) {
           return [d.date.slice(0, 7), parseFloat((d.adjusted_close || d.close || 0).toFixed(2))];
         }).filter(function(d) { return d[1] > 0; });
-        return json({ ticker: hTicker, prices: hPrices }, origin, 200, 86400); // cache 24hr
+        await kvPut(env, "hist:" + hTicker.toUpperCase(), hPrices, 86400);
+        return json({ ticker: hTicker, prices: hPrices }, origin, 200, 86400);
       } catch (hErr) {
         return err("History fetch failed: " + hErr.message, origin, 502);
       }
@@ -630,24 +655,32 @@ export default {
       var hbRaw = reqUrl.searchParams.get("symbols") || "";
       var hbSyms = hbRaw.split(",").map(function(s) { return s.trim().toUpperCase(); }).filter(Boolean).slice(0, 10);
       if (!hbSyms.length) return err("symbols param required", origin, 400);
-      var hbFrom = "2020-01-01";
-      var hbTo   = new Date().toISOString().slice(0, 10);
-      var hbResults = {};
-      var hbPromises = hbSyms.map(function(hbSym) {
-        var hbCode = toEOD(hbSym);
-        var hbUrl  = EODHD_BASE + "/eod/" + hbCode + "?api_token=" + KEY + "&fmt=json&period=m&from=" + hbFrom + "&to=" + hbTo;
-        return fetch(hbUrl)
-          .then(function(r) { return r.json(); })
-          .then(function(d) {
-            var prices = Array.isArray(d) ? d.map(function(x) {
-              return [x.date.slice(0, 7), parseFloat((x.adjusted_close || x.close || 0).toFixed(2))];
-            }).filter(function(x) { return x[1] > 0; }) : [];
-            hbResults[hbSym] = prices;
-          })
-          .catch(function() { hbResults[hbSym] = []; });
-      });
-      await Promise.all(hbPromises);
-      return json({ results: hbResults }, origin, 200, 86400); // cache 24hr
+      var hbResults = {}, hbMisses = [];
+      for (var hbi = 0; hbi < hbSyms.length; hbi++) {
+        var hbc = await kvGet(env, "hist:" + hbSyms[hbi]);
+        if (hbc) hbResults[hbSyms[hbi]] = hbc;
+        else hbMisses.push(hbSyms[hbi]);
+      }
+      if (hbMisses.length > 0) {
+        var hbFrom = "2020-01-01";
+        var hbTo   = new Date().toISOString().slice(0, 10);
+        var hbPromises = hbMisses.map(function(hbSym) {
+          var hbCode = toEOD(hbSym);
+          var hbUrl  = EODHD_BASE + "/eod/" + hbCode + "?api_token=" + KEY + "&fmt=json&period=m&from=" + hbFrom + "&to=" + hbTo;
+          return fetch(hbUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              var prices = Array.isArray(d) ? d.map(function(x) {
+                return [x.date.slice(0, 7), parseFloat((x.adjusted_close || x.close || 0).toFixed(2))];
+              }).filter(function(x) { return x[1] > 0; }) : [];
+              hbResults[hbSym] = prices;
+              return kvPut(env, "hist:" + hbSym, prices, 86400);
+            })
+            .catch(function() { hbResults[hbSym] = []; });
+        });
+        await Promise.all(hbPromises);
+      }
+      return json({ results: hbResults }, origin, 200, 86400);
     }
 
 
@@ -656,24 +689,32 @@ export default {
       var dbRaw = reqUrl.searchParams.get("symbols") || "";
       var dbSyms = dbRaw.split(",").map(function(s) { return s.trim().toUpperCase(); }).filter(Boolean).slice(0, 10);
       if (!dbSyms.length) return err("symbols param required", origin, 400);
-      var dbFrom = reqUrl.searchParams.get("from") || "2020-01-01";
-      var dbTo   = reqUrl.searchParams.get("to") || new Date().toISOString().slice(0, 10);
-      var dbResults = {};
-      var dbPromises = dbSyms.map(function(dbSym) {
-        var dbCode = toEOD(dbSym);
-        var dbUrl  = EODHD_BASE + "/div/" + dbCode + "?api_token=" + KEY + "&fmt=json&from=" + dbFrom + "&to=" + dbTo;
-        return fetch(dbUrl)
-          .then(function(r) { return r.json(); })
-          .then(function(d) {
-            var divs = Array.isArray(d) ? d.map(function(x) {
-              var ym = parseInt(x.date.slice(0,4) + x.date.slice(5,7), 10);
-              return [ym, parseFloat(parseFloat(x.value).toFixed(4))];
-            }).filter(function(x) { return x[1] > 0; }) : [];
-            dbResults[dbSym] = divs;
-          })
-          .catch(function() { dbResults[dbSym] = []; });
-      });
-      await Promise.all(dbPromises);
+      var dbResults = {}, dbMisses = [];
+      for (var dbi = 0; dbi < dbSyms.length; dbi++) {
+        var dbc = await kvGet(env, "div:" + dbSyms[dbi]);
+        if (dbc) dbResults[dbSyms[dbi]] = dbc;
+        else dbMisses.push(dbSyms[dbi]);
+      }
+      if (dbMisses.length > 0) {
+        var dbFrom = reqUrl.searchParams.get("from") || "2020-01-01";
+        var dbTo   = reqUrl.searchParams.get("to") || new Date().toISOString().slice(0, 10);
+        var dbPromises = dbMisses.map(function(dbSym) {
+          var dbCode = toEOD(dbSym);
+          var dbUrl  = EODHD_BASE + "/div/" + dbCode + "?api_token=" + KEY + "&fmt=json&from=" + dbFrom + "&to=" + dbTo;
+          return fetch(dbUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              var divs = Array.isArray(d) ? d.map(function(x) {
+                var ym = parseInt(x.date.slice(0,4) + x.date.slice(5,7), 10);
+                return [ym, parseFloat(parseFloat(x.value).toFixed(4))];
+              }).filter(function(x) { return x[1] > 0; }) : [];
+              dbResults[dbSym] = divs;
+              return kvPut(env, "div:" + dbSym, divs, 86400);
+            })
+            .catch(function() { dbResults[dbSym] = []; });
+        });
+        await Promise.all(dbPromises);
+      }
       return json({ results: dbResults }, origin, 200, 86400);
     }
 

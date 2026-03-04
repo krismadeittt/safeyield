@@ -7,5 +7,9 @@ binding = "DB"
 database_name = "safeyield-db"
 database_id = "687d62b4-41f6-41bc-b141-138f403a7a39"
 
+[[kv_namespaces]]
+binding = "CACHE"
+id = "506488b3e7d940f98b20012f10037db2"
+
 [vars]
 CLERK_JWKS_URL = "https://live-dory-62.clerk.accounts.dev/.well-known/jwks.json"
