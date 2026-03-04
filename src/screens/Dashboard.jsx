@@ -25,7 +25,7 @@ export default function Dashboard({
     projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng),
   [horizon, holdings, liveData, contrib, useVolatility]);
 
-  const { noDripVals, dripVals, contribVals } = projections;
+  const { noDripVals, dripVals, contribVals, monthlyNoDrip, monthlyDrip, monthlyContrib } = projections;
 
   // Monthly income data
   const monthlyData = useMemo(() => calcMonthlyIncome(holdings), [holdings]);
@@ -70,6 +70,9 @@ export default function Dashboard({
         noDripVals={noDripVals}
         dripVals={dripVals}
         contribVals={contribVals}
+        monthlyNoDrip={monthlyNoDrip}
+        monthlyDrip={monthlyDrip}
+        monthlyContrib={monthlyContrib}
         totalIncome={totalIncome}
         monthlyData={monthlyData}
         holdings={holdings}

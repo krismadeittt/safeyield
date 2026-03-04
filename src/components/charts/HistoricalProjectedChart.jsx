@@ -26,7 +26,9 @@ export default function HistoricalProjectedChart({
   portfolioValue, avgYield, growth, horizon, setHorizon,
   useVolatility, setUseVolatility,
   extraContrib, setExtraContrib, customContrib, setCustomContrib,
-  noDripVals, dripVals, contribVals, totalIncome,
+  noDripVals, dripVals, contribVals,
+  monthlyNoDrip, monthlyDrip, monthlyContrib,
+  totalIncome,
   monthlyData, holdings,
 }) {
   const isMobile = useIsMobile();
@@ -178,16 +180,30 @@ export default function HistoricalProjectedChart({
     const nowBarIndex = result.length - 1;
 
     // --- PROJECTED ---
-    for (let yr = 1; yr <= projYears; yr++) {
-      const noDripVal = noDripVals?.[yr] || portfolioValue;
-      const dripVal = contribVals ? (contribVals[yr] || portfolioValue) : (dripVals?.[yr] || portfolioValue);
+    const hasMonthly = !!monthlyNoDrip;
+    const activeDripMonthly = monthlyContrib || monthlyDrip;
 
+    for (let yr = 1; yr <= projYears; yr++) {
       for (let p = 0; p < periodsPerYear; p++) {
-        const prevNoDrip = noDripVals?.[yr - 1] || portfolioValue;
-        const prevDrip = contribVals ? (contribVals[yr - 1] || portfolioValue) : (dripVals?.[yr - 1] || portfolioValue);
-        const t = (p + 1) / periodsPerYear;
-        const interpNoDrip = Math.round(prevNoDrip + (noDripVal - prevNoDrip) * t);
-        const interpDrip = Math.round(prevDrip + (dripVal - prevDrip) * t);
+        let interpNoDrip, interpDrip;
+
+        if (hasMonthly) {
+          // Use actual monthly simulation values for realistic volatility
+          const monthIdx = isQuarterly
+            ? (yr - 1) * 12 + (p + 1) * 3
+            : (yr - 1) * 12 + (p + 1);
+          interpNoDrip = monthlyNoDrip[monthIdx] || portfolioValue;
+          interpDrip = activeDripMonthly[monthIdx] || portfolioValue;
+        } else {
+          // Linear interpolation from yearly values (deterministic mode)
+          const noDripVal = noDripVals?.[yr] || portfolioValue;
+          const dripVal = contribVals ? (contribVals[yr] || portfolioValue) : (dripVals?.[yr] || portfolioValue);
+          const prevNoDrip = noDripVals?.[yr - 1] || portfolioValue;
+          const prevDrip = contribVals ? (contribVals[yr - 1] || portfolioValue) : (dripVals?.[yr - 1] || portfolioValue);
+          const t = (p + 1) / periodsPerYear;
+          interpNoDrip = Math.round(prevNoDrip + (noDripVal - prevNoDrip) * t);
+          interpDrip = Math.round(prevDrip + (dripVal - prevDrip) * t);
+        }
 
         result.push({
           label: isQuarterly ? `Q${p+1} ${currentYear + yr}` : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${currentYear + yr}`,
@@ -206,7 +222,7 @@ export default function HistoricalProjectedChart({
     }
 
     return { bars: result, nowBarIndex };
-  }, [portfolioValue, avgYield, growth, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears]);
+  }, [portfolioValue, avgYield, growth, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, monthlyNoDrip, monthlyDrip, monthlyContrib, effectiveHistYears]);
 
   const { bars: barData, nowBarIndex } = bars;
 
@@ -326,8 +342,8 @@ export default function HistoricalProjectedChart({
           <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="#5aaff8" last compact={isMobile} />
         </div>
 
-        {/* Horizon + controls */}
-        <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem", flexWrap: "wrap", rowGap: 6 }}>
+        {/* Row 1: Horizon + Real World Returns + Granularity */}
+        <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem", flexWrap: "wrap", rowGap: 6, alignItems: "center" }}>
           {HORIZONS.map(h => (
             <button key={h} onClick={() => setHorizon(h)} style={{
               padding: isMobile ? "4px 8px" : "5px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
@@ -340,6 +356,15 @@ export default function HistoricalProjectedChart({
               {h}Y
             </button>
           ))}
+          <button onClick={() => setUseVolatility(v => !v)} style={{
+            padding: isMobile ? "4px 8px" : "5px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
+            fontSize: isMobile ? "0.7rem" : "0.72rem", fontWeight: 600, fontFamily: "Georgia, serif",
+            marginLeft: isMobile ? 6 : 12,
+            background: useVolatility ? "rgba(0,94,184,0.15)" : "transparent",
+            color: useVolatility ? "#5aaff8" : "#2a4a6a", transition: "all 0.15s",
+          }}>
+            ~ Real World
+          </button>
           <div style={{ flex: 1 }} />
           <div style={{ display: "flex", gap: 0, border: "1px solid #1a3a5c" }}>
             {["quarterly", "monthly"].map(m => (
@@ -357,8 +382,8 @@ export default function HistoricalProjectedChart({
           </div>
         </div>
 
-        {/* Historical range selector */}
-        <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+        {/* Row 2: Historical + Invest/yr */}
+        <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: isMobile ? "0.4rem" : "0.8rem", flexWrap: "wrap", rowGap: 6 }}>
           <span style={{ fontSize: "0.72rem", color: "#2a4a6a", marginRight: 8, fontFamily: "Georgia, serif" }}>
             Historical:
           </span>
@@ -373,21 +398,13 @@ export default function HistoricalProjectedChart({
               {opt.l}
             </button>
           ))}
-        </div>
-
-        {/* Contribution + volatility */}
-        <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: isMobile ? "0.4rem" : "0.8rem", flexWrap: "wrap", rowGap: 6 }}>
-          <span style={{ fontSize: "0.72rem", color: "#2a4a6a", marginRight: 8, fontFamily: "Georgia, serif" }}>
-            + Invest yearly:
+          <span style={{ fontSize: "0.72rem", color: "#2a4a6a", margin: "0 8px 0 16px", fontFamily: "Georgia, serif" }}>
+            Invest/yr:
           </span>
-          {(isMobile
-            ? [{ l: "None", v: 0 }, { l: "$5k", v: 5000 }, { l: "$10k", v: 10000 }, { l: "$25k", v: 25000 }]
-            : [{ l: "None", v: 0 }, { l: "$1k", v: 1000 }, { l: "$5k", v: 5000 }, { l: "$10k", v: 10000 },
-               { l: "$20k", v: 20000 }, { l: "$25k", v: 25000 }, { l: "$50k", v: 50000 }]
-          ).map(c => (
+          {[{ l: "None", v: 0 }, { l: "$5k", v: 5000 }, { l: "$10k", v: 10000 }, { l: "$25k", v: 25000 }].map(c => (
             <button key={c.v} onClick={() => { setExtraContrib(c.v); setCustomContrib(""); }} style={{
-              padding: isMobile ? "4px 6px" : "4px 10px", border: "1px solid #1a3a5c", cursor: "pointer",
-              fontSize: isMobile ? "0.65rem" : "0.75rem", fontWeight: 600, fontFamily: "'EB Garamond', Georgia, serif",
+              padding: "4px 10px", border: "1px solid #1a3a5c", cursor: "pointer",
+              fontSize: "0.75rem", fontWeight: 600, fontFamily: "'EB Garamond', Georgia, serif",
               background: extraContrib === c.v && !customContrib ? "#005EB8" : "transparent",
               color: extraContrib === c.v && !customContrib ? "#ffffff" : "#2a4a6a",
               marginRight: -1, transition: "all 0.15s",
@@ -401,17 +418,6 @@ export default function HistoricalProjectedChart({
               border: "1px solid #1a3a5c", color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif",
               outline: "none", marginLeft: -1 }}
           />
-          {!isMobile && <div style={{ flex: 1 }} />}
-        </div>
-        <div style={{ marginBottom: "0.8rem" }}>
-          <button onClick={() => setUseVolatility(v => !v)} style={{
-            padding: "4px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
-            fontSize: "0.72rem", fontWeight: 600, fontFamily: "Georgia, serif",
-            background: useVolatility ? "rgba(0,94,184,0.15)" : "transparent",
-            color: useVolatility ? "#5aaff8" : "#2a4a6a", transition: "all 0.15s",
-          }}>
-            ~ Real World Returns
-          </button>
         </div>
       </div>
 

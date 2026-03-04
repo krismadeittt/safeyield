@@ -255,34 +255,66 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     return { noDripVals, dripVals, contribVals };
   }
 
-  // Monte Carlo: run NUM_SIMS paths, take mean per year.
-  // Mean converges to the true expected value (matching the deterministic path)
-  // while median of log-normal is systematically lower due to right-skew.
-  const noDripAll = [];   // [sim][year]
-  const dripAll = [];
-  const contribAll = extraContrib > 0 ? [] : null;
+  // Single seeded sim with monthly GBM steps for realistic month-to-month volatility
+  function runMonthlyPath(scenario) {
+    const simRng = seededPRNG(42);
+    const stocks = initStocks();
+    const monthly = [totalValue(stocks)];
 
-  for (let sim = 0; sim < NUM_SIMS; sim++) {
-    const seed = 42 + sim * 7919;
-    // Each scenario gets its own RNG seeded identically so price returns are
-    // consistent across noDrip/drip/contrib for the same simulation
-    noDripAll.push(runPath(seededPRNG(seed), 'nodrip'));
-    dripAll.push(runPath(seededPRNG(seed), 'drip'));
-    if (contribAll) contribAll.push(runPath(seededPRNG(seed), 'contrib'));
+    for (let month = 1; month <= horizon * 12; month++) {
+      const monthInYear = ((month - 1) % 12) + 1; // 1-12
+
+      // Annual contribution at start of each year
+      if (scenario === 'contrib' && monthInYear === 1) {
+        const totalV = stocks.reduce((s, st) => s + st.shares * st.price, 0);
+        stocks.forEach(st => {
+          const weight = totalV > 0 ? (st.shares * st.price) / totalV : 1 / stocks.length;
+          if (st.price > 0) st.shares += (extraContrib * weight) / st.price;
+        });
+      }
+
+      stocks.forEach(st => {
+        // Monthly GBM price step
+        const annualDrift = Math.log(1 + st.priceGrowthRate);
+        const monthlyDrift = annualDrift / 12 - 0.5 * st.sigma * st.sigma / 12;
+        const monthlySigma = st.sigma / Math.sqrt(12);
+        const z = boxMuller(simRng);
+        st.price = Math.max(0.01, st.price * Math.exp(monthlyDrift + monthlySigma * z));
+
+        // Quarterly DRIP (end of quarter: month 3, 6, 9, 12)
+        if (monthInYear % 3 === 0 && (scenario === 'drip' || scenario === 'contrib')) {
+          const qDiv = st.shares * st.divPerShare / 4;
+          if (st.price > 0) st.shares += qDiv / st.price;
+        }
+
+        // Annual dividend growth
+        if (monthInYear === 12) {
+          st.divPerShare *= (1 + st.g5);
+        }
+      });
+
+      monthly.push(totalValue(stocks));
+    }
+    return monthly;
   }
 
-  function meanAcrossSims(allPaths) {
-    const result = [];
-    for (let y = 0; y <= horizon; y++) {
-      const sum = allPaths.reduce((s, p) => s + p[y], 0);
-      result.push(Math.round(sum / allPaths.length));
-    }
-    return result;
+  const monthlyNoDrip = runMonthlyPath('nodrip');
+  const monthlyDrip = runMonthlyPath('drip');
+  const monthlyContrib = extraContrib > 0 ? runMonthlyPath('contrib') : null;
+
+  // Sample yearly values for stat cards
+  function sampleYearly(m) {
+    const y = [];
+    for (let i = 0; i <= horizon; i++) y.push(m[i * 12]);
+    return y;
   }
 
   return {
-    noDripVals: meanAcrossSims(noDripAll),
-    dripVals: meanAcrossSims(dripAll),
-    contribVals: contribAll ? meanAcrossSims(contribAll) : null,
+    noDripVals: sampleYearly(monthlyNoDrip),
+    dripVals: sampleYearly(monthlyDrip),
+    contribVals: monthlyContrib ? sampleYearly(monthlyContrib) : null,
+    monthlyNoDrip,
+    monthlyDrip,
+    monthlyContrib,
   };
 }
