@@ -15,7 +15,7 @@ import Tour, { shouldShowTour, resetTour } from './components/Tour';
 import MethodologyDisclosure from './components/MethodologyDisclosure';
 import LegalFooter from './components/LegalFooter';
 import useTheme from './hooks/useTheme';
-import { formatCurrency } from './utils/format';
+import { formatCurrency, shortMoney } from './utils/format';
 
 function relativeTime(date) {
   if (!date) return '';
@@ -26,12 +26,6 @@ function relativeTime(date) {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   return `${hrs}h ago`;
-}
-
-function shortMoney(val) {
-  if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
-  if (val >= 1e3) return `$${Math.round(val / 1e3)}k`;
-  return `$${Math.round(val)}`;
 }
 
 export default function App() {
@@ -256,6 +250,7 @@ function AppInner() {
               cashBalance={cashBalance}
               vizType={vizType}
               setVizType={updateVizType}
+              monthlyAvg={summary.monthlyAvg}
             />
             <div data-tour="holdings">
             <HoldingsTable
@@ -273,6 +268,7 @@ function AppInner() {
               onRefresh={refreshAll}
               lastUpdatedAt={lastUpdatedAt}
               refreshing={refreshing}
+              holdingsValue={summary.holdingsValue}
             />
             </div>
             <MethodologyDisclosure />

@@ -1,10 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-
-function shortMoney(val) {
-  if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
-  if (val >= 1e3) return `$${(val / 1e3).toFixed(1)}k`;
-  return `$${Math.round(val)}`;
-}
+import { shortMoney } from '../../utils/format';
 
 /**
  * Monte Carlo fan chart — shows percentile bands (P10–P90) as shaded areas.

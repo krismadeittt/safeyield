@@ -9,7 +9,7 @@ import useIsMobile from '../hooks/useIsMobile';
 
 export default function Dashboard({
   totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth, cashBalance = 0,
-  vizType, setVizType,
+  vizType, setVizType, monthlyAvg,
 }) {
   const isMobile = useIsMobile();
   const [horizon, setHorizon] = useState(10);
@@ -22,7 +22,7 @@ export default function Dashboard({
   const contrib = customContrib ? parseFloat(customContrib) || 0 : extraContrib;
   const rng = useMemo(() => seededPRNG(42), []);
 
-  const avgYield = weightedYield || 2.5;
+  const avgYield = weightedYield ?? 0;
   const growth = weightedGrowth;
 
   // Per-stock projection: each holding compounds with its own yield, g5, and expected return
@@ -32,9 +32,8 @@ export default function Dashboard({
 
   const { noDripVals, dripVals, contribVals } = projections;
 
-  // Monthly income data
-  const monthlyData = useMemo(() => calcMonthlyIncome(holdings), [holdings]);
-  const monthlyAvg = monthlyData.reduce((a, b) => a + b, 0) / 12;
+  // Monthly income data — uses live dividend rates via liveData
+  const monthlyData = useMemo(() => calcMonthlyIncome(holdings, liveData), [holdings, liveData]);
 
   // Expose for history widget compatibility
   if (typeof window !== "undefined") {
@@ -52,8 +51,8 @@ export default function Dashboard({
       }}>
         <StatCell label="Portfolio Value" value={formatCurrency(portfolioValue)} sub={cashBalance > 0 ? `${holdings.length} holdings + ${formatCurrency(cashBalance)} cash` : `${holdings.length} holdings`} isMobile={isMobile} />
         <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" isMobile={isMobile} tooltip="Weighted average dividend yield across all holdings, based on each position's share of total portfolio value." />
-        <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} isMobile={isMobile} tooltip="Total estimated annual dividend income from all holdings, based on current annual dividend rates." />
-        <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg)} sub="estimated" isMobile={isMobile} />
+        <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg || 0)}/mo`} isMobile={isMobile} tooltip="Total estimated annual dividend income from all holdings, based on current annual dividend rates." />
+        <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg || 0)} sub="estimated" isMobile={isMobile} />
         <StatCell label="Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" isGrowth isMobile={isMobile} tooltip="Weighted average 5-year dividend growth rate across all holdings. Higher growth means your income is increasing faster." />
       </div>
 

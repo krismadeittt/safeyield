@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { buildMountainData } from "../utils/vizData";
 import VizTooltip, { MetricBox } from "./VizTooltip";
 import useIsMobile from "../hooks/useIsMobile";
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, formatYield } from "../utils/format";
 
 const SECTOR_COLORS = {
   Technology:    { base: "#5B8DEF", light: "#89B0F5", dark: "#3A6AD4", grad: ["#4A7DE0", "#5B8DEF", "#89B0F5"] },
@@ -139,7 +139,7 @@ export default function PortfolioMountains({ holdings, liveData, portfolioValue,
         <div style={{ fontSize: 10, letterSpacing: 3, color: "var(--text-dim)", marginBottom: 4, fontFamily: "'DM Sans', system-ui, sans-serif" }}>PORTFOLIO LANDSCAPE</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
           <span style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{formatCurrency(portfolioValue)}</span>
-          <span style={{ fontSize: 12, color: "var(--green)" }}>{(weightedYield || 0).toFixed(2)}% yield</span>
+          <span style={{ fontSize: 12, color: "var(--green)" }}>{formatYield(weightedYield || 0)} yield</span>
           <span style={{ fontSize: 10, color: "var(--text-dim)" }}>{holdings.length} holdings</span>
         </div>
         <div style={{ fontSize: 9, color: "var(--text-sub)", marginTop: 4 }}>Peak height = share price · Sector clusters form ranges · Hover for details</div>

@@ -3,6 +3,7 @@ import * as d3 from "d3";
 import { buildSunburstData } from "../utils/vizData";
 import VizTooltip, { MetricBox } from "./VizTooltip";
 import useIsMobile from "../hooks/useIsMobile";
+import { shortMoney } from "../utils/format";
 
 const SECTOR_COLORS = {
   Technology: "#5B8DEF", Financials: "#8B7AE8", Healthcare: "#3CBFA3",
@@ -12,12 +13,6 @@ const SECTOR_COLORS = {
 };
 const ASSET_COLORS = { Stocks: "#5B8DEF", ETFs: "#8B7AE8", Cash: "#929AB0" };
 const YIELD_TIER_COLORS = { Minimal: "#C5CAD6", "Low Yield": "#8B7AE8", "Mid Yield": "#5B8DEF", "High Yield": "#E09145" };
-
-function shortMoney(val) {
-  if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
-  if (val >= 1e3) return `$${Math.round(val / 1e3)}k`;
-  return `$${Math.round(val)}`;
-}
 
 export default function PortfolioSunburst({ holdings, liveData, portfolioValue, weightedYield, annualIncome, expanded }) {
   const containerRef = useRef(null);

@@ -8,6 +8,7 @@ import { NOBL_HOLDINGS } from '../data/aristocrats';
 import { getUserHoldings, saveUserHoldings, getUserProfile, updateUserProfile, getUserWatchlist, addToUserWatchlist, removeFromUserWatchlist, saveProcessedState } from '../api/user';
 import { fetchBatchHistory } from '../api/history';
 import { processCatchUp } from '../utils/catchUp';
+import { calcMonthlyIncome } from '../utils/dividends';
 
 const POLL_INTERVAL = 5 * 60000; // 5 minutes
 const SAVE_DEBOUNCE = 2000; // 2 seconds
@@ -113,6 +114,7 @@ export default function usePortfolio(getToken) {
             sector: h.sector || null,
             shares: h.shares || 0,
             price: h.cost_basis || 0,
+            costBasis: h.cost_basis || 0,
             yld: h.yield_override || 0,
             div: 0,
             g5: 0,
@@ -200,6 +202,7 @@ export default function usePortfolio(getToken) {
               name: live.name || h.name,
               sector: live.sector || h.sector,
               price: live.price || h.price,
+              costBasis: h.costBasis || h.price,
               yld: live.divYield ?? h.yld,
               div: live.annualDiv ?? h.div,
               g5: live.g5 ?? h.g5,
@@ -230,13 +233,12 @@ export default function usePortfolio(getToken) {
     if (!getToken || !hasLoadedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      const currentLive = liveDataRef.current;
       const toSave = holdingsRef.current.map(h => ({
         ticker: h.ticker,
         name: h.name || '',
         sector: h.sector || '',
         shares: h.shares || 0,
-        cost_basis: currentLive[h.ticker]?.price || h.price || 0,
+        cost_basis: h.costBasis || h.price || 0,
         yield_override: h.yld || null,
       }));
       saveUserHoldings(getToken, toSave).catch(e =>
@@ -472,6 +474,7 @@ export default function usePortfolio(getToken) {
         name: data?.name || ticker,
         sector: data?.sector || null,
         price: data?.price || 0,
+        costBasis: data?.price || 0,
         shares,
         yld: yldOverride || data?.divYield || 0,
         div: data?.annualDiv || 0,
@@ -564,42 +567,38 @@ export default function usePortfolio(getToken) {
 
   // Portfolio summary — uses best available price for each holding
   const summary = useMemo(() => {
-    let pv = 0, annualIncome = 0, yieldSum = 0, growthSum = 0;
+    let pv = 0, yieldSum = 0, growthSum = 0;
     holdings.forEach(h => {
       const live = liveData[h.ticker];
       // Use live price if available and > 0, otherwise fall back to holding's stored price
       const price = (live?.price > 0 ? live.price : null) || h.price || 0;
       const value = price * (h.shares || 0);
       const yld = live?.divYield ?? h.yld ?? 0;
-      const div = live?.annualDiv ?? h.div ?? 0;
       const g5 = live?.g5 ?? h.g5 ?? 0;
       pv += value;
-      annualIncome += div * (h.shares || 0);
-      if (yld > 0) { yieldSum += yld * value; growthSum += g5 * value; }
+      yieldSum += yld * value;
+      if (g5 > 0) { growthSum += g5 * value; }
     });
 
+    // Derive income from the single calcMonthlyIncome source of truth
+    const monthlyArr = calcMonthlyIncome(holdings, liveData);
+    const annualIncome = Math.round(monthlyArr.reduce((a, b) => a + b, 0));
+
+    // holdingsValue = stock value only (no cash)
+    const holdingsValue = pv;
     // Add cash balance to portfolio value
     pv += cashBalance;
 
-    // If we have a target balance from onboarding and the calculated value is
-    // within 2% (meaning same prices, just floating-point drift), anchor to target
-    let portfolioValue = pv;
-    if (targetBalance > 0 && pv > 0) {
-      const drift = Math.abs(pv - targetBalance) / targetBalance;
-      if (drift < 0.02) {
-        portfolioValue = targetBalance;
-      }
-    }
-
     return {
-      portfolioValue,
+      portfolioValue: pv,
+      holdingsValue,
       cashBalance,
-      annualIncome: Math.round(annualIncome),
+      annualIncome,
       weightedYield: pv > 0 ? yieldSum / pv : 0,
       weightedGrowth: pv > 0 ? growthSum / pv : 0,
       monthlyAvg: Math.round(annualIncome / 12),
     };
-  }, [holdings, liveData, targetBalance, cashBalance]);
+  }, [holdings, liveData, cashBalance]);
 
   // Update visualizer type
   function updateVizType(type) {

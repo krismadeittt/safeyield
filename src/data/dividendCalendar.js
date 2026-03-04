@@ -20,7 +20,7 @@ export const QUARTERLY_ETFS = new Set([
 // Dividend payment schedule groups (which months they pay)
 // Group A: Jan, Apr, Jul, Oct
 export const GROUP_A = new Set([
-  "JNJ", "ABT", "MDT", "BDX", "PEP", "GIS", "HRL", "SYY", "KMB", "WMT",
+  "ABT", "MDT", "BDX", "PEP", "GIS", "HRL", "SYY", "KMB", "WMT",
   "MO", "GPC", "AFL", "CB", "CINF", "MMC", "SPGI", "ADP", "CAH", "CAT",
   "HON", "ITW", "EMR", "GWW", "NUE", "ADM", "APD", "ECL", "SHW", "PPG",
   "WFC", "USB", "JPM", "GS", "MS", "BAC", "T", "VZ", "ATO", "NI", "SWK",

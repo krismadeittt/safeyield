@@ -1,17 +1,10 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, shortMoney } from '../../utils/format';
 import { fetchBatchHistory, calcHistoricalPortfolioValues, calcHistoricalDividendsByYear, calcDividendsByPeriod } from '../../api/history';
 import useIsMobile from '../../hooks/useIsMobile';
 
-const FALLBACK_HIST = 10; // synthetic fallback when no KV data
 const HORIZONS = [1, 5, 10, 15, 25, 30, 40, 50];
 const CONTRIBUTIONS = [0, 1000, 5000, 10000, 20000, 25000, 50000];
-
-function shortMoney(val) {
-  if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
-  if (val >= 1e3) return `$${Math.round(val / 1e3)}k`;
-  return `$${Math.round(val)}`;
-}
 
 
 export default function HistoricalProjectedChart({
@@ -55,10 +48,20 @@ export default function HistoricalProjectedChart({
   const currentYear = new Date().getFullYear();
   const projYears = horizon;
 
+  // Step 11: Stabilize anchor value — only update when holdings change, not on every price tick
+  const anchorValueRef = useRef(null);
+  const prevHoldingsRef = useRef(null);
+  const holdingsKey = holdings?.map(h => `${h.ticker}:${h.shares}`).join(',') || '';
+  if (holdingsKey !== prevHoldingsRef.current) {
+    anchorValueRef.current = portfolioValue;
+    prevHoldingsRef.current = holdingsKey;
+  }
+  const stableAnchor = anchorValueRef.current || portfolioValue;
+
   const realHistData = useMemo(() => {
     if (Object.keys(historyMap).length === 0 || histRange === 0) return null;
-    return calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, histRange, granularity);
-  }, [historyMap, holdings, portfolioValue, histRange, granularity]);
+    return calcHistoricalPortfolioValues(historyMap, holdings, stableAnchor, histRange, granularity);
+  }, [historyMap, holdings, stableAnchor, histRange, granularity]);
 
   // Real dividend income from KV history data (actual payments, not estimates)
   const realDivByYear = useMemo(() => {
@@ -77,7 +80,8 @@ export default function HistoricalProjectedChart({
   const finalDrip = contribVals ? (contribVals[horizon] || contribVals[contribVals.length - 1] || 0)
     : (dripVals?.[horizon] || dripVals?.[dripVals.length - 1] || 0);
   const dripAdvantage = finalDrip - finalNoDrip;
-  const incomeAtHorizon = Math.round(totalIncome * Math.pow(1 + (growth || 5) / 100, horizon));
+  // Step 10: Use projected portfolio value × yield to reflect DRIP share accumulation
+  const incomeAtHorizon = Math.round(finalDrip * (avgYield / 100));
 
   // Only show historical bars when real data is loaded (no synthetic fallback)
   const effectiveHistYears = (histRange > 0 && realHistData && realHistData.length > 1) ? histRange : 0;
@@ -285,8 +289,8 @@ export default function HistoricalProjectedChart({
               Historical & Projected Income
             </div>
             <div style={{ fontSize: "0.72rem", color: "var(--text-sub)", marginTop: 2, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-              {horizon}-yr · {growth.toFixed(1)}% avg div growth · 7% base return
-              {realHistData && " · real data"}{histLoading && " · loading..."}
+              {horizon}-yr · {growth.toFixed(1)}% avg div growth · Gordon model (yield + growth)
+              {realHistData && " · backtest: if you'd held this portfolio"}{histLoading && " · loading..."}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -319,7 +323,7 @@ export default function HistoricalProjectedChart({
 
         {/* Stat cards: STARTING, CURRENT (DRIP), DRIP ADVANTAGE */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
-          <StatCard label={`STARTING (${startingYear})`} value={formatCurrency(startingValue)} color="var(--text-sub)" compact={isMobile} borderColor="var(--text-sub)" />
+          <StatCard label={`BACKTEST START (${startingYear})`} value={formatCurrency(startingValue)} color="var(--text-sub)" compact={isMobile} borderColor="var(--text-sub)" />
           <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="var(--primary)" compact={isMobile} borderColor="var(--primary)" />
           <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="var(--green)" last compact={isMobile} borderColor="var(--green)" />
         </div>
@@ -625,7 +629,7 @@ export default function HistoricalProjectedChart({
         borderTop: "1px solid var(--border)",
       }}>
         <span style={{ fontSize: "0.63rem", color: "var(--text-sub)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-          7% avg return · divs reinvested quarterly
+          Backtest assumes current holdings held for entire period · Gordon model (yield + growth) · divs reinvested quarterly
         </span>
       </div>
     </div>

@@ -38,7 +38,7 @@ export function buildPortfolioFromWeights(template, balance, prices) {
     }
 
     const shares = price > 0 ? allocation / price : 0;
-    return { ...entry, ticker, shares, price, _allocation: allocation };
+    return { ...entry, ticker, shares, price, costBasis: price, _allocation: allocation };
   });
 
   // Filter out tickers with no usable price
@@ -73,7 +73,7 @@ export function buildNoblPortfolio(balance, prices) {
     }
 
     const shares = price > 0 ? allocation / price : 0;
-    return { ...stock, shares, price, _allocation: allocation };
+    return { ...stock, shares, price, costBasis: price, _allocation: allocation };
   });
 
   // Filter out tickers with no usable price

@@ -26,17 +26,20 @@ export function getDividendMonths(ticker) {
 
 /**
  * Calculates per-month dividend income across entire portfolio.
- * Returns array of 12 monthly totals (rounded).
+ * Uses live dividend data when available, falls back to h.div.
+ * Returns array of 12 unrounded monthly totals (consumers round at display time).
  */
-export function calcMonthlyIncome(holdings) {
+export function calcMonthlyIncome(holdings, liveData) {
   const monthly = new Array(12).fill(0);
   holdings.forEach(h => {
-    if (!h.div || !h.shares) return;
+    const live = liveData?.[h.ticker];
+    const div = live?.annualDiv ?? h.div;
+    if (!div || !h.shares) return;
     const freq = getPaymentFrequency(h.ticker);
-    const perPayment = (h.div * h.shares) / freq;
+    const perPayment = (div * h.shares) / freq;
     getDividendMonths(h.ticker).forEach(mo => {
       monthly[mo] += perPayment;
     });
   });
-  return monthly.map(v => Math.round(v));
+  return monthly;
 }

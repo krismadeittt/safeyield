@@ -21,7 +21,7 @@ const SORT_FIELDS = [
 export default function HoldingsTable({
   holdings, search, setSearch, onAdd, onSelect, liveData, loading,
   onRemove, onEdit, title, dripEnabled, toggleDrip,
-  onRefresh, lastUpdatedAt, refreshing,
+  onRefresh, lastUpdatedAt, refreshing, holdingsValue,
 }) {
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState("value");
@@ -30,12 +30,7 @@ export default function HoldingsTable({
   const [editingTicker, setEditingTicker] = useState(null);
   const [editValue, setEditValue] = useState("");
 
-  const totalValue = useMemo(() =>
-    holdings.reduce((sum, h) => {
-      const price = liveData?.[h.ticker]?.price || h.price || 0;
-      return sum + price * (h.shares || 0);
-    }, 0),
-  [holdings, liveData]);
+  const totalValue = holdingsValue ?? 0;
 
   const filtered = useMemo(() => {
     let list = [...holdings];
