@@ -4,14 +4,15 @@ Dividend intelligence dashboard — helps investors analyze dividend stocks/ETFs
 
 ## Architecture
 
-**Frontend:** Single-page React 18 app (`index.html`, ~360KB monolithic bundle)
+**Frontend:** Vite + React 18 app (`src/`)
 - MUI components, custom SVG charting, dark theme
 - Google Fonts: Playfair Display, EB Garamond
-- Deployed on **Cloudflare Pages** (`safeyield.pages.dev` / `justasite.pages.dev`)
+- Built with `npm run build` → `dist/`
+- Deployed on **Cloudflare Pages** (`safeyield.pages.dev`)
 
 **Backend:** Cloudflare Worker (`worker/index.js`)
-- Proxies the EODHD financial API
-- Deployed at `history-workerjs.kisoarmicmusic.workers.dev`
+- Proxies the EODHD financial API + D1 database
+- Deployed at `safeyield-api.kisoarmicmusic.workers.dev`
 - EODHD API key stored as Cloudflare secret: `EODHD_KEY`
 
 ## Worker API Routes
@@ -28,22 +29,26 @@ Dividend intelligence dashboard — helps investors analyze dividend stocks/ETFs
 | `/history-batch` | Monthly prices for up to 10 tickers |
 | `/div-history-batch` | Dividend history for multiple tickers |
 
-All routes support CORS for: `safeyield.pages.dev`, `justasite.pages.dev`, `localhost:3000`, `localhost:5173`.
+All routes support CORS for: `safeyield.pages.dev`, `localhost:3000`, `localhost:5173`.
 
 ## Project Structure
 
 ```
 SafeYield/
-├── index.html          ← Production SPA (monolithic React bundle)
-├── worker/
-│   └── index.js        ← Cloudflare Worker (EODHD API proxy)
+├── src/                ← V1 frontend source (React + Vite)
+├── worker/             ← V1 backend (Cloudflare Worker)
+├── dist/               ← Built output (deploy to Pages)
+├── index.html          ← Vite entry point
+├── package.json
+├── vite.config.js
 ├── CLAUDE.md           ← This file
-└── Old Code/           ← Original files (backup/reference)
+├── .github/            ← CI workflows
+├── V2/                 ← Placeholder for future work
+└── Old Demo/           ← Pre-V1 files (backup/reference)
 ```
 
 ## Key Notes
 
-- `index.html` is a fully bundled production build — no build step needed
-- The frontend is not yet broken into separate source files (future work)
-- `Old Code/worker.js` and `Old Code/worker_1.js` are identical — only one worker exists
-- `Old Code/history-worker1.js` is a larger variant (~427KB) kept for reference
+- Build with `npm run build`; deploy with `npx wrangler pages deploy dist --project-name safeyield`
+- Worker deploy: `cd worker && npx wrangler deploy`
+- `Old Demo/` contains the original monolithic HTML and legacy scripts
