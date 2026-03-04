@@ -1,0 +1,14 @@
+{
+  "name": "RLI Corp",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 1.02,
+  "annualDiv": 0.64,
+  "payout": 14.5,
+  "marketCap": 6,
+  "g5": 6.2,
+  "streak": 2,
+  "eps": 4.4,
+  "revenue": 1882448000,
+  "ticker": "RLI"
+}

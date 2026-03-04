@@ -21,6 +21,7 @@ const SORT_FIELDS = [
 export default function HoldingsTable({
   holdings, search, setSearch, onAdd, onSelect, liveData, loading,
   onRemove, onEdit, title, dripEnabled, toggleDrip,
+  onRefresh, lastUpdatedAt, refreshing,
 }) {
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState("value");
@@ -126,6 +127,28 @@ export default function HoldingsTable({
               transition: "border-color 0.2s",
             }}
           />
+          {holdings.length > 0 && onRefresh && (() => {
+            const elapsed = lastUpdatedAt ? Date.now() - lastUpdatedAt.getTime() : Infinity;
+            const canRefresh = elapsed >= 15 * 60 * 1000 && !refreshing;
+            return (
+              <button
+                onClick={onRefresh}
+                disabled={!canRefresh}
+                aria-label="Refresh prices"
+                style={{
+                  padding: isMobile ? "0.5rem 0.8rem" : "0.4rem 0.8rem",
+                  background: "transparent", border: "1px solid var(--border-accent)",
+                  color: canRefresh ? "var(--text-link)" : "var(--text-dim)",
+                  cursor: canRefresh ? "pointer" : "not-allowed",
+                  fontSize: "0.75rem", whiteSpace: "nowrap",
+                  fontFamily: "'EB Garamond', Georgia, serif",
+                  opacity: canRefresh ? 1 : 0.5,
+                }}
+              >
+                {refreshing ? "Refreshing..." : "↻ Refresh"}
+              </button>
+            );
+          })()}
           {holdings.length > 0 && (
             <button
               onClick={() => exportHoldingsCSV(holdings, liveData)}
@@ -182,8 +205,8 @@ export default function HoldingsTable({
               const price = (live?.price > 0 ? live.price : null) || h.price || 0;
               const value = price * (h.shares || 0);
               const weightPct = totalValue > 0 ? (value / totalValue) * 100 : 0;
-              const yld = live?.divYield ?? h.yld ?? 0;
-              const annualDiv = live?.annualDiv ?? h.div ?? 0;
+              const yld = (live?.divYield > 0 ? live.divYield : null) ?? h.yld ?? 0;
+              const annualDiv = (live?.annualDiv > 0 ? live.annualDiv : null) ?? h.div ?? 0;
               const g5 = live?.g5 ?? h.g5 ?? 0;
               return (
                 <div key={h.ticker}
@@ -199,15 +222,6 @@ export default function HoldingsTable({
                       <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.95rem", letterSpacing: "0.06em" }}>
                         {h.ticker}
                       </span>
-                      {live && (
-                        <span style={{
-                          fontSize: "0.45rem", color: "#5aabff", letterSpacing: "0.1em",
-                          padding: "1px 4px", border: "1px solid rgba(0,94,184,0.4)",
-                          fontWeight: 700, background: "rgba(0,94,184,0.25)",
-                        }}>
-                          LIVE
-                        </span>
-                      )}
                     </div>
                     <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.9rem" }}>
                       ${price.toFixed(2)}
@@ -370,7 +384,7 @@ export default function HoldingsTable({
               fontSize: "0.7rem", color: "var(--text-sub)",
               fontFamily: "'EB Garamond', Georgia, serif",
             }}>
-              Click any row for charts, live data & 10-year projection
+              Click any row for charts, data & 10-year projection
             </div>
           )}
         </>
@@ -401,8 +415,8 @@ function getSortVal(stock, key, liveData, totalValue) {
     case "shares": return stock.shares || 0;
     case "price": return price;
     case "value": return value;
-    case "yld": return live?.divYield ?? stock.yld ?? 0;
-    case "div": return live?.annualDiv ?? stock.div ?? 0;
+    case "yld": return (live?.divYield > 0 ? live.divYield : null) ?? stock.yld ?? 0;
+    case "div": return (live?.annualDiv > 0 ? live.annualDiv : null) ?? stock.div ?? 0;
     case "payout": return live?.payout ?? stock.payout ?? 0;
     case "g5": return live?.g5 ?? stock.g5 ?? 0;
     case "streak": return stock.streak ?? 0;

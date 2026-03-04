@@ -1,0 +1,14 @@
+{
+  "name": "First Financial Bancorp",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 3.53,
+  "annualDiv": 0.99,
+  "payout": 37.2,
+  "marketCap": 3,
+  "g5": 1.6,
+  "streak": 4,
+  "eps": 2.66,
+  "revenue": 855344000,
+  "ticker": "FFBC"
+}

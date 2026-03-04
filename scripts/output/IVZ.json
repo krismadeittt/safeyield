@@ -1,0 +1,14 @@
+{
+  "name": "Invesco Plc",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 3.32,
+  "annualDiv": 0.84,
+  "payout": null,
+  "marketCap": 11,
+  "g5": 0,
+  "streak": 0,
+  "eps": -1.6,
+  "revenue": 6377099776,
+  "ticker": "IVZ"
+}

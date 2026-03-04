@@ -11,7 +11,7 @@ export async function getOrCreateUser(db, userId, email) {
   return user;
 }
 
-export async function updateUserProfile(db, userId, { displayName, defaultStrategy, targetBalance, cashBalance, dripEnabled, lastProcessedAt } = {}) {
+export async function updateUserProfile(db, userId, { displayName, defaultStrategy, targetBalance, cashBalance, dripEnabled, lastProcessedAt, vizType } = {}) {
   // Build partial update — only SET fields that were actually provided
   var sets = [];
   var vals = [];
@@ -21,6 +21,7 @@ export async function updateUserProfile(db, userId, { displayName, defaultStrate
   if (cashBalance !== undefined) { sets.push('cash_balance = ?'); vals.push(cashBalance || 0); }
   if (dripEnabled !== undefined) { sets.push('drip_enabled = ?'); vals.push(dripEnabled ? 1 : 0); }
   if (lastProcessedAt !== undefined) { sets.push('last_processed_at = ?'); vals.push(lastProcessedAt); }
+  if (vizType !== undefined) { sets.push('viz_type = ?'); vals.push(vizType); }
   if (sets.length === 0) {
     return db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   }
@@ -107,4 +108,81 @@ export async function removeFromWatchlist(db, userId, ticker) {
   await db.prepare(
     'DELETE FROM watchlist WHERE user_id = ? AND ticker = ?'
   ).bind(userId, ticker).run();
+}
+
+// ── Stock data helpers (D1 permanent storage) ──
+
+export async function getFundamentals(db, ticker, maxAgeDays) {
+  maxAgeDays = maxAgeDays || 7;
+  const row = await db.prepare(
+    'SELECT data, updated_at FROM stock_fundamentals WHERE ticker = ?'
+  ).bind(ticker).first();
+  if (!row) return null;
+  // Check freshness
+  const age = (Date.now() - new Date(row.updated_at).getTime()) / 86400000;
+  if (age > maxAgeDays) return null;
+  try { return JSON.parse(row.data); } catch { return null; }
+}
+
+export async function saveFundamentals(db, ticker, data) {
+  const json = JSON.stringify(data);
+  const now = new Date().toISOString();
+  await db.prepare(
+    'INSERT OR REPLACE INTO stock_fundamentals (ticker, data, updated_at) VALUES (?, ?, ?)'
+  ).bind(ticker, json, now).run();
+}
+
+export async function getPriceHistory(db, ticker) {
+  const { results } = await db.prepare(
+    'SELECT month, price FROM price_history WHERE ticker = ? ORDER BY month'
+  ).bind(ticker).all();
+  return results || [];
+}
+
+export async function savePriceHistory(db, ticker, prices) {
+  // prices = [{month: "2024-01", price: 185.5}, ...]
+  if (!prices || prices.length === 0) return;
+  const stmts = prices.map(p =>
+    db.prepare(
+      'INSERT OR REPLACE INTO price_history (ticker, month, price) VALUES (?, ?, ?)'
+    ).bind(ticker, p.month, p.price)
+  );
+  // D1 batch limit is ~100 statements, split if needed
+  for (let i = 0; i < stmts.length; i += 80) {
+    await db.batch(stmts.slice(i, i + 80));
+  }
+}
+
+export async function getDividendHistory(db, ticker) {
+  const { results } = await db.prepare(
+    'SELECT date, amount FROM dividend_history WHERE ticker = ? ORDER BY date'
+  ).bind(ticker).all();
+  return results || [];
+}
+
+export async function saveDividendHistory(db, ticker, dividends) {
+  // dividends = [{date: "2024-01-15", amount: 0.24}, ...]
+  if (!dividends || dividends.length === 0) return;
+  const stmts = dividends.map(d =>
+    db.prepare(
+      'INSERT OR IGNORE INTO dividend_history (ticker, date, amount) VALUES (?, ?, ?)'
+    ).bind(ticker, d.date, d.amount)
+  );
+  for (let i = 0; i < stmts.length; i += 80) {
+    await db.batch(stmts.slice(i, i + 80));
+  }
+}
+
+export async function getLatestPriceMonth(db, ticker) {
+  const row = await db.prepare(
+    'SELECT MAX(month) as latest FROM price_history WHERE ticker = ?'
+  ).bind(ticker).first();
+  return row ? row.latest : null;
+}
+
+export async function getLatestDividendDate(db, ticker) {
+  const row = await db.prepare(
+    'SELECT MAX(date) as latest FROM dividend_history WHERE ticker = ?'
+  ).bind(ticker).first();
+  return row ? row.latest : null;
 }

@@ -16,12 +16,13 @@ const ORDERED_STRATEGIES = [
   ...STRATEGIES.filter(s => s.id !== "custom"),
 ];
 
-export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrices }) {
+export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrices, setVizType }) {
   const isMobile = useIsMobile();
-  const [mode, setMode] = useState("pick"); // "pick", "balance", or "custom"
+  const [mode, setMode] = useState("pick"); // "pick", "balance", "custom", or "visualize"
   const [strategy, setStrategy] = useState(null);
   const [balance, setBalance] = useState("");
   const [error, setError] = useState("");
+  const [pendingLoad, setPendingLoad] = useState(null);
 
   // Custom picks state
   const [rows, setRows] = useState(() =>
@@ -50,7 +51,8 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
     else if (strategy.id === "voo") holdings = buildPortfolioFromWeights(HIGH_YIELD_TEMPLATE, val, prePrices);
     else holdings = [];
 
-    onLoad(holdings, strategy.id, val);
+    setPendingLoad({ holdings, strategyId: strategy.id, balance: val });
+    setMode("visualize");
   }
 
   async function handleCustomStart() {
@@ -77,12 +79,101 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
           score: 50,
         });
       }
-      onLoad(holdings, "custom");
+      setPendingLoad({ holdings, strategyId: "custom" });
+      setMode("visualize");
     } catch (e) {
       setError("Failed to load some stocks. Please try again.");
     } finally {
       setLoading(false);
     }
+  }
+
+  // Visualizer choice screen
+  if (mode === "visualize" && pendingLoad) {
+    const vizOptions = [
+      { key: 'sunburst', label: 'Sunburst', desc: 'A 4-ring radial chart: Asset Class, Sector, Holding, and Yield Tier. Great for seeing portfolio composition at a glance.', color: '#0891b2' },
+      { key: 'mountain', label: 'Mountain Range', desc: 'Peaks per holding clustered by sector, with height representing share price. A scenic landscape view of your portfolio.', color: '#65a30d' },
+    ];
+
+    function handleVizChoice(type) {
+      if (setVizType) setVizType(type);
+      onLoad(pendingLoad.holdings, pendingLoad.strategyId, pendingLoad.balance);
+    }
+
+    return (
+      <div style={{
+        minHeight: "100vh", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", padding: isMobile ? "1rem" : "2rem",
+      }}>
+        <div style={{
+          fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.2em",
+          textTransform: "uppercase", marginBottom: 8,
+        }}>
+          Almost There
+        </div>
+        <h2 style={{
+          fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
+          color: "var(--text-primary)", marginBottom: "0.5rem",
+        }}>
+          Choose Your Dashboard View
+        </h2>
+        <p style={{ color: "var(--text-muted)", marginBottom: "2rem", fontSize: "0.85rem", fontStyle: "italic" }}>
+          Pick a portfolio visualizer for your dashboard (you can switch anytime)
+        </p>
+
+        <div style={{
+          display: "flex", gap: "1rem", flexWrap: "wrap", justifyContent: "center",
+          maxWidth: 640, width: "100%",
+        }}>
+          {vizOptions.map(opt => (
+            <div
+              key={opt.key}
+              onClick={() => handleVizChoice(opt.key)}
+              style={{
+                background: "var(--bg-card)", border: "1px solid var(--border-dim)",
+                borderTop: `3px solid ${opt.color}`,
+                padding: "1.5rem", cursor: "pointer",
+                width: isMobile ? "100%" : "calc(50% - 0.5rem)",
+                minWidth: isMobile ? "auto" : 260,
+                transition: "border-color 0.2s, box-shadow 0.2s",
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.borderColor = opt.color;
+                e.currentTarget.style.boxShadow = `0 0 20px ${opt.color}22`;
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.borderColor = "var(--border-dim)";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              <div style={{
+                fontSize: "1.1rem", fontWeight: 600, color: "var(--text-primary)",
+                fontFamily: "'Playfair Display', Georgia, serif", marginBottom: 4,
+              }}>
+                {opt.label}
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                {opt.desc}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={() => {
+            if (setVizType) setVizType('none');
+            onLoad(pendingLoad.holdings, pendingLoad.strategyId, pendingLoad.balance);
+          }}
+          style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "var(--text-sub)", fontSize: "0.8rem", marginTop: "1.5rem",
+            fontFamily: "'EB Garamond', Georgia, serif",
+          }}
+        >
+          Skip — go straight to dashboard
+        </button>
+      </div>
+    );
   }
 
   // Strategy picker

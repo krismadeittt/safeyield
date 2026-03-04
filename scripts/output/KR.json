@@ -1,0 +1,14 @@
+{
+  "name": "Kroger Company",
+  "sector": "Consumer Defensive",
+  "isETF": false,
+  "divYield": 2.04,
+  "annualDiv": 1.4,
+  "payout": 123.9,
+  "marketCap": 45,
+  "g5": 15.2,
+  "streak": 18,
+  "eps": 1.13,
+  "revenue": 147225001984,
+  "ticker": "KR"
+}

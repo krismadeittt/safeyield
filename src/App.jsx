@@ -12,6 +12,8 @@ import UserMenu from './components/UserMenu';
 import ConfirmModal from './components/ConfirmModal';
 import { ToastProvider, useToast } from './components/Toast';
 import Tour, { shouldShowTour, resetTour } from './components/Tour';
+import MethodologyDisclosure from './components/MethodologyDisclosure';
+import LegalFooter from './components/LegalFooter';
 import useTheme from './hooks/useTheme';
 import { formatCurrency } from './utils/format';
 
@@ -53,9 +55,12 @@ function AppInner() {
     handleLoad, addStock, removeStock, editShares, selectStock,
     pickTicker,
     summary, resetPortfolio,
+    vizType, updateVizType,
     dripEnabled, toggleDrip, cashBalance,
     watchlist, addWatch, removeWatch, isWatched,
     lastUpdatedAt,
+    mergeLiveData,
+    refreshAll, refreshing,
   } = usePortfolio(getToken);
 
   const sharesInputRef = useRef(null);
@@ -91,7 +96,7 @@ function AppInner() {
 
   // Onboarding screen
   if (isOnboarding) {
-    return <Onboarding onLoad={handleLoad} prePrices={prePrices} preLoading={pricesLoading} preloadPrices={preloadStrategyPrices} />;
+    return <Onboarding onLoad={handleLoad} prePrices={prePrices} preLoading={pricesLoading} preloadPrices={preloadStrategyPrices} setVizType={updateVizType} />;
   }
 
   // Stock detail view
@@ -150,6 +155,7 @@ function AppInner() {
               ? removeWatch(detailView.ticker)
               : addWatch(detailView.ticker, detailView.name || detailView.ticker)
             }
+            onMergeLiveData={mergeLiveData}
           />
         </div>
       </div>
@@ -209,8 +215,8 @@ function AppInner() {
                 fontFamily: "'EB Garamond', Georgia, serif",
                 letterSpacing: "0.15em", textTransform: "uppercase",
                 position: "relative", overflow: "hidden", display: "inline-block",
-              }} className="live-sweep">
-                Live Data
+              }} className="delayed-badge">
+                15-Min Delayed
               </span>
               {lastUpdatedAt && (
                 <span style={{ fontSize: "0.55rem", color: "var(--text-sub)", fontFamily: "system-ui" }}>
@@ -235,6 +241,8 @@ function AppInner() {
               weightedYield={summary.weightedYield}
               weightedGrowth={summary.weightedGrowth}
               cashBalance={cashBalance}
+              vizType={vizType}
+              setVizType={updateVizType}
             />
             <div data-tour="holdings">
             <HoldingsTable
@@ -249,8 +257,13 @@ function AppInner() {
               onEdit={editShares}
               dripEnabled={dripEnabled}
               toggleDrip={toggleDrip}
+              onRefresh={refreshAll}
+              lastUpdatedAt={lastUpdatedAt}
+              refreshing={refreshing}
             />
             </div>
+            <MethodologyDisclosure />
+            <LegalFooter />
           </div>
         )}
 

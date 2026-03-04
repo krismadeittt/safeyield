@@ -26,6 +26,12 @@ function fmtPct(v) {
   return `${v.toFixed(1)}%`;
 }
 
+function fmtGrowthPct(v) {
+  if (v == null) return '—';
+  if (Math.abs(v) > 200) return 'N/M';
+  return `${v.toFixed(1)}%`;
+}
+
 function fmtDollar(v) {
   if (v == null) return '—';
   return `$${v.toFixed(2)}`;
@@ -88,7 +94,7 @@ function computeAnnualYield(divHistory, priceHistory) {
     .filter(Boolean);
 }
 
-export default function StockDetail({ stock, live, loading, onBack }) {
+export default function StockDetail({ stock, live, loading, onBack, onMergeLiveData }) {
   const isMobile = useIsMobile();
   const [fd, setFd] = useState(null);
   const [fdLoading, setFdLoading] = useState(true);
@@ -96,13 +102,13 @@ export default function StockDetail({ stock, live, loading, onBack }) {
 
   const data = live || stock;
   const price = data.price || 0;
-  const yld = data.divYield ?? stock.yld ?? 0;
-  const annualDiv = data.annualDiv ?? stock.div ?? 0;
-  const rawPayout = data.payout ?? fd?.payout ?? stock.payout ?? null;
+  const yld = (fd?.divYield > 0 ? fd.divYield : null) ?? (data.divYield > 0 ? data.divYield : null) ?? stock.yld ?? 0;
+  const annualDiv = (fd?.annualDiv > 0 ? fd.annualDiv : null) ?? (data.annualDiv > 0 ? data.annualDiv : null) ?? stock.div ?? 0;
+  const rawPayout = fd?.payout ?? data.payout ?? stock.payout ?? null;
   const fcfPayout = fd?.fcfPayout ?? null;
   const payout = (rawPayout != null && rawPayout <= 100) ? rawPayout
     : (fcfPayout != null) ? fcfPayout : rawPayout;
-  const g5 = live?.g5 ?? fd?.g5 ?? stock.g5 ?? 0;
+  const g5 = fd?.g5 ?? live?.g5 ?? stock.g5 ?? 0;
   const taxClass = getTaxClass(stock.ticker);
 
   // Fetch fundamentals + real history in parallel
@@ -117,6 +123,18 @@ export default function StockDetail({ stock, live, loading, onBack }) {
       setFd(fdData);
       setHistData(hist);
       setFdLoading(false);
+      // Write fundamentals back to shared liveData so all views stay in sync
+      if (fdData && onMergeLiveData) {
+        onMergeLiveData(stock.ticker, {
+          divYield: fdData.divYield ?? undefined,
+          annualDiv: fdData.annualDiv ?? undefined,
+          g5: fdData.g5 ?? undefined,
+          streak: fdData.streak ?? undefined,
+          payout: fdData.payout ?? undefined,
+          fcfPayout: fdData.fcfPayout ?? undefined,
+          marketCap: fdData.marketCap ?? undefined,
+        });
+      }
     });
   }, [stock.ticker]);
 
@@ -333,104 +351,221 @@ export default function StockDetail({ stock, live, loading, onBack }) {
         </div>
       )}
 
-      {/* ===== PER-SHARE INCOME PROJECTION ===== */}
-      {returnsProjection && (
-        <FinancialMetricChart
-          title={`${stock.ticker} — Per-Share Income Projection`}
-          subtitle={`${returnsProjection.isMonthly ? 'Monthly' : 'Quarterly'} dividends · ${g5}% annual growth · 10-year forecast`}
-          statCards={[
-            { label: "Current Div/Share", value: `$${annualDiv.toFixed(2)}/yr`, color: "#2a8a3a" },
-            { label: "Yr 10 Div/Share", value: `$${returnsProjection.yr10Income.toFixed(2)}/yr`, color: "#3a9aff" },
-            { label: "10yr Total Income", value: `$${returnsProjection.totalIncome.toFixed(2)}`, color: "var(--accent)" },
-            { label: "Yr 10 Price Est.", value: `$${returnsProjection.yr10Price.toFixed(2)}`, color: "var(--text-primary)" },
-          ]}
-          historicalData={returnsProjection.hist}
-          projectedData={returnsProjection.proj}
-          formatValue={v => `$${Number(v).toFixed(3)}`}
-          height={260}
-        />
+      {/* ===== ANALYST CONSENSUS — Score Box (moved to top) ===== */}
+      {fd?.analyst && fd.analyst.rating != null && (() => {
+        const a = fd.analyst;
+        const score = Math.round(((a.rating - 1) / 4) * 100);
+        const total = (a.strongBuy || 0) + (a.buy || 0) + (a.hold || 0) + (a.sell || 0) + (a.strongSell || 0);
+        const target = a.targetPrice;
+        const upside = (data.price && target) ? ((target - data.price) / data.price * 100).toFixed(1) : null;
+
+        const zones = [
+          { min: 0, max: 20, label: "Strong Sell", desc: "Analysts strongly advise selling", color: "#cc3333" },
+          { min: 21, max: 40, label: "Sell", desc: "Most analysts recommend reducing", color: "#ff6644" },
+          { min: 41, max: 60, label: "Hold", desc: "Mixed outlook — hold current position", color: "#ffaa33" },
+          { min: 61, max: 80, label: "Buy", desc: "Favorable outlook from analysts", color: "#66dd99" },
+          { min: 81, max: 100, label: "Strong Buy", desc: "Analysts strongly recommend buying", color: "#00cc66" },
+        ];
+        const activeZone = zones.find(z => score >= z.min && score <= z.max) || zones[2];
+
+        return (
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", padding: "1.2rem", marginBottom: "1rem" }}>
+            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "1rem" }}>
+              Analyst Consensus
+            </div>
+
+            {/* Score + zone label */}
+            <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 16 : 24, flexWrap: "wrap", marginBottom: 16 }}>
+              <div style={{ textAlign: "center", minWidth: 80 }}>
+                <div style={{
+                  width: 72, height: 72, borderRadius: "50%", border: `3px solid ${activeZone.color}`,
+                  display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 4px",
+                }}>
+                  <span style={{ fontSize: "1.6rem", fontWeight: 800, color: activeZone.color, fontFamily: "'Playfair Display', Georgia, serif" }}>{score}</span>
+                </div>
+                <div style={{ fontSize: "0.75rem", fontWeight: 700, color: activeZone.color, marginTop: 2 }}>
+                  {activeZone.label}
+                </div>
+              </div>
+              <div style={{ flex: 1, minWidth: 120 }}>
+                <div style={{ fontSize: "0.8rem", color: "var(--text-primary)", fontWeight: 600, marginBottom: 4 }}>
+                  {activeZone.desc}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0, marginTop: 8 }}>
+                  <div style={{ padding: "0.4rem 0" }}>
+                    <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", fontFamily: "system-ui" }}>Rating</div>
+                    <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--accent)" }}>{a.rating.toFixed(1)}<span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>/5</span></div>
+                  </div>
+                  <div style={{ padding: "0.4rem 0" }}>
+                    <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", fontFamily: "system-ui" }}>Target</div>
+                    <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)" }}>${target?.toFixed(2) || "—"}</div>
+                  </div>
+                  <div style={{ padding: "0.4rem 0" }}>
+                    <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", fontFamily: "system-ui" }}>Upside</div>
+                    <div style={{ fontSize: "1rem", fontWeight: 700, color: upside && parseFloat(upside) > 0 ? "var(--green)" : "var(--red-muted)" }}>
+                      {upside ? `${upside > 0 ? "+" : ""}${upside}%` : "—"}
+                    </div>
+                  </div>
+                </div>
+                {total > 0 && (
+                  <div style={{ fontSize: "0.6rem", color: "var(--text-muted)", marginTop: 6 }}>
+                    {a.strongBuy || 0} Strong Buy · {a.buy || 0} Buy · {a.hold || 0} Hold · {a.sell || 0} Sell · {a.strongSell || 0} Strong Sell ({total} analysts)
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Zone ranking bar */}
+            <div style={{ position: "relative", marginTop: 8 }}>
+              <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden" }}>
+                {zones.map((z, i) => (
+                  <div key={i} style={{
+                    flex: 1, background: z.color,
+                    opacity: z === activeZone ? 1 : 0.25,
+                  }} />
+                ))}
+              </div>
+              {/* Score indicator */}
+              <div style={{
+                position: "absolute", top: -3, width: 4, height: 16, background: "#fff", borderRadius: 2,
+                left: `calc(${Math.min(99, Math.max(1, score))}% - 2px)`,
+                boxShadow: "0 0 4px rgba(0,0,0,0.5)",
+              }} />
+              <div style={{ display: "flex", marginTop: 6 }}>
+                {zones.map((z, i) => (
+                  <div key={i} style={{
+                    flex: 1, textAlign: "center",
+                    fontSize: "0.5rem", color: z === activeZone ? z.color : "var(--text-label)",
+                    fontWeight: z === activeZone ? 700 : 400,
+                    letterSpacing: "0.05em",
+                  }}>
+                    {z.label}
+                    <div style={{ fontSize: "0.4rem", color: "var(--text-label)", fontWeight: 400, marginTop: 1 }}>
+                      {z.min}–{z.max}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ===== DPS + PER-SHARE INCOME PROJECTION — side by side ===== */}
+      {(dpsSeries || returnsProjection) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gap: isMobile ? 0 : "0 1rem",
+        }}>
+          {dpsSeries && (
+            <FinancialMetricChart
+              title="Dividend Per Share"
+              subtitle="Real dividend history"
+              statCards={[
+                { label: "Current DPS", value: `$${annualDiv.toFixed(2)}`, color: "#2a8a3a" },
+                { label: "Yield", value: yld > 0 ? `${yld.toFixed(2)}%` : "—", color: "var(--accent)" },
+                { label: "5Y Growth", value: `${g5}%`, color: "var(--text-primary)" },
+              ]}
+              historicalData={dpsSeries.hist}
+              projectedData={[]}
+              formatValue={v => `$${Number(v).toFixed(2)}`}
+              height={220}
+            />
+          )}
+          {returnsProjection && (
+            <FinancialMetricChart
+              title={`Per-Share Income Projection`}
+              subtitle={`${returnsProjection.isMonthly ? 'Monthly' : 'Quarterly'} dividends · ${g5}% annual growth · 10-year forecast`}
+              statCards={[
+                { label: "Current Div/Share", value: `$${annualDiv.toFixed(2)}/yr`, color: "#2a8a3a" },
+                { label: "Yr 10 Div/Share", value: `$${returnsProjection.yr10Income.toFixed(2)}/yr`, color: "#3a9aff" },
+                { label: "10yr Total Income", value: `$${returnsProjection.totalIncome.toFixed(2)}`, color: "var(--accent)" },
+                { label: "Yr 10 Price Est.", value: `$${returnsProjection.yr10Price.toFixed(2)}`, color: "var(--text-primary)" },
+              ]}
+              historicalData={returnsProjection.hist}
+              projectedData={returnsProjection.proj}
+              formatValue={v => `$${Number(v).toFixed(3)}`}
+              height={220}
+            />
+          )}
+        </div>
       )}
 
-      {/* ===== DIVIDEND CHARTS (real data) ===== */}
-      {dpsSeries && (
-        <FinancialMetricChart
-          title="Dividend Per Share"
-          subtitle={`Real dividend history · ${g5}% projected growth`}
-          statCards={[
-            { label: "Current DPS", value: `$${annualDiv.toFixed(2)}`, color: "#2a8a3a" },
-            { label: "Yield", value: yld > 0 ? `${yld.toFixed(2)}%` : "—", color: "var(--accent)" },
-            { label: "5Y Growth", value: `${g5}%`, color: "var(--text-primary)" },
-          ]}
-          historicalData={dpsSeries.hist}
-          projectedData={dpsSeries.proj}
-          formatValue={v => `$${Number(v).toFixed(2)}`}
-          height={220}
-        />
+      {/* ===== YIELD + REVENUE — side by side ===== */}
+      {(yieldSeries || revenueChart) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gap: isMobile ? 0 : "0 1rem",
+        }}>
+          {yieldSeries && (
+            <FinancialMetricChart
+              title="Dividend Yield"
+              subtitle="Real historical yield"
+              statCards={[
+                { label: "Current Yield", value: `${yld.toFixed(2)}%`, color: "#2a8a3a" },
+                { label: "Payout", value: payout != null ? `${payout}%` : "—", color: "var(--text-primary)" },
+              ]}
+              historicalData={yieldSeries.hist}
+              projectedData={[]}
+              formatValue={v => `${Number(v).toFixed(2)}%`}
+              height={180}
+            />
+          )}
+          {revenueChart && (
+            <FinancialMetricChart
+              title="Revenue"
+              subtitle={`Annual · ${fd.salesGrowth != null ? fd.salesGrowth + '% YoY growth' : ''}`}
+              statCards={[
+                { label: "Revenue (TTM)", value: fmtB(fd.revenue), color: "#2a8a3a" },
+                { label: "Sales Growth", value: fmtPct(fd.salesGrowth), color: "var(--accent)" },
+              ]}
+              historicalData={revenueChart.hist}
+              projectedData={[]}
+              formatValue={fmtB}
+              height={180}
+            />
+          )}
+        </div>
       )}
 
-      {yieldSeries && (
-        <FinancialMetricChart
-          title="Dividend Yield"
-          subtitle="Real historical yield · projected steady"
-          statCards={[
-            { label: "Current Yield", value: `${yld.toFixed(2)}%`, color: "#2a8a3a" },
-            { label: "Payout", value: payout != null ? `${payout}%` : "—", color: "var(--text-primary)" },
-          ]}
-          historicalData={yieldSeries.hist}
-          projectedData={yieldSeries.proj}
-          formatValue={v => `${Number(v).toFixed(2)}%`}
-          height={200}
-        />
-      )}
-
-      {/* ===== FINANCIAL CHARTS (stocks only) ===== */}
-      {revenueChart && (
-        <FinancialMetricChart
-          title="Revenue"
-          subtitle={`Annual · ${fd.salesGrowth != null ? fd.salesGrowth + '% YoY growth' : 'projected'}`}
-          statCards={[
-            { label: "Revenue (TTM)", value: fmtB(fd.revenue), color: "#2a8a3a" },
-            { label: "Sales Growth", value: fmtPct(fd.salesGrowth), color: "var(--accent)" },
-            { label: "Market Cap", value: fd.marketCap ? `$${fd.marketCap}B` : "—", color: "var(--text-primary)" },
-          ]}
-          historicalData={revenueChart.hist}
-          projectedData={revenueChart.proj}
-          formatValue={fmtB}
-          height={240}
-        />
-      )}
-
-      {epsChart && (
-        <FinancialMetricChart
-          title="Earnings Per Share"
-          subtitle={`Annual · ${fd.epsGrowth != null ? fd.epsGrowth + '% YoY growth' : 'projected'}`}
-          statCards={[
-            { label: "EPS (Diluted)", value: fmtDollar(fd.eps), color: "#2a8a3a" },
-            { label: "EPS Growth", value: fmtPct(fd.epsGrowth), color: "var(--accent)" },
-            { label: "Payout", value: payout != null ? `${payout}%` : "—", color: "var(--text-primary)" },
-          ]}
-          historicalData={epsChart.hist}
-          projectedData={epsChart.proj}
-          formatValue={fmtDollar}
-          height={220}
-        />
-      )}
-
-      {fcfChart && (
-        <FinancialMetricChart
-          title="Free Cash Flow"
-          subtitle="Annual · Operating cash flow minus capital expenditures"
-          statCards={[
-            { label: "FCF (TTM)", value: fmtB(fd.fcfTTM), color: "#2a8a3a" },
-            { label: "FCF/Share", value: fd.fcfPerShare != null ? fmtDollar(fd.fcfPerShare) : "—", color: "var(--accent)" },
-            { label: "FCF Margin", value: fmtPct(fd.fcfMargin), color: "var(--text-primary)" },
-            { label: "FCF Payout", value: fmtPct(fd.fcfPayout), color: "var(--text-primary)" },
-          ]}
-          historicalData={fcfChart.hist}
-          projectedData={fcfChart.proj}
-          formatValue={fmtB}
-          height={240}
-        />
+      {/* ===== EPS + FCF — side by side ===== */}
+      {(epsChart || fcfChart) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gap: isMobile ? 0 : "0 1rem",
+        }}>
+          {epsChart && (
+            <FinancialMetricChart
+              title="Earnings Per Share"
+              subtitle={`Annual · ${fd.epsGrowth != null ? fmtGrowthPct(fd.epsGrowth) + ' YoY growth' : ''}`}
+              statCards={[
+                { label: "EPS (Diluted)", value: fmtDollar(fd.eps), color: "#2a8a3a" },
+                { label: "EPS Growth", value: fmtGrowthPct(fd.epsGrowth), color: "var(--accent)" },
+              ]}
+              historicalData={epsChart.hist}
+              projectedData={[]}
+              formatValue={fmtDollar}
+              height={180}
+            />
+          )}
+          {fcfChart && (
+            <FinancialMetricChart
+              title="Free Cash Flow"
+              subtitle="Annual · OCF minus capex"
+              statCards={[
+                { label: "FCF (TTM)", value: fmtB(fd.fcfTTM), color: "#2a8a3a" },
+                { label: "FCF/Share", value: fd.fcfPerShare != null ? fmtDollar(fd.fcfPerShare) : "—", color: "var(--accent)" },
+              ]}
+              historicalData={fcfChart.hist}
+              projectedData={[]}
+              formatValue={fmtB}
+              height={180}
+            />
+          )}
+        </div>
       )}
 
       {/* Margins & Returns — 3 mini charts in a grid */}
@@ -447,7 +582,7 @@ export default function StockDetail({ stock, live, loading, onBack }) {
                 { label: "Current", value: fmtPct(fd.opMargin), color: "#2a8a3a" },
               ]}
               historicalData={opMarginChart.hist}
-              projectedData={opMarginChart.proj}
+              projectedData={[]}
               formatValue={v => `${Number(v).toFixed(1)}%`}
               height={180}
             />
@@ -459,7 +594,7 @@ export default function StockDetail({ stock, live, loading, onBack }) {
                 { label: "Current", value: fmtPct(fd.profitMargin), color: "#2a8a3a" },
               ]}
               historicalData={netMarginChart.hist}
-              projectedData={netMarginChart.proj}
+              projectedData={[]}
               formatValue={v => `${Number(v).toFixed(1)}%`}
               height={180}
             />
@@ -472,7 +607,7 @@ export default function StockDetail({ stock, live, loading, onBack }) {
                 { label: "ROA", value: fmtPct(fd.roa), color: "var(--text-primary)" },
               ]}
               historicalData={roeChart.hist}
-              projectedData={roeChart.proj}
+              projectedData={[]}
               formatValue={v => `${Number(v).toFixed(1)}%`}
               height={180}
             />
@@ -480,246 +615,175 @@ export default function StockDetail({ stock, live, loading, onBack }) {
         </div>
       )}
 
-      {debtChart && (
-        <FinancialMetricChart
-          title="Net Debt"
-          subtitle="Annual · Total debt minus cash"
-          statCards={[
-            { label: "Net Debt", value: fmtB(fd.netDebt), color: fd.netDebt > 0 ? "#c85a5a" : "#2a8a3a" },
-            { label: "Debt/EBITDA", value: fd.netDebtToEbitda != null ? `${fd.netDebtToEbitda.toFixed(1)}x` : "—", color: "var(--text-primary)" },
-            { label: "Int. Coverage", value: fd.interestCoverage != null ? `${fd.interestCoverage.toFixed(1)}x` : "—", color: "var(--text-primary)" },
-          ]}
-          historicalData={debtChart.hist}
-          projectedData={debtChart.proj}
-          formatValue={fmtB}
-          height={220}
-        />
-      )}
-
-      {sharesChart && (
-        <FinancialMetricChart
-          title="Shares Outstanding"
-          subtitle="Annual · Linear trend projection"
-          statCards={[
-            { label: "Current", value: fd.sharesOut ? fmtShares(fd.sharesOut) : "—", color: "var(--accent)" },
-          ]}
-          historicalData={sharesChart.hist}
-          projectedData={sharesChart.proj}
-          formatValue={v => fmtShares(v)}
-          height={200}
-        />
+      {/* ===== NET DEBT + SHARES — side by side ===== */}
+      {(debtChart || sharesChart) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gap: isMobile ? 0 : "0 1rem",
+        }}>
+          {debtChart && (
+            <FinancialMetricChart
+              title="Net Debt"
+              subtitle="Annual · Total debt minus cash"
+              statCards={[
+                { label: "Net Debt", value: fmtB(fd.netDebt), color: fd.netDebt > 0 ? "#c85a5a" : "#2a8a3a" },
+                { label: "Debt/EBITDA", value: fd.netDebtToEbitda != null ? `${fd.netDebtToEbitda.toFixed(1)}x` : "—", color: "var(--text-primary)" },
+              ]}
+              historicalData={debtChart.hist}
+              projectedData={[]}
+              formatValue={fmtB}
+              height={180}
+            />
+          )}
+          {sharesChart && (
+            <FinancialMetricChart
+              title="Shares Outstanding"
+              subtitle="Annual"
+              statCards={[
+                { label: "Current", value: fd.sharesOut ? fmtShares(fd.sharesOut) : "—", color: "var(--accent)" },
+              ]}
+              historicalData={sharesChart.hist}
+              projectedData={[]}
+              formatValue={v => fmtShares(v)}
+              height={180}
+            />
+          )}
+        </div>
       )}
 
       {/* ── NEW SECTIONS: Valuation, Technicals, Analyst, Earnings, Estimates, Insiders, Holders ── */}
 
-      {/* Valuation Metrics */}
-      {fd?.valuation && (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", marginBottom: "1rem" }}>
-          <div style={{ padding: "1.2rem 1.2rem 0" }}>
-            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
-              Valuation
-            </div>
-          </div>
-          <div style={{
-            display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(4, 1fr)",
-            gap: 0, padding: "0.8rem 1.2rem 1.2rem",
-          }}>
-            {[
-              { label: "P/E (TTM)", value: fd.valuation.trailingPE?.toFixed(1) },
-              { label: "Forward P/E", value: fd.valuation.forwardPE?.toFixed(1) },
-              { label: "PEG Ratio", value: fd.valuation.pegRatio?.toFixed(2) },
-              { label: "P/S", value: fd.valuation.priceSales?.toFixed(1) },
-              { label: "P/B", value: fd.valuation.priceBook?.toFixed(1) },
-              { label: "EV/EBITDA", value: fd.valuation.evToEbitda?.toFixed(1) },
-              { label: "EV/Revenue", value: fd.valuation.evToRevenue?.toFixed(1) },
-              { label: "Enterprise Value", value: fd.valuation.enterpriseValue ? fmtB(fd.valuation.enterpriseValue) : null },
-            ].map((m, i) => (
-              <div key={i} style={{ padding: "0.6rem 0.5rem", borderRight: i % (isMobile ? 3 : 4) === (isMobile ? 2 : 3) ? "none" : "1px solid var(--border-accent)" }}>
-                <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.25rem", fontFamily: "system-ui" }}>{m.label}</div>
-                <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>{m.value || "—"}</div>
+      {/* ===== VALUATION + 52-WEEK RANGE + FORWARD ESTIMATES ===== */}
+      {(fd?.valuation || (fd?.technicals && fd.technicals.week52High && fd.technicals.week52Low) || (fd?.estimates && (fd.estimates.epsCurrentQ || fd.estimates.epsCurrentY))) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",
+          gap: isMobile ? 0 : "0 1rem",
+          marginBottom: "1rem",
+          alignItems: "start",
+        }}>
+          {fd?.valuation && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)" }}>
+              <div style={{ padding: "1.2rem 1.2rem 0" }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
+                  Valuation
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(2, 1fr)",
+                gap: 0, padding: "0.8rem 1.2rem 1.2rem",
+              }}>
+                {[
+                  { label: "P/E (TTM)", value: fd.valuation.trailingPE?.toFixed(1) },
+                  { label: "Forward P/E", value: fd.valuation.forwardPE?.toFixed(1) },
+                  { label: "PEG Ratio", value: fd.valuation.pegRatio?.toFixed(2) },
+                  { label: "P/S", value: fd.valuation.priceSales?.toFixed(1) },
+                  { label: "P/B", value: fd.valuation.priceBook?.toFixed(1) },
+                  { label: "EV/EBITDA", value: fd.valuation.evToEbitda?.toFixed(1) },
+                  { label: "EV/Revenue", value: fd.valuation.evToRevenue?.toFixed(1) },
+                  { label: "Enterprise Value", value: fd.valuation.enterpriseValue ? fmtB(fd.valuation.enterpriseValue) : null },
+                ].map((m, i) => (
+                  <div key={i} style={{ padding: "0.5rem 0.4rem", borderRight: i % 2 === 0 ? "1px solid var(--border-accent)" : "none" }}>
+                    <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.25rem", fontFamily: "system-ui" }}>{m.label}</div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>{m.value || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* 52-Week Range */}
-      {fd?.technicals && fd.technicals.week52High && fd.technicals.week52Low && (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", padding: "1.2rem", marginBottom: "1rem" }}>
-          <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.8rem" }}>
-            52-Week Range
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "0.8rem" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", minWidth: 50 }}>${fd.technicals.week52Low.toFixed(2)}</span>
-            <div style={{ flex: 1, position: "relative", height: 8, background: "var(--border-accent)", borderRadius: 4 }}>
-              {(() => {
-                const price = data.price || (fd.technicals.week52High + fd.technicals.week52Low) / 2;
-                const pct = ((price - fd.technicals.week52Low) / (fd.technicals.week52High - fd.technicals.week52Low)) * 100;
-                return <div style={{
-                  position: "absolute", top: -4, width: 16, height: 16, borderRadius: 8,
-                  background: "var(--green)", border: "2px solid var(--bg-card)",
-                  left: `calc(${Math.min(100, Math.max(0, pct))}% - 8px)`,
-                }} />;
-              })()}
-              <div style={{ position: "absolute", top: 0, left: 0, height: "100%", borderRadius: 4,
-                width: `${((data.price || (fd.technicals.week52High + fd.technicals.week52Low) / 2) - fd.technicals.week52Low) / (fd.technicals.week52High - fd.technicals.week52Low) * 100}%`,
-                background: "var(--primary)", opacity: 0.4 }} />
-            </div>
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", minWidth: 50, textAlign: "right" }}>${fd.technicals.week52High.toFixed(2)}</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 0 }}>
-            {[
-              { label: "50-Day MA", value: fd.technicals.ma50 ? `$${fd.technicals.ma50.toFixed(2)}` : "—" },
-              { label: "200-Day MA", value: fd.technicals.ma200 ? `$${fd.technicals.ma200.toFixed(2)}` : "—" },
-              { label: "Beta", value: fd.technicals.beta?.toFixed(2) || "—" },
-              { label: "Short Ratio", value: fd.technicals.shortRatio ? `${fd.technicals.shortRatio} days` : "—" },
-            ].map((m, i) => (
-              <div key={i} style={{ padding: "0.5rem 0.4rem" }}>
-                <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", fontFamily: "system-ui" }}>{m.label}</div>
-                <div style={{ fontSize: "0.9rem", fontWeight: 600, color: "var(--text-primary)" }}>{m.value}</div>
+          {fd?.technicals && fd.technicals.week52High && fd.technicals.week52Low && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", padding: "1.2rem" }}>
+              <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.8rem" }}>
+                52-Week Range
               </div>
-            ))}
-          </div>
-          {fd.technicals.sharesShort != null && (
-            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 4 }}>
-              Short Interest: {(fd.technicals.sharesShort / 1e6).toFixed(1)}M shares ({fd.technicals.shortPercent ? (fd.technicals.shortPercent * 100).toFixed(2) : "—"}% of float)
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "0.8rem" }}>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", minWidth: 50 }}>${fd.technicals.week52Low.toFixed(2)}</span>
+                <div style={{ flex: 1, position: "relative", height: 8, background: "var(--border-accent)", borderRadius: 4 }}>
+                  {(() => {
+                    const price = data.price || (fd.technicals.week52High + fd.technicals.week52Low) / 2;
+                    const pct = ((price - fd.technicals.week52Low) / (fd.technicals.week52High - fd.technicals.week52Low)) * 100;
+                    return <div style={{
+                      position: "absolute", top: -4, width: 16, height: 16, borderRadius: 8,
+                      background: "var(--green)", border: "2px solid var(--bg-card)",
+                      left: `calc(${Math.min(100, Math.max(0, pct))}% - 8px)`,
+                    }} />;
+                  })()}
+                  <div style={{ position: "absolute", top: 0, left: 0, height: "100%", borderRadius: 4,
+                    width: `${((data.price || (fd.technicals.week52High + fd.technicals.week52Low) / 2) - fd.technicals.week52Low) / (fd.technicals.week52High - fd.technicals.week52Low) * 100}%`,
+                    background: "var(--primary)", opacity: 0.4 }} />
+                </div>
+                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", minWidth: 50, textAlign: "right" }}>${fd.technicals.week52High.toFixed(2)}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 0 }}>
+                {[
+                  { label: "50-Day MA", value: fd.technicals.ma50 ? `$${fd.technicals.ma50.toFixed(2)}` : "—" },
+                  { label: "200-Day MA", value: fd.technicals.ma200 ? `$${fd.technicals.ma200.toFixed(2)}` : "—" },
+                  { label: "Beta", value: fd.technicals.beta?.toFixed(2) || "—" },
+                  { label: "Short Ratio", value: fd.technicals.shortRatio ? `${fd.technicals.shortRatio} days` : "—" },
+                ].map((m, i) => (
+                  <div key={i} style={{ padding: "0.5rem 0.4rem" }}>
+                    <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", fontFamily: "system-ui" }}>{m.label}</div>
+                    <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>{m.value}</div>
+                  </div>
+                ))}
+              </div>
+              {fd.technicals.sharesShort != null && (
+                <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 4 }}>
+                  Short Interest: {(fd.technicals.sharesShort / 1e6).toFixed(1)}M shares ({fd.technicals.shortPercent ? (fd.technicals.shortPercent * 100).toFixed(2) : "—"}% of float)
+                </div>
+              )}
+            </div>
+          )}
+
+          {fd?.estimates && (fd.estimates.epsCurrentQ || fd.estimates.epsCurrentY) && (
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)" }}>
+              <div style={{ padding: "1.2rem 1.2rem 0" }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
+                  Forward Estimates
+                </div>
+              </div>
+              <div style={{
+                display: "grid", gridTemplateColumns: "repeat(2, 1fr)",
+                gap: 0, padding: "0.8rem 1.2rem 1.2rem",
+              }}>
+                {[
+                  { label: "EPS Est (Current Q)", value: fd.estimates.epsCurrentQ ? `$${fd.estimates.epsCurrentQ.toFixed(2)}` : null },
+                  { label: "EPS Est (Next Q)", value: fd.estimates.epsNextQ ? `$${fd.estimates.epsNextQ.toFixed(2)}` : null },
+                  { label: "EPS Est (Current Y)", value: fd.estimates.epsCurrentY ? `$${fd.estimates.epsCurrentY.toFixed(2)}` : null, color: "var(--accent)" },
+                  { label: "EPS Est (Next Y)", value: fd.estimates.epsNextY ? `$${fd.estimates.epsNextY.toFixed(2)}` : null, color: "var(--accent)" },
+                  { label: "Rev Est (Current Y)", value: fd.estimates.revCurrentY ? fmtB(fd.estimates.revCurrentY) : null },
+                  { label: "Rev Est (Next Y)", value: fd.estimates.revNextY ? fmtB(fd.estimates.revNextY) : null },
+                  { label: "EPS Growth (Curr Y)", value: fd.estimates.epsGrowthCurrentY != null ? fmtGrowthPct(fd.estimates.epsGrowthCurrentY) : null, color: "var(--green)" },
+                  { label: "EPS Growth (Next Y)", value: fd.estimates.epsGrowthNextY != null ? fmtGrowthPct(fd.estimates.epsGrowthNextY) : null, color: "var(--green)" },
+                ].map((m, i) => (
+                  <div key={i} style={{ padding: "0.5rem 0.4rem", borderRight: i % 2 === 0 ? "1px solid var(--border-accent)" : "none" }}>
+                    <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.25rem", fontFamily: "system-ui" }}>{m.label}</div>
+                    <div style={{ fontSize: "0.9rem", fontWeight: 700, color: m.color || "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>{m.value || "—"}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* Analyst Consensus */}
-      {fd?.analyst && fd.analyst.rating != null && (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", padding: "1.2rem", marginBottom: "1rem" }}>
-          <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.8rem" }}>
-            Analyst Consensus
-          </div>
-          {/* Stacked bar */}
-          {(() => {
-            const a = fd.analyst;
-            const total = (a.strongBuy || 0) + (a.buy || 0) + (a.hold || 0) + (a.sell || 0) + (a.strongSell || 0);
-            if (!total) return null;
-            const segments = [
-              { count: a.strongBuy || 0, color: "#00cc66", label: "Strong Buy" },
-              { count: a.buy || 0, color: "#66dd99", label: "Buy" },
-              { count: a.hold || 0, color: "#ffaa33", label: "Hold" },
-              { count: a.sell || 0, color: "#ff6644", label: "Sell" },
-              { count: a.strongSell || 0, color: "#cc3333", label: "Strong Sell" },
-            ];
-            return (
-              <div>
-                <div style={{ display: "flex", height: 28, borderRadius: 4, overflow: "hidden", marginBottom: 8 }}>
-                  {segments.filter(s => s.count > 0).map((s, i) => (
-                    <div key={i} style={{
-                      width: `${(s.count / total) * 100}%`, background: s.color,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "0.65rem", fontWeight: 700, color: "#000",
-                    }}>
-                      {s.count}
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                  {segments.filter(s => s.count > 0).map((s, i) => (
-                    <span key={i} style={{ fontSize: "0.6rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 3 }}>
-                      <span style={{ width: 8, height: 8, background: s.color, display: "inline-block" }} />
-                      {s.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0 }}>
-            <div style={{ padding: "0.5rem 0.4rem" }}>
-              <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", fontFamily: "system-ui" }}>Rating</div>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--accent)" }}>{fd.analyst.rating.toFixed(1)}<span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>/5</span></div>
-            </div>
-            <div style={{ padding: "0.5rem 0.4rem" }}>
-              <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", fontFamily: "system-ui" }}>Target Price</div>
-              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>${fd.analyst.targetPrice?.toFixed(2) || "—"}</div>
-            </div>
-            <div style={{ padding: "0.5rem 0.4rem" }}>
-              <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", fontFamily: "system-ui" }}>Upside</div>
-              {(() => {
-                const price = data.price;
-                const target = fd.analyst.targetPrice;
-                if (!price || !target) return <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text-muted)" }}>—</div>;
-                const upside = ((target - price) / price * 100).toFixed(1);
-                return <div style={{ fontSize: "1.1rem", fontWeight: 700, color: parseFloat(upside) > 0 ? "var(--green)" : "var(--red-muted)" }}>{upside > 0 ? "+" : ""}{upside}%</div>;
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Earnings Surprises Chart */}
-      {fd?.history?.earningsSurprises?.length > 0 && (
-        <EarningsSurprisesChart surprises={fd.history.earningsSurprises} isMobile={isMobile} />
-      )}
-
-      {/* Forward Estimates */}
-      {fd?.estimates && (fd.estimates.epsCurrentQ || fd.estimates.epsCurrentY) && (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", marginBottom: "1rem" }}>
-          <div style={{ padding: "1.2rem 1.2rem 0" }}>
-            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
-              Forward Estimates
-            </div>
-          </div>
-          <div style={{
-            display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
-            gap: 0, padding: "0.8rem 1.2rem 1.2rem",
-          }}>
-            {[
-              { label: "EPS Est (Current Q)", value: fd.estimates.epsCurrentQ ? `$${fd.estimates.epsCurrentQ.toFixed(2)}` : null },
-              { label: "EPS Est (Next Q)", value: fd.estimates.epsNextQ ? `$${fd.estimates.epsNextQ.toFixed(2)}` : null },
-              { label: "EPS Est (Current Y)", value: fd.estimates.epsCurrentY ? `$${fd.estimates.epsCurrentY.toFixed(2)}` : null, color: "var(--accent)" },
-              { label: "EPS Est (Next Y)", value: fd.estimates.epsNextY ? `$${fd.estimates.epsNextY.toFixed(2)}` : null, color: "var(--accent)" },
-              { label: "Rev Est (Current Y)", value: fd.estimates.revCurrentY ? fmtB(fd.estimates.revCurrentY) : null },
-              { label: "Rev Est (Next Y)", value: fd.estimates.revNextY ? fmtB(fd.estimates.revNextY) : null },
-              { label: "EPS Growth (Current Y)", value: fd.estimates.epsGrowthCurrentY ? `${fd.estimates.epsGrowthCurrentY.toFixed(1)}%` : null, color: "var(--green)" },
-              { label: "EPS Growth (Next Y)", value: fd.estimates.epsGrowthNextY ? `${fd.estimates.epsGrowthNextY.toFixed(1)}%` : null, color: "var(--green)" },
-            ].map((m, i) => (
-              <div key={i} style={{ padding: "0.6rem 0.5rem", borderRight: i % (isMobile ? 2 : 4) === (isMobile ? 1 : 3) ? "none" : "1px solid var(--border-accent)" }}>
-                <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.25rem", fontFamily: "system-ui" }}>{m.label}</div>
-                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: m.color || "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>{m.value || "—"}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Insider Transactions */}
-      {fd?.insiders && fd.insiders.length > 0 && (
-        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", marginBottom: "1rem" }}>
-          <div style={{ padding: "1.2rem" }}>
-            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.8rem" }}>
-              Insider Transactions
-            </div>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-                <thead>
-                  <tr>
-                    {["Date", "Name", "Type", "Price"].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--border-accent)", color: "var(--text-label)", fontSize: "0.55rem", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "system-ui" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {fd.insiders.slice(0, 10).map((t, i) => (
-                    <tr key={i} style={{ borderBottom: "1px solid var(--border-row)" }}>
-                      <td style={{ padding: "6px 8px", color: "var(--text-muted)", fontSize: "0.75rem" }}>{t.date}</td>
-                      <td style={{ padding: "6px 8px", color: "var(--text-primary)", fontWeight: 500, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</td>
-                      <td style={{ padding: "6px 8px", color: t.code === "P" ? "var(--green)" : "var(--red-muted)", fontWeight: 700 }}>
-                        {t.code === "P" ? "Buy" : t.code === "S" ? "Sell" : t.code || "—"}
-                      </td>
-                      <td style={{ padding: "6px 8px", color: "var(--text-primary)" }}>{t.price ? `$${t.price.toFixed(2)}` : "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      {/* ===== EARNINGS SURPRISES + INSIDER TRANSACTIONS ===== */}
+      {(fd?.history?.earningsSurprises?.length > 0 || (fd?.insiders && fd.insiders.length > 0)) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+          gap: isMobile ? 0 : "0 1rem",
+          marginBottom: "1rem",
+          alignItems: "start",
+        }}>
+          {fd?.history?.earningsSurprises?.length > 0 && (
+            <EarningsSurprisesChart surprises={fd.history.earningsSurprises} isMobile={isMobile} compact />
+          )}
+          {fd?.insiders && fd.insiders.length > 0 && (
+            <InsiderBarChart insiders={fd.insiders} isMobile={isMobile} />
+          )}
         </div>
       )}
 
@@ -788,16 +852,25 @@ export default function StockDetail({ stock, live, loading, onBack }) {
         </div>
       )}
 
-      {/* Fundamentals table (at bottom) */}
-      <div style={{ marginTop: "1rem" }}>
-        <Fundamentals fd={fd} loading={fdLoading} />
-      </div>
+      {/* Fundamentals */}
+      {!fdLoading && fd && (
+        <div style={{ marginTop: "1.5rem" }}>
+          <div style={{
+            fontWeight: 700, fontSize: "1.1rem", color: "var(--text-primary)",
+            fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.8rem",
+            borderBottom: "1px solid var(--border-accent)", paddingBottom: "0.5rem",
+          }}>
+            Fundamentals
+          </div>
+          <Fundamentals fd={fd} loading={fdLoading} />
+        </div>
+      )}
     </div>
   );
 }
 
 /* Earnings Surprises custom chart — green for beats, red for misses */
-function EarningsSurprisesChart({ surprises, isMobile }) {
+function EarningsSurprisesChart({ surprises, isMobile, compact }) {
   const data = surprises.filter(s => s.surprise != null);
   if (data.length === 0) return null;
 
@@ -806,8 +879,8 @@ function EarningsSurprisesChart({ surprises, isMobile }) {
   const avgSurprise = (data.reduce((a, s) => a + s.surprise, 0) / data.length).toFixed(2);
   const latest = data[data.length - 1];
 
-  const svgW = isMobile ? 340 : 600;
-  const height = 240;
+  const svgW = compact ? (isMobile ? 340 : 420) : (isMobile ? 340 : 600);
+  const height = compact ? 180 : 240;
   const padL = isMobile ? 35 : 55;
   const padR = 10;
   const padTop = 12;
@@ -911,6 +984,100 @@ function EarningsSurprisesChart({ surprises, isMobile }) {
           <text key={i} x={padL + i * stepW + stepW / 2} y={height - 6}
             textAnchor="middle" fontSize={barCount > 30 ? 7 : 8.5}
             fill="var(--text-label)" fontFamily="system-ui">
+            {label}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+/* Insider Transactions — buy/sell bar chart aggregated by month */
+function InsiderBarChart({ insiders, isMobile }) {
+  // Aggregate by month: net buys vs sells
+  const byMonth = {};
+  insiders.forEach(t => {
+    if (!t.date) return;
+    const month = t.date.substring(0, 7); // "2024-01"
+    if (!byMonth[month]) byMonth[month] = { buys: 0, sells: 0 };
+    if (t.code === "P") byMonth[month].buys += 1;
+    else if (t.code === "S") byMonth[month].sells += 1;
+  });
+
+  const months = Object.keys(byMonth).sort();
+  if (months.length === 0) return null;
+
+  // Take last 24 months max
+  const recent = months.slice(-24);
+  const data = recent.map(m => ({
+    month: m,
+    net: byMonth[m].buys - byMonth[m].sells,
+    buys: byMonth[m].buys,
+    sells: byMonth[m].sells,
+  }));
+
+  const totalBuys = data.reduce((a, d) => a + d.buys, 0);
+  const totalSells = data.reduce((a, d) => a + d.sells, 0);
+
+  const svgW = isMobile ? 340 : 500;
+  const height = 160;
+  const padL = 30;
+  const padR = 10;
+  const padTop = 8;
+  const padBot = 24;
+  const chartW = svgW - padL - padR;
+  const chartH = height - padTop - padBot;
+  const barCount = data.length;
+  const stepW = chartW / barCount;
+  const barW = Math.max(3, Math.min(stepW * 0.7, 14));
+
+  const values = data.map(d => d.net);
+  const maxVal = Math.max(...values, 1);
+  const minVal = Math.min(...values, -1);
+  const range = maxVal - minVal || 1;
+  const zeroY = padTop + (maxVal / range) * chartH;
+
+  // Year labels
+  const axisLabels = [];
+  let lastYear = '';
+  data.forEach((d, i) => {
+    const yr = d.month.slice(0, 4);
+    if (yr !== lastYear) { axisLabels.push({ i, label: yr }); lastYear = yr; }
+  });
+
+  return (
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", marginBottom: "1rem" }}>
+      <div style={{ padding: "1.2rem 1.2rem 0" }}>
+        <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
+          Insider Transactions
+        </div>
+        <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", marginTop: 2, fontFamily: "Georgia, serif", fontStyle: "italic" }}>
+          Net buys/sells per month · Last {recent.length} months
+        </div>
+        <div style={{ display: "flex", gap: 16, marginTop: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: "0.7rem", color: "var(--green)", fontWeight: 600 }}>
+            {totalBuys} Buys
+          </span>
+          <span style={{ fontSize: "0.7rem", color: "var(--red-muted)", fontWeight: 600 }}>
+            {totalSells} Sells
+          </span>
+        </div>
+      </div>
+      <svg width={svgW} height={height} style={{ display: "block" }}>
+        <line x1={padL} y1={zeroY} x2={svgW - padR} y2={zeroY} stroke="var(--border-accent)" strokeWidth={0.8} strokeDasharray="2,2" />
+        {data.map((bar, i) => {
+          const x = padL + i * stepW + (stepW - barW) / 2;
+          const isPositive = bar.net >= 0;
+          const barH = Math.max(1, (Math.abs(bar.net) / range) * chartH);
+          const barY = isPositive ? zeroY - barH : zeroY;
+          return (
+            <rect key={i} x={x} y={barY} width={barW} height={barH}
+              fill={isPositive ? "#2a8a3a" : "#c85a5a"} opacity={0.85} />
+          );
+        })}
+        {axisLabels.map(({ i, label }) => (
+          <text key={i} x={padL + i * stepW + stepW / 2} y={height - 6}
+            textAnchor="middle" fontSize={8} fill="var(--text-label)" fontFamily="system-ui">
             {label}
           </text>
         ))}

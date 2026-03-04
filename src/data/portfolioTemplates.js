@@ -12,7 +12,7 @@ export const REIT_TEMPLATE = [
   { ticker: "WPC", weight: 5 },
 ];
 
-// VIG-style dividend appreciation weights
+// Dividend appreciation weights
 export const VIG_TEMPLATE = [
   { ticker: "MSFT", weight: 4.8 },
   { ticker: "AAPL", weight: 4.2 },
@@ -46,7 +46,7 @@ export const VIG_TEMPLATE = [
   { ticker: "CL", weight: .6 },
 ];
 
-// S&P 500 / broad market weights (top 30)
+// Broad market weights (top 30)
 export const HIGH_YIELD_TEMPLATE = [
   { ticker: "AAPL", weight: 7.2 },
   { ticker: "MSFT", weight: 6.8 },

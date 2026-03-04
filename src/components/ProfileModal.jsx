@@ -4,10 +4,10 @@ import useIsMobile from '../hooks/useIsMobile';
 
 const STRATEGIES = [
   { id: '', label: 'None' },
-  { id: 'nobl', label: 'Dividend Aristocrats' },
-  { id: 'vig', label: 'Dividend Growth (VIG)' },
+  { id: 'nobl', label: 'Safe Dividend' },
+  { id: 'vig', label: 'Dividend Growth' },
   { id: 'reit', label: 'REIT Income' },
-  { id: 'voo', label: 'High Yield Mix' },
+  { id: 'voo', label: 'Broad Market' },
 ];
 
 export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDrip, onShowTour }) {

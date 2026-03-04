@@ -50,11 +50,17 @@ export default function usePortfolio(getToken) {
   const [cashBalance, setCashBalance] = useState(0);
   const [dripEnabled, setDripEnabled] = useState(true);
 
+  // Visualizer type state
+  const [vizType, setVizType] = useState('sunburst');
+
   // Watchlist state
   const [watchlist, setWatchlist] = useState([]);
 
   // Last updated timestamp
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+
+  // Refresh all prices state
+  const [refreshing, setRefreshing] = useState(false);
 
   // Add stock modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -88,6 +94,9 @@ export default function usePortfolio(getToken) {
         setWatchlist(wl || []);
         if (profile?.target_balance > 0) {
           setTargetBalance(profile.target_balance);
+        }
+        if (profile?.viz_type) {
+          setVizType(profile.viz_type);
         }
         // Restore portfolio-level state from profile
         const profileCash = profile?.cash_balance || 0;
@@ -338,6 +347,43 @@ export default function usePortfolio(getToken) {
     return () => clearTimeout(timer);
   }, [addTicker]);
 
+  // Refresh all holdings — re-fetch prices + fundamentals for entire portfolio
+  async function refreshAll() {
+    if (refreshing || !holdings.length) return;
+    setRefreshing(true);
+    try {
+      const tickers = holdings.map(h => h.ticker);
+      const [priceData, fdMap] = await Promise.all([
+        fetchBatchUpdate(tickers).catch(() => ({})),
+        fetchBatchFundamentals(tickers).catch(() => ({})),
+      ]);
+      const merged = { ...liveData, ...priceData };
+      if (fdMap) {
+        for (const [ticker, fd] of Object.entries(fdMap)) {
+          if (!fd || fd.error) continue;
+          const rawPayout = fd.payout ?? null;
+          const fcfPayout = fd.fcfPayout ?? null;
+          const payout = (rawPayout != null && rawPayout <= 100) ? rawPayout
+            : (fcfPayout != null) ? fcfPayout : rawPayout;
+          merged[ticker] = {
+            ...merged[ticker],
+            divYield: fd.divYield ?? merged[ticker]?.divYield ?? null,
+            annualDiv: fd.annualDiv ?? merged[ticker]?.annualDiv ?? null,
+            payout,
+            fcfPayout,
+            g5: fd.g5 ?? merged[ticker]?.g5 ?? null,
+            streak: fd.streak ?? merged[ticker]?.streak ?? null,
+            beta: fd.beta ?? merged[ticker]?.beta ?? null,
+          };
+        }
+      }
+      setLiveData(merged);
+      setLastUpdatedAt(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   // Refresh single stock — use price-only when fundamentals are already cached
   async function refreshStock(ticker) {
     setLoadingStates(prev => ({ ...prev, [ticker]: true }));
@@ -460,6 +506,11 @@ export default function usePortfolio(getToken) {
     setTargetBalance(0); // clear anchor since portfolio was manually modified
   }
 
+  // Merge fundamentals from StockDetail back into shared liveData
+  function mergeLiveData(ticker, data) {
+    setLiveData(prev => ({ ...prev, [ticker]: { ...prev[ticker], ...data } }));
+  }
+
   // Select stock for detail view
   function selectStock(stock) {
     setDetailView(stock);
@@ -550,6 +601,14 @@ export default function usePortfolio(getToken) {
     };
   }, [holdings, liveData, targetBalance, cashBalance]);
 
+  // Update visualizer type
+  function updateVizType(type) {
+    setVizType(type);
+    if (getToken) {
+      updateUserProfile(getToken, undefined, undefined, undefined, undefined, undefined, undefined, type).catch(() => {});
+    }
+  }
+
   // Toggle DRIP setting
   function toggleDrip() {
     const newVal = !dripEnabled;
@@ -575,14 +634,18 @@ export default function usePortfolio(getToken) {
     showAddModal, setShowAddModal,
     addTicker, setAddTicker, addResults, addShares, setAddShares,
     addYield, setAddYield, isAdding,
-    handleLoad, addStock, removeStock, editShares, selectStock, refreshStock,
+    handleLoad, addStock, removeStock, editShares, selectStock, refreshStock, refreshAll, refreshing,
     pickTicker, preloadStrategyPrices,
     summary, resetPortfolio,
+    // Visualizer
+    vizType, updateVizType,
     // DRIP & cash
     dripEnabled, toggleDrip, cashBalance,
     // Watchlist
     watchlist, addWatch, removeWatch, isWatched,
     // Timestamp
     lastUpdatedAt,
+    // Merge fundamentals from detail view
+    mergeLiveData,
   };
 }

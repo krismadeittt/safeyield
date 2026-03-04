@@ -36,8 +36,8 @@ export default function InfoTooltip({ text }) {
       </span>
       {show && (
         <div style={{
-          position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
-          marginBottom: 6, padding: '8px 12px', background: '#0a1628',
+          position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+          marginTop: 6, padding: '8px 12px', background: '#0a1628',
           border: '1px solid #1a3a5c', color: '#c8dff0', fontSize: '0.75rem',
           fontFamily: "'EB Garamond', Georgia, serif", lineHeight: 1.4,
           whiteSpace: 'normal', width: 220, zIndex: 50,

@@ -1,0 +1,14 @@
+{
+  "name": "MetLife Inc",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 3.12,
+  "annualDiv": 2.27,
+  "payout": 48.2,
+  "marketCap": 48,
+  "g5": 4.7,
+  "streak": 13,
+  "eps": 4.71,
+  "revenue": 77079003136,
+  "ticker": "MET"
+}

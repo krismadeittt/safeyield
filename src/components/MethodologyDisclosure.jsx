@@ -4,7 +4,7 @@ import useIsMobile from '../hooks/useIsMobile';
 const SECTIONS = [
   {
     title: 'Data Sources',
-    content: 'Market prices, dividend data, and fundamentals are sourced from EODHD Financial APIs. Data refreshes every 5 minutes during market hours (Mon-Fri 9:30 AM - 4:00 PM ET). Historical dividend and price data covers up to 20 years where available.',
+    content: 'Market prices and dividend data are sourced from EODHD Financial APIs. Prices are delayed by approximately 15 minutes during market hours. Historical dividend and price data covers up to 20 years where available.',
   },
   {
     title: 'Real vs Projected Data',
@@ -12,7 +12,7 @@ const SECTIONS = [
   },
   {
     title: 'Growth Assumptions',
-    content: 'Projected portfolio returns assume a 7% average annual total return (historical S&P 500 average). Dividend growth uses each stock\'s individual 5-year compound annual growth rate (CAGR). These are estimates and actual returns may vary significantly.',
+    content: 'Projected portfolio returns assume a 7% average annual total return (based on long-term US equity averages). Dividend growth uses each stock\'s individual 5-year compound annual growth rate (CAGR). These are estimates and actual returns may vary significantly.',
   },
   {
     title: 'DRIP Simulation',
@@ -81,8 +81,8 @@ export default function MethodologyDisclosure() {
             marginTop: '1rem', fontSize: '0.7rem', color: '#3a5a78',
             fontStyle: 'italic', fontFamily: "Georgia, serif",
           }}>
-            This tool is for informational purposes only and does not constitute financial advice.
-            Past performance does not guarantee future results.
+            SafeYield is for informational and educational purposes only and does not constitute investment advice.
+            Past performance does not guarantee future results. All data is provided on a 15-minute delay.
           </div>
         </div>
       )}

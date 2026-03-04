@@ -72,8 +72,8 @@ export default function HoldingRow({
   // Use live price if available and > 0, otherwise fall back to holding's stored price
   const price = (live?.price > 0 ? live.price : null) || stock.price || 0;
   const value = price * (stock.shares || 0);
-  const yld = data.divYield ?? stock.yld ?? 0;
-  const annualDiv = data.annualDiv ?? stock.div ?? 0;
+  const yld = (data.divYield > 0 ? data.divYield : null) ?? stock.yld ?? 0;
+  const annualDiv = (data.annualDiv > 0 ? data.annualDiv : null) ?? stock.div ?? 0;
   const payout = data.payout ?? stock.payout ?? null;
   const change = data.change ?? 0;
   const g5 = data.g5 ?? stock.g5 ?? 0;
@@ -115,15 +115,6 @@ export default function HoldingRow({
           }}>
             {stock.ticker}
           </span>
-          {live && (
-            <span style={{
-              fontSize: "0.48rem", color: "#5aabff", letterSpacing: "0.1em",
-              padding: "1px 5px", border: "1px solid rgba(0,94,184,0.4)",
-              fontWeight: 700, background: "rgba(0,94,184,0.25)",
-            }}>
-              LIVE
-            </span>
-          )}
         </div>
         <div style={{
           fontSize: "0.67rem", color: "var(--text-dim)", marginTop: 2,

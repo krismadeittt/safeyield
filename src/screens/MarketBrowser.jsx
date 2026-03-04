@@ -50,12 +50,21 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
       return matchSearch && matchSector;
     });
     list.sort((a, b) => {
-      const av = a[sortKey] ?? 0;
-      const bv = b[sortKey] ?? 0;
+      const aLive = liveData?.[a.ticker];
+      const bLive = liveData?.[b.ticker];
+      const getVal = (s, l) => {
+        if (sortKey === "yld") return (l?.divYield > 0 ? l.divYield : null) ?? s.yld ?? 0;
+        if (sortKey === "div") return (l?.annualDiv > 0 ? l.annualDiv : null) ?? s.div ?? 0;
+        if (sortKey === "g5") return l?.g5 ?? s.g5 ?? 0;
+        if (sortKey === "streak") return Math.max(l?.streak ?? 0, s.streak ?? 0);
+        return s[sortKey] ?? 0;
+      };
+      const av = getVal(a, aLive);
+      const bv = getVal(b, bLive);
       return sortDir === "asc" ? av - bv : bv - av;
     });
     return list;
-  }, [search, sector, sortKey, sortDir]);
+  }, [search, sector, sortKey, sortDir, liveData]);
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
@@ -208,18 +217,26 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                   <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 8 }}>{stock.name}</div>
                   {/* Metrics row */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                    {(() => {
+                      const ld = liveData?.[stock.ticker];
+                      const displayYld = (ld?.divYield > 0 ? ld.divYield : null) ?? stock.yld ?? 0;
+                      const displayG5 = ld?.g5 ?? stock.g5 ?? 0;
+                      const displayStreak = Math.max(ld?.streak ?? 0, stock.streak ?? 0);
+                      return (<>
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Yield</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--primary)" }}>{stock.yld > 0 ? `${stock.yld.toFixed(2)}%` : "—"}</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--primary)" }}>{displayYld > 0 ? `${displayYld.toFixed(2)}%` : "—"}</div>
                     </div>
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Growth</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: stock.g5 > 0 ? "var(--green)" : "var(--text-muted)" }}>{stock.g5 > 0 ? `${stock.g5}%` : "—"}</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: displayG5 > 0 ? "var(--green)" : "var(--text-muted)" }}>{displayG5 > 0 ? `${displayG5}%` : "—"}</div>
                     </div>
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Streak</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>{displayStreak > 0 ? `${displayStreak}yr` : "—"}</div>
                     </div>
+                      </>);
+                    })()}
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Sector</div>
                       <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{stock.sector}</div>
@@ -248,6 +265,11 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
               <tbody>
                 {pageItems.map(stock => {
                   const p = prices[stock.ticker] || liveData?.[stock.ticker];
+                  const ld = liveData?.[stock.ticker];
+                  const displayYld = (ld?.divYield > 0 ? ld.divYield : null) ?? stock.yld ?? 0;
+                  const displayDiv = (ld?.annualDiv > 0 ? ld.annualDiv : null) ?? stock.div ?? 0;
+                  const displayG5 = ld?.g5 ?? stock.g5 ?? 0;
+                  const displayStreak = Math.max(ld?.streak ?? 0, stock.streak ?? 0);
                   const inPortfolio = holdingTickers.has(stock.ticker);
                   return (
                     <tr key={stock.ticker}
@@ -260,14 +282,14 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                       </td>
                       <td>${stock.cap}B</td>
                       <td>
-                        {stock.yld > 0 ? `${stock.yld.toFixed(2)}%` : "—"}
-                        {stock.yld > 0 && <MiniProgressBar value={stock.yld} max={8} />}
+                        {displayYld > 0 ? `${displayYld.toFixed(2)}%` : "—"}
+                        {displayYld > 0 && <MiniProgressBar value={displayYld} max={8} />}
                       </td>
-                      <td>{stock.div > 0 ? `$${stock.div.toFixed(2)}` : "—"}</td>
-                      <td style={{ color: stock.g5 > 0 ? "var(--green)" : "var(--text-muted)" }}>
-                        {stock.g5 > 0 ? `${stock.g5}%` : "—"}
+                      <td>{displayDiv > 0 ? `$${displayDiv.toFixed(2)}` : "—"}</td>
+                      <td style={{ color: displayG5 > 0 ? "var(--green)" : "var(--text-muted)" }}>
+                        {displayG5 > 0 ? `${displayG5}%` : "—"}
                       </td>
-                      <td>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</td>
+                      <td>{displayStreak > 0 ? `${displayStreak}yr` : "—"}</td>
                       <td style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{stock.sector}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>

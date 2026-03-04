@@ -1,0 +1,14 @@
+{
+  "name": "Regions Financial Corporation",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 3.74,
+  "annualDiv": 1.05,
+  "payout": 46.1,
+  "marketCap": 24,
+  "g5": 9.5,
+  "streak": 13,
+  "eps": 2.28,
+  "revenue": 7056000000,
+  "ticker": "RF"
+}

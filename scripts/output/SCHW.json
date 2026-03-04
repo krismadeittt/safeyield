@@ -1,0 +1,14 @@
+{
+  "name": "Charles Schwab Corp",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 1.34,
+  "annualDiv": 1.28,
+  "payout": 27.5,
+  "marketCap": 173,
+  "g5": 9.1,
+  "streak": 0,
+  "eps": 4.65,
+  "revenue": 23921000448,
+  "ticker": "SCHW"
+}

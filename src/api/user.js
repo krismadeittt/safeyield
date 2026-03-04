@@ -5,7 +5,7 @@ export async function getUserProfile(getToken) {
   return data.result;
 }
 
-export async function updateUserProfile(getToken, displayName, defaultStrategy, targetBalance, dripEnabled, cashBalance, lastProcessedAt) {
+export async function updateUserProfile(getToken, displayName, defaultStrategy, targetBalance, dripEnabled, cashBalance, lastProcessedAt, vizType) {
   const body = {};
   if (displayName !== undefined) body.display_name = displayName;
   if (defaultStrategy !== undefined) body.default_strategy = defaultStrategy;
@@ -13,6 +13,7 @@ export async function updateUserProfile(getToken, displayName, defaultStrategy, 
   if (dripEnabled !== undefined) body.drip_enabled = dripEnabled ? 1 : 0;
   if (cashBalance !== undefined) body.cash_balance = cashBalance;
   if (lastProcessedAt !== undefined) body.last_processed_at = lastProcessedAt;
+  if (vizType !== undefined) body.viz_type = vizType;
   const data = await authFetch(getToken, '/user/profile', {
     method: 'PUT',
     body: JSON.stringify(body),

@@ -1,0 +1,14 @@
+{
+  "name": "AmerisourceBergen",
+  "sector": "Healthcare",
+  "isETF": false,
+  "divYield": 1.08,
+  "annualDiv": 1.94,
+  "payout": 23.6,
+  "marketCap": 36,
+  "g5": 5.1,
+  "streak": 19,
+  "eps": 8.21,
+  "revenue": 254425235456,
+  "ticker": "ABC"
+}

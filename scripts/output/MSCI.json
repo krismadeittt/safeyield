@@ -1,0 +1,14 @@
+{
+  "name": "MSCI Inc",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 1.43,
+  "annualDiv": 8.2,
+  "payout": 53.1,
+  "marketCap": 42,
+  "g5": 19.8,
+  "streak": 12,
+  "eps": 15.44,
+  "revenue": 3134458880,
+  "ticker": "MSCI"
+}

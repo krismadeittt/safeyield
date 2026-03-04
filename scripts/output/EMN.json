@@ -1,0 +1,14 @@
+{
+  "name": "Eastman Chemical Company",
+  "sector": "Basic Materials",
+  "isETF": false,
+  "divYield": 4.44,
+  "annualDiv": 3.34,
+  "payout": 81.5,
+  "marketCap": 8,
+  "g5": 4.7,
+  "streak": 12,
+  "eps": 4.1,
+  "revenue": 8752000000,
+  "ticker": "EMN"
+}

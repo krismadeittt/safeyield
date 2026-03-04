@@ -1,0 +1,14 @@
+{
+  "name": "Bank of America Corp",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 2.24,
+  "annualDiv": 1.12,
+  "payout": 29.4,
+  "marketCap": 365,
+  "g5": 7.6,
+  "streak": 6,
+  "eps": 3.81,
+  "revenue": 107421999104,
+  "ticker": "BAC"
+}

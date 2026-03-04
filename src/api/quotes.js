@@ -4,7 +4,7 @@ import { ETF_DATABASE } from '../data/etfs';
 import { ARISTOCRATS } from '../data/aristocrats';
 
 /**
- * Fetch real-time quote for a single ticker.
+ * Fetch delayed quote for a single ticker.
  */
 export async function fetchQuote(ticker) {
   return (await apiFetch(`/quote?symbol=${ticker}`))?.result || null;
@@ -18,7 +18,7 @@ export async function fetchPriceOnly(ticker) {
 }
 
 /**
- * Batch fetch real-time prices for multiple tickers.
+ * Batch fetch delayed prices for multiple tickers.
  */
 export async function fetchBatchPrices(tickers) {
   return (await apiFetch(`/batch?symbols=${tickers.join(",")}`, 15000))?.results || {};

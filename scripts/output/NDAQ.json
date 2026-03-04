@@ -1,0 +1,14 @@
+{
+  "name": "Nasdaq Inc",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 1.23,
+  "annualDiv": 1.08,
+  "payout": 35.2,
+  "marketCap": 50,
+  "g5": 10.3,
+  "streak": 13,
+  "eps": 3.07,
+  "revenue": 8262000128,
+  "ticker": "NDAQ"
+}

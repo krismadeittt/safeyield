@@ -1,0 +1,14 @@
+{
+  "name": "Apple Inc",
+  "sector": "Technology",
+  "isETF": false,
+  "divYield": 0.39,
+  "annualDiv": 1.04,
+  "payout": 13.1,
+  "marketCap": 3877,
+  "g5": 5.1,
+  "streak": 13,
+  "eps": 7.91,
+  "revenue": 435617005568,
+  "ticker": "AAPL"
+}

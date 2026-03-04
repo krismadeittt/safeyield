@@ -1,0 +1,14 @@
+{
+  "name": "Banner Corporation",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 3.25,
+  "annualDiv": 1.96,
+  "payout": 34.6,
+  "marketCap": 2,
+  "g5": -5.8,
+  "streak": 1,
+  "eps": 5.67,
+  "revenue": 647688000,
+  "ticker": "BANR"
+}

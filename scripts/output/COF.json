@@ -1,0 +1,14 @@
+{
+  "name": "Capital One Financial Corporation",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 1.65,
+  "annualDiv": 3.2,
+  "payout": 95.5,
+  "marketCap": 120,
+  "g5": 15.2,
+  "streak": 3,
+  "eps": 3.35,
+  "revenue": 32778999808,
+  "ticker": "COF"
+}

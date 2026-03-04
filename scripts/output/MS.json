@@ -1,0 +1,14 @@
+{
+  "name": "Morgan Stanley",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 2.4,
+  "annualDiv": 4,
+  "payout": 39.4,
+  "marketCap": 264,
+  "g5": 19.7,
+  "streak": 12,
+  "eps": 10.14,
+  "revenue": 70296002560,
+  "ticker": "MS"
+}

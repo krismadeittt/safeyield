@@ -1,0 +1,14 @@
+{
+  "name": "HP Inc",
+  "sector": "Technology",
+  "isETF": false,
+  "divYield": 6.31,
+  "annualDiv": 1.2,
+  "payout": 45.5,
+  "marketCap": 18,
+  "g5": 10.2,
+  "streak": 9,
+  "eps": 2.64,
+  "revenue": 56228999168,
+  "ticker": "HPQ"
+}

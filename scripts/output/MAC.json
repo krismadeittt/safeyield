@@ -1,0 +1,14 @@
+{
+  "name": "Macerich Company",
+  "sector": "Real Estate",
+  "isETF": false,
+  "divYield": 3.42,
+  "annualDiv": 0.68,
+  "payout": null,
+  "marketCap": 5,
+  "g5": -11.2,
+  "streak": 1,
+  "eps": -0.78,
+  "revenue": 1041060992,
+  "ticker": "MAC"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "First American Corporation",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 3.13,
+  "annualDiv": 2.19,
+  "payout": 36.5,
+  "marketCap": 7,
+  "g5": 4.1,
+  "streak": 14,
+  "eps": 6,
+  "revenue": 7452199936,
+  "ticker": "FAF"
+}

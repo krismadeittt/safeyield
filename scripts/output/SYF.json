@@ -1,0 +1,14 @@
+{
+  "name": "Synchrony Financial",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 1.75,
+  "annualDiv": 1.2,
+  "payout": 12.9,
+  "marketCap": 25,
+  "g5": 8.2,
+  "streak": 3,
+  "eps": 9.28,
+  "revenue": 9756000256,
+  "ticker": "SYF"
+}

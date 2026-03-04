@@ -1,0 +1,14 @@
+{
+  "name": "Brady Corporation",
+  "sector": "Industrials",
+  "isETF": false,
+  "divYield": 1.08,
+  "annualDiv": 0.98,
+  "payout": 23,
+  "marketCap": 4,
+  "g5": 2,
+  "streak": 19,
+  "eps": 4.27,
+  "revenue": 1569288960,
+  "ticker": "BRC"
+}

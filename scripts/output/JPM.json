@@ -1,0 +1,14 @@
+{
+  "name": "JPMorgan Chase & Co",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 2.02,
+  "annualDiv": 6,
+  "payout": 29.7,
+  "marketCap": 810,
+  "g5": 7.7,
+  "streak": 15,
+  "eps": 20.21,
+  "revenue": 168235008000,
+  "ticker": "JPM"
+}

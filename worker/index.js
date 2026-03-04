@@ -10,6 +10,9 @@ import {
   getHoldings, saveHoldings, upsertHolding, deleteHolding,
   getWatchlist, addToWatchlist, removeFromWatchlist,
   saveProcessedState,
+  getFundamentals, saveFundamentals,
+  getPriceHistory, savePriceHistory, getLatestPriceMonth,
+  getDividendHistory, saveDividendHistory, getLatestDividendDate,
 } from './db.js';
 
 const EODHD_BASE = "https://eodhd.com/api";
@@ -38,13 +41,32 @@ function dedupedFetchFundamentals(ticker, key, env) {
   return p;
 }
 
+var FD_SCHEMA_VERSION = 3; // Bump to invalidate stale cache missing new fields
+
 async function kvCachedFetchFundamentals(ticker, key, env) {
+  // 1. KV cache (fast, 12hr TTL)
   var cached = await kvGet(env, "fd:" + ticker);
-  if (cached) return cached;
+  if (cached && cached._v === FD_SCHEMA_VERSION) return cached;
+  // 2. D1 permanent store (7-day freshness)
+  if (env.DB) {
+    try {
+      var d1Data = await getFundamentals(env.DB, ticker, 7);
+      if (d1Data && d1Data._v === FD_SCHEMA_VERSION) {
+        await kvPut(env, "fd:" + ticker, d1Data, 43200);
+        return d1Data;
+      }
+    } catch (e) { /* D1 read failed, fall through to EODHD */ }
+  }
+  // 3. EODHD API (last resort)
   var raw = await fetchFundamentals(ticker, key);
   var parsed = parseFundamentals(raw);
   parsed.ticker = ticker;
+  parsed._v = FD_SCHEMA_VERSION;
   await kvPut(env, "fd:" + ticker, parsed, 43200);
+  // Save back to D1 for future requests
+  if (env.DB) {
+    try { await saveFundamentals(env.DB, ticker, parsed); } catch (e) { console.error("D1 fundamentals write failed:", ticker, e.message); }
+  }
   return parsed;
 }
 
@@ -753,14 +775,57 @@ export default {
     }
 
 
-    // ── /history — monthly EOD prices for a ticker, last 5 years ──────────────
+    // ── /history — monthly EOD prices for a ticker ──────────────
     if (path === "/history") {
       var hTicker = reqUrl.searchParams.get("ticker") || "";
       if (!hTicker) return err("ticker param required", origin, 400);
       try {
-        var hCached = await kvGet(env, "hist:" + hTicker.toUpperCase());
+        var hTickerUp = hTicker.toUpperCase();
+        // 1. KV cache
+        var hCached = await kvGet(env, "hist:" + hTickerUp);
         if (hCached) return json({ ticker: hTicker, prices: hCached }, origin, 200, 86400);
-        var hCode = toEOD(hTicker);
+        // 2. D1 permanent store
+        if (env.DB) {
+          try {
+            var d1Prices = await getPriceHistory(env.DB, hTickerUp);
+            if (d1Prices && d1Prices.length > 0) {
+              var hD1Arr = d1Prices.map(function(r) { return [r.month, r.price]; });
+              // Check if we need to append new months from EODHD
+              var latestMonth = d1Prices[d1Prices.length - 1].month;
+              var currentMonth = new Date().toISOString().slice(0, 7);
+              if (latestMonth < currentMonth) {
+                // Fetch only new months from EODHD
+                try {
+                  var hNewFrom = latestMonth + "-01";
+                  var hCode2 = toEOD(hTickerUp);
+                  var hUrl2 = EODHD_BASE + "/eod/" + hCode2 + "?api_token=" + KEY + "&fmt=json&period=m&from=" + hNewFrom;
+                  var hResp2 = await fetch(hUrl2);
+                  if (hResp2.ok) {
+                    var hNew = await hResp2.json();
+                    if (Array.isArray(hNew)) {
+                      var newRows = [];
+                      hNew.forEach(function(d) {
+                        var m = d.date ? d.date.slice(0, 7) : null;
+                        var p = parseFloat((d.adjusted_close || d.close || 0).toFixed(2));
+                        if (m && p > 0 && m > latestMonth) {
+                          hD1Arr.push([m, p]);
+                          newRows.push({ month: m, price: p });
+                        }
+                      });
+                      if (newRows.length > 0) {
+                        try { await savePriceHistory(env.DB, hTickerUp, newRows); } catch (e) {}
+                      }
+                    }
+                  }
+                } catch (e) { /* new month fetch failed, serve what we have */ }
+              }
+              await kvPut(env, "hist:" + hTickerUp, hD1Arr, 86400);
+              return json({ ticker: hTicker, prices: hD1Arr }, origin, 200, 86400);
+            }
+          } catch (e) { /* D1 read failed, fall through */ }
+        }
+        // 3. EODHD API (no D1 data)
+        var hCode = toEOD(hTickerUp);
         var hFrom = "2020-01-01";
         var hTo   = new Date().toISOString().slice(0, 10);
         var hUrl  = EODHD_BASE + "/eod/" + hCode + "?api_token=" + KEY + "&fmt=json&period=m&from=" + hFrom + "&to=" + hTo;
@@ -771,7 +836,14 @@ export default {
         var hPrices = hData.map(function(d) {
           return [d.date.slice(0, 7), parseFloat((d.adjusted_close || d.close || 0).toFixed(2))];
         }).filter(function(d) { return d[1] > 0; });
-        await kvPut(env, "hist:" + hTicker.toUpperCase(), hPrices, 86400);
+        await kvPut(env, "hist:" + hTickerUp, hPrices, 86400);
+        // Save to D1 for next time
+        if (env.DB && hPrices.length > 0) {
+          try {
+            var priceRows = hPrices.map(function(p) { return { month: p[0], price: p[1] }; });
+            await savePriceHistory(env.DB, hTickerUp, priceRows);
+          } catch (e) {}
+        }
         return json({ ticker: hTicker, prices: hPrices }, origin, 200, 86400);
       } catch (hErr) {
         return err("History fetch failed: " + hErr.message, origin, 502);
@@ -784,11 +856,29 @@ export default {
       var hbSyms = hbRaw.split(",").map(function(s) { return s.trim().toUpperCase(); }).filter(Boolean).slice(0, 10);
       if (!hbSyms.length) return err("symbols param required", origin, 400);
       var hbResults = {}, hbMisses = [];
+      // Check KV cache first
       for (var hbi = 0; hbi < hbSyms.length; hbi++) {
         var hbc = await kvGet(env, "hist:" + hbSyms[hbi]);
         if (hbc) hbResults[hbSyms[hbi]] = hbc;
         else hbMisses.push(hbSyms[hbi]);
       }
+      // Check D1 for remaining misses
+      if (hbMisses.length > 0 && env.DB) {
+        var hbD1Hits = [];
+        for (var hbd = 0; hbd < hbMisses.length; hbd++) {
+          try {
+            var hbD1 = await getPriceHistory(env.DB, hbMisses[hbd]);
+            if (hbD1 && hbD1.length > 0) {
+              var hbArr = hbD1.map(function(r) { return [r.month, r.price]; });
+              hbResults[hbMisses[hbd]] = hbArr;
+              hbD1Hits.push(hbMisses[hbd]);
+              await kvPut(env, "hist:" + hbMisses[hbd], hbArr, 86400);
+            }
+          } catch (e) {}
+        }
+        hbMisses = hbMisses.filter(function(s) { return hbD1Hits.indexOf(s) === -1; });
+      }
+      // Fetch remaining from EODHD
       if (hbMisses.length > 0) {
         var hbFrom = "2020-01-01";
         var hbTo   = new Date().toISOString().slice(0, 10);
@@ -802,7 +892,12 @@ export default {
                 return [x.date.slice(0, 7), parseFloat((x.adjusted_close || x.close || 0).toFixed(2))];
               }).filter(function(x) { return x[1] > 0; }) : [];
               hbResults[hbSym] = prices;
-              return kvPut(env, "hist:" + hbSym, prices, 86400);
+              var saves = [kvPut(env, "hist:" + hbSym, prices, 86400)];
+              if (env.DB && prices.length > 0) {
+                var rows = prices.map(function(p) { return { month: p[0], price: p[1] }; });
+                saves.push(savePriceHistory(env.DB, hbSym, rows).catch(function() {}));
+              }
+              return Promise.all(saves);
             })
             .catch(function() { hbResults[hbSym] = []; });
         });
@@ -818,11 +913,32 @@ export default {
       var dbSyms = dbRaw.split(",").map(function(s) { return s.trim().toUpperCase(); }).filter(Boolean).slice(0, 10);
       if (!dbSyms.length) return err("symbols param required", origin, 400);
       var dbResults = {}, dbMisses = [];
+      // KV cache first
       for (var dbi = 0; dbi < dbSyms.length; dbi++) {
         var dbc = await kvGet(env, "div:" + dbSyms[dbi]);
         if (dbc) dbResults[dbSyms[dbi]] = dbc;
         else dbMisses.push(dbSyms[dbi]);
       }
+      // D1 check for remaining
+      if (dbMisses.length > 0 && env.DB) {
+        var dbD1Hits = [];
+        for (var dbd = 0; dbd < dbMisses.length; dbd++) {
+          try {
+            var d1Divs = await getDividendHistory(env.DB, dbMisses[dbd]);
+            if (d1Divs && d1Divs.length > 0) {
+              var divArr = d1Divs.map(function(r) {
+                var ym = parseInt(r.date.slice(0,4) + r.date.slice(5,7), 10);
+                return [ym, parseFloat(parseFloat(r.amount).toFixed(4))];
+              }).filter(function(x) { return x[1] > 0; });
+              dbResults[dbMisses[dbd]] = divArr;
+              dbD1Hits.push(dbMisses[dbd]);
+              await kvPut(env, "div:" + dbMisses[dbd], divArr, 86400);
+            }
+          } catch (e) {}
+        }
+        dbMisses = dbMisses.filter(function(s) { return dbD1Hits.indexOf(s) === -1; });
+      }
+      // EODHD for remaining
       if (dbMisses.length > 0) {
         var dbFrom = reqUrl.searchParams.get("from") || "2020-01-01";
         var dbTo   = reqUrl.searchParams.get("to") || new Date().toISOString().slice(0, 10);
@@ -837,7 +953,16 @@ export default {
                 return [ym, parseFloat(parseFloat(x.value).toFixed(4))];
               }).filter(function(x) { return x[1] > 0; }) : [];
               dbResults[dbSym] = divs;
-              return kvPut(env, "div:" + dbSym, divs, 86400);
+              var saves = [kvPut(env, "div:" + dbSym, divs, 86400)];
+              // Save raw div data to D1
+              if (env.DB && Array.isArray(d) && d.length > 0) {
+                var rows = d.filter(function(x) { return x.date && parseFloat(x.value) > 0; })
+                  .map(function(x) { return { date: x.date, amount: parseFloat(parseFloat(x.value).toFixed(4)) }; });
+                if (rows.length > 0) {
+                  saves.push(saveDividendHistory(env.DB, dbSym, rows).catch(function() {}));
+                }
+              }
+              return Promise.all(saves);
             })
             .catch(function() { dbResults[dbSym] = []; });
         });
@@ -873,6 +998,7 @@ export default {
           cashBalance: body.cash_balance,
           dripEnabled: body.drip_enabled,
           lastProcessedAt: body.last_processed_at,
+          vizType: body.viz_type,
         });
         return json({ result: updated }, origin, 200, 0);
       }

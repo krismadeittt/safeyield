@@ -1,0 +1,14 @@
+{
+  "name": "Brown & Brown Inc",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 0.87,
+  "annualDiv": 0.63,
+  "payout": 20,
+  "marketCap": 25,
+  "g5": 11.2,
+  "streak": 19,
+  "eps": 3.15,
+  "revenue": 5762999808,
+  "ticker": "BRO"
+}

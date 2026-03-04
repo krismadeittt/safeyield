@@ -35,3 +35,24 @@ CREATE TABLE IF NOT EXISTS watchlist (
 
 CREATE INDEX IF NOT EXISTS idx_holdings_user ON holdings(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_user ON watchlist(user_id);
+
+-- Stock/ETF data tables (permanent storage)
+CREATE TABLE IF NOT EXISTS stock_fundamentals (
+  ticker TEXT PRIMARY KEY,
+  data TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS price_history (
+  ticker TEXT NOT NULL,
+  month TEXT NOT NULL,
+  price REAL NOT NULL,
+  PRIMARY KEY (ticker, month)
+);
+
+CREATE TABLE IF NOT EXISTS dividend_history (
+  ticker TEXT NOT NULL,
+  date TEXT NOT NULL,
+  amount REAL NOT NULL,
+  PRIMARY KEY (ticker, date)
+);

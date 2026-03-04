@@ -3,12 +3,13 @@ import { projectPortfolioPerStock, seededPRNG } from '../utils/monteCarlo';
 import { calcMonthlyIncome } from '../utils/dividends';
 import { formatCurrency } from '../utils/format';
 import HistoricalProjectedChart from '../components/charts/HistoricalProjectedChart';
+import VisualizerToggle from '../components/VisualizerToggle';
 import InfoTooltip from '../components/InfoTooltip';
-import MethodologyDisclosure from '../components/MethodologyDisclosure';
 import useIsMobile from '../hooks/useIsMobile';
 
 export default function Dashboard({
   totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth, cashBalance = 0,
+  vizType, setVizType,
 }) {
   const isMobile = useIsMobile();
   const [horizon, setHorizon] = useState(10);
@@ -53,8 +54,19 @@ export default function Dashboard({
         <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" isMobile={isMobile} tooltip="Weighted average dividend yield across all holdings, based on each position's share of total portfolio value." />
         <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} isMobile={isMobile} tooltip="Total estimated annual dividend income from all holdings, based on current annual dividend rates." />
         <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg)} sub="estimated" isMobile={isMobile} />
-        <StatCell label="Wtd Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last isMobile={isMobile} tooltip="Weighted average 5-year dividend growth rate across all holdings. Higher growth means your income is increasing faster." />
+        <StatCell label="Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last isMobile={isMobile} tooltip="Weighted average 5-year dividend growth rate across all holdings. Higher growth means your income is increasing faster." />
       </div>
+
+      {/* Portfolio Visualizer */}
+      <VisualizerToggle
+        vizType={vizType}
+        setVizType={setVizType}
+        holdings={holdings}
+        liveData={liveData}
+        portfolioValue={portfolioValue}
+        weightedYield={avgYield}
+        annualIncome={totalIncome}
+      />
 
       {/* Single unified chart with all controls inside */}
       <div data-tour="chart">
@@ -79,7 +91,6 @@ export default function Dashboard({
       />
       </div>
 
-      <MethodologyDisclosure />
     </div>
   );
 }

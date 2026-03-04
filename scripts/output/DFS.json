@@ -1,0 +1,14 @@
+{
+  "name": "Discover Financial Services",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 1.4,
+  "annualDiv": 2.8,
+  "payout": 15,
+  "marketCap": 50,
+  "g5": 11.4,
+  "streak": 13,
+  "eps": 18.72,
+  "revenue": 13342999552,
+  "ticker": "DFS"
+}

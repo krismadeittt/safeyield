@@ -1,0 +1,1 @@
+SELECT ticker FROM stock_fundamentals WHERE updated_at >= '2026-03-04';

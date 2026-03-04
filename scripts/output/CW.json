@@ -1,0 +1,14 @@
+{
+  "name": "Curtiss-Wright Corporation",
+  "sector": "Industrials",
+  "isETF": false,
+  "divYield": 0.14,
+  "annualDiv": 0.96,
+  "payout": 7.5,
+  "marketCap": 26,
+  "g5": 6.6,
+  "streak": 10,
+  "eps": 12.85,
+  "revenue": 3498372096,
+  "ticker": "CW"
+}

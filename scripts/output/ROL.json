@@ -1,0 +1,14 @@
+{
+  "name": "Rollins Inc",
+  "sector": "Consumer Cyclical",
+  "isETF": false,
+  "divYield": 1.2,
+  "annualDiv": 0.73,
+  "payout": 67,
+  "marketCap": 29,
+  "g5": 15.7,
+  "streak": 19,
+  "eps": 1.09,
+  "revenue": 3761050112,
+  "ticker": "ROL"
+}

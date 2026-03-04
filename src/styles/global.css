@@ -133,14 +133,14 @@ svg { pointer-events: auto; }
   100% { left: 200%; }
 }
 
-.live-sweep::after {
+.delayed-badge::after {
   content: '';
   position: absolute;
   top: 0;
   left: -100%;
   width: 60%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(90, 175, 248, 0.8), transparent);
+  background: linear-gradient(90deg, transparent, rgba(120, 160, 200, 0.5), transparent);
   animation: neonSweep 2.4s ease-in-out infinite;
   pointer-events: none;
 }

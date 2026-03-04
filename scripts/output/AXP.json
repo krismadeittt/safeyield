@@ -1,0 +1,14 @@
+{
+  "name": "American Express Company",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 1.23,
+  "annualDiv": 3.8,
+  "payout": 24.7,
+  "marketCap": 212,
+  "g5": 12.3,
+  "streak": 15,
+  "eps": 15.39,
+  "revenue": 66972999680,
+  "ticker": "AXP"
+}

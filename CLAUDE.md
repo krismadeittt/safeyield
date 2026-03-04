@@ -20,8 +20,8 @@ Dividend intelligence dashboard — helps investors analyze dividend stocks/ETFs
 | Route | Purpose |
 |-------|---------|
 | `/health` | Health check, returns available routes |
-| `/quote` | Real-time quote for a single ticker |
-| `/batch` | Real-time quotes for multiple tickers |
+| `/quote` | Delayed quote (15-min) for a single ticker |
+| `/batch` | Delayed quotes (15-min) for multiple tickers |
 | `/fundamentals` | Full fundamentals data for one ticker |
 | `/batch-fundamentals` | Fundamentals for up to 20 tickers |
 | `/search` | Ticker/company search (limit 10) |

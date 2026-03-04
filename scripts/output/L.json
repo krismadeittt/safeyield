@@ -1,0 +1,14 @@
+{
+  "name": "Loews Corp",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 0.22,
+  "annualDiv": 0.25,
+  "payout": 3.1,
+  "marketCap": 23,
+  "g5": -0.1,
+  "streak": 0,
+  "eps": 7.97,
+  "revenue": 18453999616,
+  "ticker": "L"
+}

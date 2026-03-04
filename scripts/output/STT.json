@@ -1,0 +1,14 @@
+{
+  "name": "State Street Corp",
+  "sector": "Financial Services",
+  "isETF": false,
+  "divYield": 2.67,
+  "annualDiv": 3.36,
+  "payout": 35.7,
+  "marketCap": 35,
+  "g5": 9.6,
+  "streak": 4,
+  "eps": 9.41,
+  "revenue": 13884999680,
+  "ticker": "STT"
+}

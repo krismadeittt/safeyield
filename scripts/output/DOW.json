@@ -1,0 +1,14 @@
+{
+  "name": "Dow Inc",
+  "sector": "Basic Materials",
+  "isETF": false,
+  "divYield": 5.69,
+  "annualDiv": 1.75,
+  "payout": null,
+  "marketCap": 22,
+  "g5": -5.6,
+  "streak": 0,
+  "eps": -3.7,
+  "revenue": 39967997952,
+  "ticker": "DOW"
+}

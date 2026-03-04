@@ -1,0 +1,14 @@
+{
+  "name": "Walmart Inc. Common Stock",
+  "sector": "Consumer Defensive",
+  "isETF": false,
+  "divYield": 0.77,
+  "annualDiv": 0.99,
+  "payout": 36.4,
+  "marketCap": 1020,
+  "g5": 5.5,
+  "streak": 19,
+  "eps": 2.72,
+  "revenue": 713163014144,
+  "ticker": "WMT"
+}
