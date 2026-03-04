@@ -21,7 +21,9 @@ const ALLOWED_ORIGINS = [
 ];
 
 function corsHeaders(origin) {
-  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : "";
+  const isAllowed = ALLOWED_ORIGINS.includes(origin)
+    || (origin && (origin.endsWith(".justasite.pages.dev") || origin.endsWith(".safeyield.pages.dev")));
+  const allowed = isAllowed ? origin : "";
   return {
     "Access-Control-Allow-Origin": allowed,
     "Access-Control-Allow-Methods": "GET, OPTIONS",

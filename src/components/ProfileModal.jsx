@@ -10,7 +10,7 @@ const STRATEGIES = [
   { id: 'voo', label: 'High Yield Mix' },
 ];
 
-export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDrip }) {
+export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDrip, onShowTour }) {
   const isMobile = useIsMobile();
   const [displayName, setDisplayName] = useState('');
   const [defaultStrategy, setDefaultStrategy] = useState('');
@@ -39,36 +39,36 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
 
   const inputStyle = {
     width: '100%', padding: '8px 12px',
-    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-    color: '#c8dff0', fontFamily: "'EB Garamond', Georgia, serif",
-    outline: 'none', marginBottom: 12,
+    background: 'var(--bg-input-fill)', border: '1px solid var(--bg-input-border)',
+    color: 'var(--text-primary)', fontFamily: "'EB Garamond', Georgia, serif",
+    marginBottom: 12,
   };
 
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 300,
-      background: 'rgba(2,8,23,0.85)', display: 'flex',
+      background: 'var(--bg-overlay)', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
     }} onClick={onClose}>
       <div style={{
-        background: '#0a1628', border: '1px solid #1a3a5c',
+        background: 'var(--bg-card)', border: '1px solid var(--border-accent)',
         padding: isMobile ? '1.5rem' : '2rem',
         width: isMobile ? 'calc(100vw - 2rem)' : 360,
         maxWidth: 360,
       }} onClick={e => e.stopPropagation()}>
         <div style={{
           fontWeight: 600, letterSpacing: '0.12em', fontSize: '0.72rem',
-          textTransform: 'uppercase', color: '#7a9ab8', marginBottom: '1rem',
+          textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '1rem',
           fontFamily: "'EB Garamond', Georgia, serif",
         }}>
           Profile Settings
         </div>
 
         {loading ? (
-          <div style={{ color: '#2a4a6a', textAlign: 'center', padding: '2rem' }}>Loading...</div>
+          <div style={{ color: 'var(--text-dim)', textAlign: 'center', padding: '2rem' }}>Loading...</div>
         ) : (
           <>
-            <label style={{ fontSize: '0.7rem', color: '#5a8ab0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-link)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               Display Name
             </label>
             <input
@@ -78,7 +78,7 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
               style={inputStyle}
             />
 
-            <label style={{ fontSize: '0.7rem', color: '#5a8ab0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-link)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               Default Strategy
             </label>
             <select
@@ -91,11 +91,16 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
               ))}
             </select>
 
-            <label style={{ fontSize: '0.7rem', color: '#5a8ab0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+            <label style={{ fontSize: '0.7rem', color: 'var(--text-link)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
               Dividend Reinvestment (DRIP)
             </label>
             <div
               onClick={toggleDrip}
+              role="switch"
+              aria-checked={dripEnabled}
+              aria-label="Toggle DRIP"
+              tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleDrip(); } }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20,
                 cursor: 'pointer', userSelect: 'none',
@@ -103,24 +108,33 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
             >
               <div style={{
                 width: 36, height: 20, borderRadius: 10,
-                background: dripEnabled ? '#005EB8' : 'rgba(255,255,255,0.08)',
+                background: dripEnabled ? 'var(--primary)' : 'var(--bg-input-border)',
                 position: 'relative', transition: 'background 0.2s',
               }}>
                 <div style={{
                   width: 16, height: 16, borderRadius: 8,
-                  background: '#c8dff0', position: 'absolute', top: 2,
+                  background: 'var(--text-primary)', position: 'absolute', top: 2,
                   left: dripEnabled ? 18 : 2, transition: 'left 0.2s',
                 }} />
               </div>
-              <span style={{ color: '#c8dff0', fontSize: '0.85rem', fontFamily: "'EB Garamond', Georgia, serif" }}>
+              <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: "'EB Garamond', Georgia, serif" }}>
                 {dripEnabled ? 'ON — Reinvest dividends as shares' : 'OFF — Accumulate as cash'}
               </span>
             </div>
 
+            <button onClick={() => { onShowTour?.(); onClose(); }} style={{
+              width: '100%', padding: '8px', cursor: 'pointer', marginBottom: 12,
+              background: 'none', border: '1px solid var(--border-accent)',
+              color: 'var(--text-link)', fontSize: '0.8rem',
+              fontFamily: "'EB Garamond', Georgia, serif",
+            }}>
+              Show Welcome Tour
+            </button>
+
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleSave} disabled={saving} style={{
                 flex: 1, padding: '10px', cursor: 'pointer',
-                background: saving ? '#1a3a5c' : '#005EB8',
+                background: saving ? 'var(--border-accent)' : 'var(--primary)',
                 color: 'white', border: 'none', fontSize: '0.9rem',
                 fontWeight: 700, boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
               }}>
@@ -128,8 +142,8 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
               </button>
               <button onClick={onClose} style={{
                 padding: '10px 16px', cursor: 'pointer',
-                background: 'transparent', border: '1px solid #1a3a5c',
-                color: '#5a8ab0', fontSize: '0.9rem',
+                background: 'transparent', border: '1px solid var(--border-accent)',
+                color: 'var(--text-link)', fontSize: '0.9rem',
               }}>
                 Cancel
               </button>

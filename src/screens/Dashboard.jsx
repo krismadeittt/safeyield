@@ -3,6 +3,8 @@ import { projectPortfolioPerStock, seededPRNG } from '../utils/monteCarlo';
 import { calcMonthlyIncome } from '../utils/dividends';
 import { formatCurrency } from '../utils/format';
 import HistoricalProjectedChart from '../components/charts/HistoricalProjectedChart';
+import InfoTooltip from '../components/InfoTooltip';
+import MethodologyDisclosure from '../components/MethodologyDisclosure';
 import useIsMobile from '../hooks/useIsMobile';
 
 export default function Dashboard({
@@ -41,20 +43,21 @@ export default function Dashboard({
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
 
       {/* Stats row — bordered strip */}
-      <div style={{
+      <div data-tour="stats" style={{
         display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 0,
         marginBottom: isMobile ? "1rem" : "2rem",
-        borderTop: "1px solid #0a1e30", borderBottom: "1px solid #0a1e30",
+        borderTop: "1px solid var(--border-dim)", borderBottom: "1px solid var(--border-dim)",
         background: "transparent",
       }}>
         <StatCell label="Portfolio Value" value={formatCurrency(portfolioValue)} sub={cashBalance > 0 ? `${holdings.length} holdings + ${formatCurrency(cashBalance)} cash` : `${holdings.length} holdings`} isMobile={isMobile} />
-        <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" isMobile={isMobile} />
-        <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} isMobile={isMobile} />
+        <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" isMobile={isMobile} tooltip="Weighted average dividend yield across all holdings, based on each position's share of total portfolio value." />
+        <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} isMobile={isMobile} tooltip="Total estimated annual dividend income from all holdings, based on current annual dividend rates." />
         <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg)} sub="estimated" isMobile={isMobile} />
-        <StatCell label="Wtd Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last isMobile={isMobile} />
+        <StatCell label="Wtd Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last isMobile={isMobile} tooltip="Weighted average 5-year dividend growth rate across all holdings. Higher growth means your income is increasing faster." />
       </div>
 
       {/* Single unified chart with all controls inside */}
+      <div data-tour="chart">
       <HistoricalProjectedChart
         portfolioValue={portfolioValue}
         avgYield={avgYield}
@@ -74,33 +77,38 @@ export default function Dashboard({
         monthlyData={monthlyData}
         holdings={holdings}
       />
+      </div>
+
+      <MethodologyDisclosure />
     </div>
   );
 }
 
-function StatCell({ label, value, sub, last, isMobile }) {
+function StatCell({ label, value, sub, last, isMobile, tooltip }) {
   return (
     <div style={{
       padding: isMobile ? "0.9rem 0.8rem" : "1.8rem 2rem",
-      borderRight: last ? "none" : "1px solid #0a1e30",
-      borderBottom: isMobile ? "1px solid #0a1e30" : "none",
+      borderRight: last ? "none" : "1px solid var(--border-dim)",
+      borderBottom: isMobile ? "1px solid var(--border-dim)" : "none",
     }}>
       <div style={{
-        fontSize: isMobile ? "0.5rem" : "0.56rem", color: "#1e4060", textTransform: "uppercase",
+        fontSize: isMobile ? "0.5rem" : "0.56rem", color: "var(--text-label)", textTransform: "uppercase",
         letterSpacing: "0.2em", marginBottom: isMobile ? "0.4rem" : "0.65rem",
         fontFamily: "'EB Garamond', Georgia, serif",
+        display: "flex", alignItems: "center",
       }}>
         {label}
+        {tooltip && <InfoTooltip text={tooltip} />}
       </div>
       <div style={{
-        fontSize: isMobile ? "1.1rem" : "1.5rem", fontWeight: 600, color: "#c8dff0", lineHeight: 1,
+        fontSize: isMobile ? "1.1rem" : "1.5rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1,
         fontFamily: "'Playfair Display', Georgia, serif",
       }}>
         {value}
       </div>
       {sub && (
         <div style={{
-          fontSize: isMobile ? "0.6rem" : "0.7rem", color: "#1a3a58", marginTop: "0.4rem", fontStyle: "italic",
+          fontSize: isMobile ? "0.6rem" : "0.7rem", color: "var(--text-sub)", marginTop: "0.4rem", fontStyle: "italic",
         }}>
           {sub}
         </div>

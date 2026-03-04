@@ -53,6 +53,9 @@ export default function usePortfolio(getToken) {
   // Watchlist state
   const [watchlist, setWatchlist] = useState([]);
 
+  // Last updated timestamp
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+
   // Add stock modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTicker, setAddTicker] = useState("");
@@ -177,6 +180,7 @@ export default function usePortfolio(getToken) {
             }
           }
           setLiveData(merged);
+          setLastUpdatedAt(new Date());
 
           // Update holdings with fetched data so h.div, h.price, h.g5 etc. are populated
           const hydrated = restored.map(h => {
@@ -268,7 +272,7 @@ export default function usePortfolio(getToken) {
     // Only fetch prices for tickers not already in liveData
     const missing = tickers.filter(t => !liveData[t]);
     if (missing.length > 0) {
-      fetchBatchUpdate(missing).then(data => setLiveData(prev => ({ ...prev, ...data })));
+      fetchBatchUpdate(missing).then(data => { setLiveData(prev => ({ ...prev, ...data })); setLastUpdatedAt(new Date()); });
     }
     // Only fetch fundamentals for newly added tickers (not already fetched)
     const prevSet = new Set(prevTickersRef.current);
@@ -312,7 +316,7 @@ export default function usePortfolio(getToken) {
       if (!isMarketOpen()) return; // prices can't change when market is closed
       const tickers = holdingsRef.current.map(h => h.ticker);
       fetchBatchUpdate(tickers)
-        .then(data => setLiveData(prev => ({ ...prev, ...data })));
+        .then(data => { setLiveData(prev => ({ ...prev, ...data })); setLastUpdatedAt(new Date()); });
     }, POLL_INTERVAL);
     return () => clearInterval(id);
   }, [holdings.length > 0]);
@@ -578,5 +582,7 @@ export default function usePortfolio(getToken) {
     dripEnabled, toggleDrip, cashBalance,
     // Watchlist
     watchlist, addWatch, removeWatch, isWatched,
+    // Timestamp
+    lastUpdatedAt,
   };
 }

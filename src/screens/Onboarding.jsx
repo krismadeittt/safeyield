@@ -94,11 +94,11 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
       }}>
         <h1 style={{
           fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.6rem" : "2.5rem",
-          color: "#c8dff0", fontWeight: 700, marginBottom: "0.5rem",
+          color: "var(--text-primary)", fontWeight: 700, marginBottom: "0.5rem",
         }}>
           SafeYield
         </h1>
-        <p style={{ color: "#7a9ab8", marginBottom: "2.5rem", fontStyle: "italic" }}>
+        <p style={{ color: "var(--text-muted)", marginBottom: "2.5rem", fontStyle: "italic" }}>
           Dividend Intelligence — Portfolio Analysis & DRIP Simulation
         </p>
         <div style={{ maxWidth: 740, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
@@ -131,7 +131,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
         alignItems: "center", padding: isMobile ? "1.5rem 1rem" : "3rem 2rem",
       }}>
         <button onClick={() => setMode("pick")} style={{
-          background: "none", border: "1px solid #1a3a5c", color: "#5a8ab0",
+          background: "none", border: "1px solid var(--border-accent)", color: "var(--text-link)",
           padding: "4px 12px", cursor: "pointer", fontSize: "0.75rem",
           fontFamily: "'EB Garamond', Georgia, serif", alignSelf: "flex-start",
           marginBottom: "1.5rem",
@@ -141,11 +141,11 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
 
         <h2 style={{
           fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
-          color: "#c8dff0", marginBottom: "0.5rem",
+          color: "var(--text-primary)", marginBottom: "0.5rem",
         }}>
           Build Your Portfolio
         </h2>
-        <p style={{ color: "#7a9ab8", marginBottom: "1.5rem", fontSize: "0.85rem", fontStyle: "italic" }}>
+        <p style={{ color: "var(--text-muted)", marginBottom: "1.5rem", fontSize: "0.85rem", fontStyle: "italic" }}>
           Search for stocks or ETFs and enter share quantities
         </p>
 
@@ -156,9 +156,9 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
               display: "grid", gridTemplateColumns: "1fr 2fr 100px",
               gap: 8, padding: "0 0 8px", marginBottom: 4,
             }}>
-              <span style={{ fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.15em", textTransform: "uppercase" }}>Ticker</span>
-              <span style={{ fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.15em", textTransform: "uppercase" }}>Name</span>
-              <span style={{ fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.15em", textTransform: "uppercase" }}>Shares</span>
+              <span style={{ fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Ticker</span>
+              <span style={{ fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Name</span>
+              <span style={{ fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.15em", textTransform: "uppercase" }}>Shares</span>
             </div>
           )}
 
@@ -180,12 +180,12 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
             />
           ))}
 
-          {error && <div style={{ color: "#ff4466", fontSize: "0.8rem", marginTop: 12 }}>{error}</div>}
+          {error && <div style={{ color: "var(--red)", fontSize: "0.8rem", marginTop: 12 }}>{error}</div>}
 
           <div style={{ display: "flex", gap: 8, marginTop: "1.5rem", justifyContent: "center" }}>
             <button onClick={handleCustomStart} disabled={loading} style={{
               padding: "12px 40px", fontSize: "1rem", cursor: "pointer",
-              background: loading ? "#1a3a5c" : "#005EB8", color: "#c8dff0",
+              background: loading ? "var(--border-accent)" : "var(--primary)", color: "var(--text-primary)",
               border: "none", fontWeight: 700,
             }}>
               {loading ? "Loading..." : "Start Analysis"}
@@ -203,14 +203,14 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
       alignItems: "center", justifyContent: "center", padding: isMobile ? "1rem" : "2rem",
     }}>
       <div style={{
-        fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em",
+        fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.2em",
         textTransform: "uppercase", marginBottom: 8,
       }}>
         {strategy.name}
       </div>
       <h2 style={{
         fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
-        color: "#c8dff0", marginBottom: "1.5rem",
+        color: "var(--text-primary)", marginBottom: "1.5rem",
       }}>
         Starting Balance
       </h2>
@@ -218,9 +218,9 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
         {BALANCE_OPTIONS.map(opt => (
           <button key={opt.value} onClick={() => setBalance(String(opt.value))} style={{
             padding: "8px 20px", cursor: "pointer", fontSize: "0.9rem",
-            background: balance === String(opt.value) ? "#005EB8" : "#0a1628",
-            color: balance === String(opt.value) ? "#c8dff0" : "#7a9ab8",
-            border: `1px solid ${balance === String(opt.value) ? "#005EB8" : "#0a1e30"}`,
+            background: balance === String(opt.value) ? "var(--primary)" : "var(--bg-card)",
+            color: balance === String(opt.value) ? "var(--text-primary)" : "var(--text-muted)",
+            border: `1px solid ${balance === String(opt.value) ? "var(--primary)" : "var(--border-dim)"}`,
           }}>
             {opt.label}
           </button>
@@ -233,14 +233,14 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
         onChange={e => setBalance(e.target.value.replace(/[^0-9.]/g, ""))}
         style={{
           width: isMobile ? "100%" : 200, maxWidth: 300, padding: "10px 16px", textAlign: "center", fontSize: "1.2rem",
-          background: "#071020", border: "1px solid #1e293b", color: "#c8dff0",
+          background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)",
           fontFamily: "'EB Garamond', Georgia, serif", marginBottom: "1rem",
         }}
       />
-      {error && <div style={{ color: "#ff4466", fontSize: "0.8rem", marginBottom: 8 }}>{error}</div>}
+      {error && <div style={{ color: "var(--red)", fontSize: "0.8rem", marginBottom: 8 }}>{error}</div>}
       <button onClick={handleStart} disabled={preLoading} style={{
         padding: "12px 40px", fontSize: "1rem", cursor: "pointer",
-        background: preLoading ? "#1a3a5c" : "#005EB8", color: "#c8dff0",
+        background: preLoading ? "var(--border-accent)" : "var(--primary)", color: "var(--text-primary)",
         border: "none",
       }}>
         {preLoading ? "Loading prices..." : "Start Analysis"}
@@ -268,14 +268,14 @@ function CustomRow({ row, index, isMobile, onChange, onPick, onResults }) {
 
   const inputStyle = {
     width: "100%", padding: "8px 10px",
-    background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-    color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif",
-    outline: "none", fontSize: "0.85rem",
+    background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
+    color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",
+    fontSize: "0.85rem",
   };
 
   if (isMobile) {
     return (
-      <div style={{ marginBottom: 8, padding: "8px 0", borderBottom: "1px solid #0f2540" }}>
+      <div style={{ marginBottom: 8, padding: "8px 0", borderBottom: "1px solid var(--border-row)" }}>
         <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
           <div style={{ position: "relative", flex: 1 }}>
             <input
@@ -297,7 +297,7 @@ function CustomRow({ row, index, isMobile, onChange, onPick, onResults }) {
           />
         </div>
         {row.name && (
-          <div style={{ fontSize: "0.7rem", color: "#7a9ab8", paddingLeft: 2 }}>{row.name}</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", paddingLeft: 2 }}>{row.name}</div>
         )}
       </div>
     );
@@ -320,8 +320,8 @@ function CustomRow({ row, index, isMobile, onChange, onPick, onResults }) {
         )}
       </div>
       <div style={{
-        padding: "8px 10px", fontSize: "0.8rem", color: row.name ? "#7a9ab8" : "#2a4a6a",
-        background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)",
+        padding: "8px 10px", fontSize: "0.8rem", color: row.name ? "var(--text-muted)" : "var(--text-dim)",
+        background: "rgba(255,255,255,0.02)", border: "1px solid var(--bg-input-fill)",
         minHeight: 36, display: "flex", alignItems: "center",
       }}>
         {row.name || "—"}
@@ -342,7 +342,7 @@ function StrategyCard({ strat, onClick, isMobile, fullWidth }) {
     <div
       onClick={onClick}
       style={{
-        background: "#0a1628", border: "1px solid #0a1e30",
+        background: "var(--bg-card)", border: "1px solid var(--border-dim)",
         padding: "1.5rem", cursor: "pointer",
         borderTop: `3px solid ${strat.color}`,
         transition: "border-color 0.2s, box-shadow 0.2s",
@@ -354,20 +354,20 @@ function StrategyCard({ strat, onClick, isMobile, fullWidth }) {
         e.currentTarget.style.boxShadow = `0 0 20px ${strat.color}22`;
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.borderColor = "#0a1e30";
+        e.currentTarget.style.borderColor = "var(--border-dim)";
         e.currentTarget.style.boxShadow = "none";
       }}
     >
       <div style={{
-        fontSize: "1.1rem", fontWeight: 600, color: "#c8dff0",
+        fontSize: "1.1rem", fontWeight: 600, color: "var(--text-primary)",
         fontFamily: "'Playfair Display', Georgia, serif", marginBottom: 4,
       }}>
         {strat.name}
       </div>
-      <div style={{ fontSize: "0.75rem", color: "#5aaff8", marginBottom: 8 }}>
+      <div style={{ fontSize: "0.75rem", color: "var(--accent)", marginBottom: 8 }}>
         {strat.subtitle}
       </div>
-      <div style={{ fontSize: "0.85rem", color: "#7a9ab8", marginBottom: 12 }}>
+      <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: 12 }}>
         {strat.desc}
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
@@ -389,17 +389,17 @@ function Dropdown({ results, onPick }) {
   return (
     <div style={{
       position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20,
-      background: "#071020", border: "1px solid #1a3a5c",
+      background: "var(--bg-input)", border: "1px solid var(--border-accent)",
       maxHeight: 150, overflowY: "auto",
     }}>
       {results.map(r => (
         <div key={r.ticker} onClick={() => onPick(r.ticker, r.name)} style={{
           padding: "6px 10px", cursor: "pointer",
-          borderBottom: "1px solid #0f2540",
+          borderBottom: "1px solid var(--border-row)",
           display: "flex", justifyContent: "space-between",
         }}>
           <span style={{ color: "#ffffff", fontWeight: 700, fontSize: "0.85rem" }}>{r.ticker}</span>
-          <span style={{ color: "#2a4a6a", fontSize: "0.7rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "60%" }}>{r.name}</span>
+          <span style={{ color: "var(--text-dim)", fontSize: "0.7rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "60%" }}>{r.name}</span>
         </div>
       ))}
     </div>

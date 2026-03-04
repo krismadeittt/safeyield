@@ -1,5 +1,80 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
 
+/* ===== THEME CUSTOM PROPERTIES ===== */
+:root {
+  --bg: #020817;
+  --bg-card: #0a1628;
+  --bg-dark: #040c18;
+  --bg-input: #071020;
+  --bg-overlay: rgba(2,8,23,0.85);
+  --bg-overlay-nav: rgba(2,8,23,0.97);
+  --bg-input-fill: rgba(255,255,255,0.04);
+  --bg-input-border: rgba(255,255,255,0.08);
+  --bg-hover: rgba(0,94,184,0.08);
+  --bg-hover-subtle: rgba(0,94,184,0.04);
+  --primary: #005EB8;
+  --primary-hover: #0070d4;
+  --accent: #5aaff8;
+  --text-primary: #c8dff0;
+  --text-secondary: #a8c4dc;
+  --text-muted: #7a9ab8;
+  --text-dim: #4a6a8a;
+  --text-label: #4a7090;
+  --text-sub: #3a5a78;
+  --text-link: #5a8ab0;
+  --border: #1e293b;
+  --border-accent: #1a3a5c;
+  --border-dim: #0a1e30;
+  --border-subtle: #081828;
+  --border-row: #0f2540;
+  --green: #00cc66;
+  --green-dark: #1a7a3a;
+  --red: #ff4466;
+  --red-muted: #c85a5a;
+  --chart-hist: #1e5a28;
+  --chart-hist-bright: #60e850;
+  --chart-proj: #1a3a5c;
+  --chart-proj-bright: #3a9aff;
+  --scrollbar: #0a2040;
+}
+
+[data-theme="light"] {
+  --bg: #f5f7fa;
+  --bg-card: #ffffff;
+  --bg-dark: #edf0f5;
+  --bg-input: #f0f2f6;
+  --bg-overlay: rgba(0,0,0,0.4);
+  --bg-overlay-nav: rgba(255,255,255,0.97);
+  --bg-input-fill: rgba(0,0,0,0.04);
+  --bg-input-border: rgba(0,0,0,0.12);
+  --bg-hover: rgba(0,94,184,0.08);
+  --bg-hover-subtle: rgba(0,94,184,0.04);
+  --primary: #005EB8;
+  --primary-hover: #004a94;
+  --accent: #0066cc;
+  --text-primary: #1a1a2e;
+  --text-secondary: #2d3748;
+  --text-muted: #4a5568;
+  --text-dim: #718096;
+  --text-label: #5a6a7a;
+  --text-sub: #6a7a8a;
+  --text-link: #005EB8;
+  --border: #e2e8f0;
+  --border-accent: #cbd5e0;
+  --border-dim: #e2e8f0;
+  --border-subtle: #edf2f7;
+  --border-row: #edf2f7;
+  --green: #00994d;
+  --green-dark: #006633;
+  --red: #e53e3e;
+  --red-muted: #c53030;
+  --chart-hist: #38a169;
+  --chart-hist-bright: #48bb78;
+  --chart-proj: #90cdf4;
+  --chart-proj-bright: #3182ce;
+  --scrollbar: #cbd5e0;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -7,8 +82,8 @@
 }
 
 body {
-  background: #020817;
-  color: #a8c4dc;
+  background: var(--bg);
+  color: var(--text-secondary);
   font-family: 'EB Garamond', Georgia, serif;
   min-height: 100vh;
 }
@@ -18,27 +93,32 @@ body {
 }
 
 ::-webkit-scrollbar { width: 2px; height: 2px; }
-::-webkit-scrollbar-thumb { background: #0a2040; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar); }
 
 button, input, select, td, th {
   font-family: 'EB Garamond', Georgia, serif;
 }
 
+*:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 * { border-radius: 0 !important; }
 
 thead th {
-  background: #040c18 !important;
-  color: #1a4060 !important;
+  background: var(--bg-dark) !important;
+  color: var(--text-label) !important;
   font-size: 0.55rem !important;
   letter-spacing: 0.2em !important;
   text-transform: uppercase !important;
   font-weight: 500 !important;
   padding: 0.65rem 1rem !important;
-  border-bottom: 1px solid #081828 !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
 }
 
-tbody tr { border-bottom: 1px solid #071525 !important; }
-tbody tr:hover { background: rgba(0, 94, 184, 0.04) !important; }
+tbody tr { border-bottom: 1px solid var(--border-row) !important; }
+tbody tr:hover { background: var(--bg-hover-subtle) !important; }
 tbody td { padding: 0.8rem 1rem !important; }
 
 svg { pointer-events: auto; }
@@ -70,34 +150,34 @@ svg { pointer-events: auto; }
 .cl-rootBox,
 .cl-signIn-root,
 .cl-signUp-root {
-  background: #0a1628 !important;
+  background: var(--bg-card) !important;
   border-radius: 0 !important;
 }
 
 .cl-formButtonPrimary {
-  background: #005EB8 !important;
+  background: var(--primary) !important;
   border-radius: 0 !important;
 }
 
 .cl-formFieldInput {
-  background: rgba(255,255,255,0.04) !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  color: #c8dff0 !important;
+  background: var(--bg-input-fill) !important;
+  border: 1px solid var(--bg-input-border) !important;
+  color: var(--text-primary) !important;
   border-radius: 0 !important;
 }
 
 .cl-userButtonPopoverCard {
-  background: #0a1628 !important;
-  border: 1px solid #1a3a5c !important;
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-accent) !important;
   border-radius: 0 !important;
 }
 
 .cl-userButtonPopoverActionButton {
-  color: #c8dff0 !important;
+  color: var(--text-primary) !important;
 }
 
 .cl-userButtonPopoverActionButton:hover {
-  background: rgba(0,94,184,0.1) !important;
+  background: var(--bg-hover) !important;
 }
 
 .cl-avatarBox {
@@ -110,6 +190,20 @@ svg { pointer-events: auto; }
 
 .cl-internal-b3fm6y {
   border-radius: 0 !important;
+}
+
+@keyframes toastSlideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (max-width: 767px) {
+  .toast-container {
+    left: 16px !important;
+    right: 16px !important;
+    bottom: 16px !important;
+    align-items: stretch !important;
+  }
 }
 
 @media (max-width: 767px) {

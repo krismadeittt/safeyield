@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import usePortfolio from './hooks/usePortfolio';
 import useIsMobile from './hooks/useIsMobile';
@@ -9,7 +9,22 @@ import MarketBrowser from './screens/MarketBrowser';
 import WatchlistScreen from './screens/WatchlistScreen';
 import HoldingsTable from './components/HoldingsTable';
 import UserMenu from './components/UserMenu';
+import ConfirmModal from './components/ConfirmModal';
+import { ToastProvider, useToast } from './components/Toast';
+import Tour, { shouldShowTour, resetTour } from './components/Tour';
+import useTheme from './hooks/useTheme';
 import { formatCurrency } from './utils/format';
+
+function relativeTime(date) {
+  if (!date) return '';
+  const secs = Math.round((Date.now() - date.getTime()) / 1000);
+  if (secs < 10) return 'just now';
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  return `${hrs}h ago`;
+}
 
 function shortMoney(val) {
   if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
@@ -18,6 +33,15 @@ function shortMoney(val) {
 }
 
 export default function App() {
+  return (
+    <ToastProvider>
+      <AppInner />
+    </ToastProvider>
+  );
+}
+
+function AppInner() {
+  const toast = useToast();
   const { getToken } = useAuth();
   const {
     isOnboarding, isLoadingSaved, activeTab, setActiveTab,
@@ -31,24 +55,35 @@ export default function App() {
     summary, resetPortfolio,
     dripEnabled, toggleDrip, cashBalance,
     watchlist, addWatch, removeWatch, isWatched,
+    lastUpdatedAt,
   } = usePortfolio(getToken);
 
   const sharesInputRef = useRef(null);
   const isMobile = useIsMobile();
+  const { theme, toggleTheme } = useTheme();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showTour, setShowTour] = useState(() => shouldShowTour());
+  const [, setTick] = useState(0);
+
+  // Re-render every 30s to keep relative time fresh
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   // Loading saved data
   if (isLoadingSaved) {
     return (
       <div style={{
-        fontFamily: "Georgia, serif", background: "#020817", minHeight: "100vh",
-        color: "#c8dff0", display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "Georgia, serif", background: "var(--bg)", minHeight: "100vh",
+        color: "var(--text-primary)", display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         <div style={{ textAlign: "center" }}>
           <div style={{
-            width: 9, height: 9, background: "#005EB8",
+            width: 9, height: 9, background: "var(--primary)",
             boxShadow: "0 0 8px #10b981", margin: "0 auto 16px",
           }} />
-          <div style={{ color: "#2a4a6a", fontSize: "0.9rem" }}>Loading your portfolio...</div>
+          <div style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>Loading your portfolio...</div>
         </div>
       </div>
     );
@@ -62,16 +97,16 @@ export default function App() {
   // Stock detail view
   if (detailView) {
     return (
-      <div style={{ fontFamily: "Georgia, serif", background: "#050e1a", minHeight: "100vh", color: "#c8dff0" }}>
+      <div style={{ fontFamily: "Georgia, serif", background: "var(--bg)", minHeight: "100vh", color: "var(--text-primary)" }}>
         <nav style={{
-          background: "rgba(2,8,23,0.97)", borderBottom: "1px solid #1e293b",
+          background: "var(--bg-overlay-nav)", borderBottom: "1px solid var(--border)",
           padding: isMobile ? "0 0.75rem" : "0 1.5rem", display: "flex", alignItems: "center",
           justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
             <Logo />
             <button onClick={() => setDetailView(null)} style={{
-              background: "none", border: "1px solid #1a3a5c", color: "#5a8ab0",
+              background: "none", border: "1px solid var(--border-accent)", color: "var(--text-link)",
               padding: isMobile ? "6px 12px" : "4px 12px", cursor: "pointer", fontSize: "0.75rem",
               fontFamily: "'EB Garamond', Georgia, serif",
             }}>
@@ -81,20 +116,25 @@ export default function App() {
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             {/* Watch button in detail nav */}
             <button
-              onClick={() => isWatched(detailView.ticker)
-                ? removeWatch(detailView.ticker)
-                : addWatch(detailView.ticker, detailView.name || detailView.ticker)
-              }
+              onClick={() => {
+                if (isWatched(detailView.ticker)) {
+                  removeWatch(detailView.ticker);
+                  toast(`${detailView.ticker} removed from watchlist`, 'info');
+                } else {
+                  addWatch(detailView.ticker, detailView.name || detailView.ticker);
+                  toast(`${detailView.ticker} added to watchlist`, 'success');
+                }
+              }}
               style={{
-                background: "none", border: "1px solid #1a3a5c",
-                color: isWatched(detailView.ticker) ? "#005EB8" : "#5a8ab0",
+                background: "none", border: "1px solid var(--border-accent)",
+                color: isWatched(detailView.ticker) ? "var(--primary)" : "var(--text-link)",
                 padding: "4px 10px", cursor: "pointer", fontSize: "0.7rem",
                 fontFamily: "'EB Garamond', Georgia, serif",
               }}
             >
-              {isWatched(detailView.ticker) ? "Watching" : "Watch"}
+              {isWatched(detailView.ticker) ? "\u2605 Watching" : "\u2606 Watch"}
             </button>
-            <span style={{ color: "#5a8ab0", fontSize: "0.82rem" }}>
+            <span style={{ color: "var(--text-link)", fontSize: "0.82rem" }}>
               {formatCurrency(summary.portfolioValue)}
             </span>
           </div>
@@ -118,52 +158,68 @@ export default function App() {
 
   // Main app
   return (
-    <div style={{ fontFamily: "Georgia, serif", background: "#020817", minHeight: "100vh", color: "#c8dff0" }}>
+    <div style={{ fontFamily: "Georgia, serif", background: "var(--bg)", minHeight: "100vh", color: "var(--text-primary)" }}>
       {/* Navigation */}
       <nav style={{
-        background: "rgba(2,8,23,0.97)", borderBottom: "1px solid #1e293b",
+        background: "var(--bg-overlay-nav)", borderBottom: "1px solid var(--border)",
         padding: isMobile ? "0 0.75rem" : "0 1.5rem", display: "flex", alignItems: "center",
         justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.3rem" : "1.5rem" }}>
           <Logo />
           {["dashboard", "market", "watchlist"].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: activeTab === tab ? "#005EB8" : "#2a4a6a",
-              fontSize: isMobile ? "0.75rem" : "0.85rem", fontFamily: "'EB Garamond', Georgia, serif",
-              fontWeight: activeTab === tab ? 700 : 400,
-              transition: "color 0.2s",
-            }}>
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              role="tab"
+              aria-selected={activeTab === tab}
+              aria-label={`${tab.charAt(0).toUpperCase() + tab.slice(1)} tab`}
+              {...(tab === "market" ? { "data-tour": "market-tab" } : tab === "watchlist" ? { "data-tour": "watchlist-tab" } : {})}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: activeTab === tab ? "var(--primary)" : "var(--text-dim)",
+                fontSize: isMobile ? "0.75rem" : "0.85rem", fontFamily: "'EB Garamond', Georgia, serif",
+                fontWeight: activeTab === tab ? 700 : 400,
+                transition: "color 0.2s",
+              }}>
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
-          <button onClick={() => {
-            if (window.confirm("Reset portfolio and return to strategy selection?")) resetPortfolio();
-          }} style={{
+          <button onClick={() => setShowConfirm(true)} style={{
             background: "none", border: "none", cursor: "pointer",
-            color: "#2a4a6a", fontSize: "0.75rem",
+            color: "var(--text-dim)", fontSize: "0.75rem",
             fontFamily: "'EB Garamond', Georgia, serif",
-          }}>
+          }} aria-label="Reset portfolio">
             Reset
           </button>
         </div>
 
         <div style={{ display: "flex", gap: isMobile ? 8 : 16, alignItems: "center" }}>
-          <span style={{ color: "#5a8ab0", fontSize: "0.82rem" }}>
+          <button onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} style={{
+            background: "none", border: "1px solid var(--border-accent)", cursor: "pointer",
+            color: "var(--text-link)", padding: "3px 8px", fontSize: "0.8rem",
+          }}>
+            {theme === 'dark' ? '\u2600' : '\u263E'}
+          </button>
+          <span style={{ color: "var(--text-link)", fontSize: "0.82rem" }}>
             {isMobile ? shortMoney(summary.portfolioValue) : formatCurrency(summary.portfolioValue)}
           </span>
           {!isMobile && (
-            <span style={{
-              fontSize: "0.6rem", color: "#3a7abd",
-              fontFamily: "'EB Garamond', Georgia, serif",
-              letterSpacing: "0.15em", textTransform: "uppercase",
-              position: "relative", overflow: "hidden", display: "inline-block",
-            }} className="live-sweep">
-              Live Data
-            </span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+              <span style={{
+                fontSize: "0.6rem", color: "var(--primary)",
+                fontFamily: "'EB Garamond', Georgia, serif",
+                letterSpacing: "0.15em", textTransform: "uppercase",
+                position: "relative", overflow: "hidden", display: "inline-block",
+              }} className="live-sweep">
+                Live Data
+              </span>
+              {lastUpdatedAt && (
+                <span style={{ fontSize: "0.55rem", color: "var(--text-sub)", fontFamily: "system-ui" }}>
+                  {relativeTime(lastUpdatedAt)}
+                </span>
+              )}
+            </div>
           )}
-          <UserMenu getToken={getToken} dripEnabled={dripEnabled} toggleDrip={toggleDrip} />
+          <UserMenu getToken={getToken} dripEnabled={dripEnabled} toggleDrip={toggleDrip} onShowTour={() => { resetTour(); setShowTour(true); }} />
         </div>
       </nav>
 
@@ -180,6 +236,7 @@ export default function App() {
               weightedGrowth={summary.weightedGrowth}
               cashBalance={cashBalance}
             />
+            <div data-tour="holdings">
             <HoldingsTable
               holdings={holdings}
               search={searchQuery}
@@ -193,6 +250,7 @@ export default function App() {
               dripEnabled={dripEnabled}
               toggleDrip={toggleDrip}
             />
+            </div>
           </div>
         )}
 
@@ -233,18 +291,18 @@ export default function App() {
       {showAddModal && (
         <div style={{
           position: "fixed", inset: 0, zIndex: 200,
-          background: "rgba(2,8,23,0.85)", display: "flex",
+          background: "var(--bg-overlay)", display: "flex",
           alignItems: "center", justifyContent: "center",
         }} onClick={() => setShowAddModal(false)}>
           <div style={{
-            background: "#0a1628", border: "1px solid #1a3a5c",
+            background: "var(--bg-card)", border: "1px solid var(--border-accent)",
             padding: isMobile ? "1.5rem" : "2rem",
             width: isMobile ? "calc(100vw - 2rem)" : 360,
             maxWidth: 360,
           }} onClick={e => e.stopPropagation()}>
             <div style={{
               fontWeight: 600, letterSpacing: "0.12em", fontSize: "0.72rem",
-              textTransform: "uppercase", color: "#7a9ab8", marginBottom: "1rem",
+              textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "1rem",
               fontFamily: "'EB Garamond', Georgia, serif",
             }}>
               Add Stock to Portfolio
@@ -256,18 +314,18 @@ export default function App() {
                 placeholder="Ticker symbol..."
                 value={addTicker}
                 onChange={e => setAddTicker(e.target.value.toUpperCase())}
+                aria-label="Ticker symbol"
                 style={{
                   width: "100%", padding: "8px 12px",
-                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-                  color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif",
-                  outline: "none",
-                }}
+                  background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
+                  color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",
+                                 }}
                 autoFocus
               />
               {addResults.length > 0 && (
                 <div style={{
                   position: "absolute", top: "100%", left: 0, right: 0,
-                  background: "#071020", border: "1px solid #1a3a5c",
+                  background: "var(--bg-input)", border: "1px solid var(--border-accent)",
                   maxHeight: 150, overflowY: "auto", zIndex: 10,
                 }}>
                   {addResults.map(r => (
@@ -277,11 +335,11 @@ export default function App() {
                     }}
                       style={{
                         padding: "6px 12px", cursor: "pointer",
-                        borderBottom: "1px solid #0f2540",
+                        borderBottom: "1px solid var(--border-row)",
                         display: "flex", justifyContent: "space-between",
                       }}>
-                      <span style={{ color: "#ffffff", fontWeight: 700 }}>{r.ticker}</span>
-                      <span style={{ color: "#2a4a6a", fontSize: "0.75rem" }}>{r.name}</span>
+                      <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{r.ticker}</span>
+                      <span style={{ color: "var(--text-dim)", fontSize: "0.75rem" }}>{r.name}</span>
                     </div>
                   ))}
                 </div>
@@ -295,11 +353,11 @@ export default function App() {
               value={addShares}
               onChange={e => setAddShares(e.target.value)}
               type="number"
+              aria-label="Number of shares"
               style={{
                 width: "100%", padding: "8px 12px", marginBottom: 12,
-                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-                color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif", outline: "none",
-              }}
+                background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
+                color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",              }}
             />
 
             {/* Yield override */}
@@ -308,18 +366,18 @@ export default function App() {
               value={addYield}
               onChange={e => setAddYield(e.target.value)}
               type="number"
+              aria-label="Yield override percentage"
               step="0.1"
               style={{
                 width: "100%", padding: "8px 12px", marginBottom: 16,
-                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-                color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif", outline: "none",
-              }}
+                background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
+                color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",              }}
             />
 
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={addStock} disabled={!addTicker || isAdding} style={{
+              <button onClick={() => { const t = addTicker; addStock().then(() => toast(`${t} added to portfolio`, 'success')); }} disabled={!addTicker || isAdding} style={{
                 flex: 1, padding: "10px", cursor: "pointer",
-                background: !addTicker || isAdding ? "#1a3a5c" : "#005EB8",
+                background: !addTicker || isAdding ? "var(--border-accent)" : "var(--primary)",
                 color: "white", border: "none", fontSize: "0.9rem",
                 fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
               }}>
@@ -327,14 +385,32 @@ export default function App() {
               </button>
               <button onClick={() => setShowAddModal(false)} style={{
                 padding: "10px 16px", cursor: "pointer",
-                background: "transparent", border: "1px solid #1a3a5c",
-                color: "#5a8ab0", fontSize: "0.9rem",
+                background: "transparent", border: "1px solid var(--border-accent)",
+                color: "var(--text-link)", fontSize: "0.9rem",
               }}>
                 Cancel
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Confirm Modal (Reset) */}
+      {showConfirm && (
+        <ConfirmModal
+          message="Reset portfolio and return to strategy selection?"
+          onConfirm={() => {
+            setShowConfirm(false);
+            resetPortfolio();
+            toast('Portfolio reset', 'info');
+          }}
+          onCancel={() => setShowConfirm(false)}
+        />
+      )}
+
+      {/* First-time user tour */}
+      {showTour && (
+        <Tour onComplete={() => setShowTour(false)} />
       )}
     </div>
   );
@@ -344,11 +420,11 @@ function Logo() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 8 }}>
       <div style={{
-        width: 7, height: 7, background: "#005EB8",
+        width: 7, height: 7, background: "var(--primary)",
         boxShadow: "0 0 8px #10b981",
       }} />
-      <span style={{ fontWeight: 800, fontSize: "1.05rem", letterSpacing: "-0.02em", color: "#c8dff0" }}>
-        Safe<span style={{ color: "#005EB8" }}>Yield</span>
+      <span style={{ fontWeight: 800, fontSize: "1.05rem", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
+        Safe<span style={{ color: "var(--primary)" }}>Yield</span>
       </span>
     </div>
   );

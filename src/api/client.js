@@ -15,6 +15,7 @@ export async function apiFetch(path, timeout = 10000) {
     try {
       const response = await fetch(`${API_BASE_URL}${path}`, {
         signal: AbortSignal.timeout(timeout),
+        cache: 'no-cache',
       });
       if (!response.ok) {
         if (RETRY_STATUSES.has(response.status) && attempt < MAX_RETRIES) {

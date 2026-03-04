@@ -87,7 +87,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
   ];
 
   return (
-    <div style={{ background: "#071525", border: "1px solid #0a1e30", padding: isMobile ? "0.8rem" : "1.2rem" }}>
+    <div style={{ background: "var(--bg-input)", border: "1px solid var(--border-dim)", padding: isMobile ? "0.8rem" : "1.2rem" }}>
       {/* Search & filter bar */}
       <div style={{
         display: "flex", flexDirection: isMobile ? "column" : "row",
@@ -100,7 +100,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
             onChange={e => { setSearch(e.target.value); setPage(0); }}
             style={{
               width: "100%", padding: "8px 12px", fontSize: "0.85rem",
-              background: "#071020", border: "1px solid #0a1e30", color: "#c8dff0",
+              background: "var(--bg-input)", border: "1px solid var(--border-dim)", color: "var(--text-primary)",
               fontFamily: "'EB Garamond', Georgia, serif",
             }}
           />
@@ -108,7 +108,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
           {search && searchResults.length > 0 && (
             <div style={{
               position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10,
-              background: "#0a1628", border: "1px solid #0a1e30", maxHeight: 200, overflowY: "auto",
+              background: "var(--bg-card)", border: "1px solid var(--border-dim)", maxHeight: 200, overflowY: "auto",
             }}>
               {searchResults.map(r => (
                 <div key={r.ticker} onClick={() => {
@@ -117,10 +117,10 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                   setSearch("");
                 }} style={{
                   padding: "8px 12px", cursor: "pointer", display: "flex", justifyContent: "space-between",
-                  borderBottom: "1px solid #071525",
+                  borderBottom: "1px solid var(--bg-input)",
                 }}>
-                  <span style={{ color: "#5aaff8", fontWeight: 600 }}>{r.ticker}</span>
-                  <span style={{ color: "#7a9ab8", fontSize: "0.8rem" }}>{r.name}</span>
+                  <span style={{ color: "var(--accent)", fontWeight: 600 }}>{r.ticker}</span>
+                  <span style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>{r.name}</span>
                 </div>
               ))}
             </div>
@@ -130,8 +130,8 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
           value={sector}
           onChange={e => { setSector(e.target.value); setPage(0); }}
           style={{
-            padding: "8px 12px", background: "#071020", border: "1px solid #0a1e30",
-            color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif",
+            padding: "8px 12px", background: "var(--bg-input)", border: "1px solid var(--border-dim)",
+            color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",
             width: isMobile ? "100%" : "auto",
           }}
         >
@@ -147,8 +147,8 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
               value={sortKey}
               onChange={e => handleSort(e.target.value)}
               style={{
-                padding: "6px 10px", background: "#071020", border: "1px solid #0a1e30",
-                color: "#c8dff0", fontSize: "0.75rem", fontFamily: "'EB Garamond', Georgia, serif",
+                padding: "6px 10px", background: "var(--bg-input)", border: "1px solid var(--border-dim)",
+                color: "var(--text-primary)", fontSize: "0.75rem", fontFamily: "'EB Garamond', Georgia, serif",
                 width: "100%",
               }}
             >
@@ -167,22 +167,22 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                 <div key={stock.ticker}
                   onClick={() => onSelect(stock)}
                   style={{
-                    padding: "0.8rem", borderBottom: "1px solid #0f2540",
+                    padding: "0.8rem", borderBottom: "1px solid var(--border-row)",
                     cursor: "pointer",
                   }}
                 >
                   {/* Ticker + Add button */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                     <div>
-                      <span style={{ fontWeight: 700, color: "#5aaff8", fontSize: "0.95rem" }}>{stock.ticker}</span>
-                      <span style={{ color: "#7a9ab8", fontSize: "0.7rem", marginLeft: 8 }}>${stock.cap}B</span>
+                      <span style={{ fontWeight: 700, color: "var(--accent)", fontSize: "0.95rem" }}>{stock.ticker}</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", marginLeft: 8 }}>${stock.cap}B</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       {inPortfolio ? (
-                        <span style={{ color: "#00cc66", fontSize: "0.7rem" }}>In Portfolio</span>
+                        <span style={{ color: "var(--green)", fontSize: "0.7rem" }}>In Portfolio</span>
                       ) : (
                         <button onClick={e => { e.stopPropagation(); onAdd(stock); }} style={{
-                          background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
+                          background: "none", border: "1px solid var(--border-dim)", color: "var(--accent)",
                           padding: "6px 14px", cursor: "pointer", fontSize: "0.75rem",
                           minHeight: 44,
                         }}>
@@ -194,35 +194,35 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                           e.stopPropagation();
                           isWatched(stock.ticker) ? onUnwatch?.(stock.ticker) : onWatch?.(stock.ticker, stock.name);
                         }} style={{
-                          background: "none", border: "1px solid #0a1e30",
-                          color: isWatched(stock.ticker) ? "#005EB8" : "#2a4a6a",
+                          background: "none", border: "1px solid var(--border-dim)",
+                          color: isWatched(stock.ticker) ? "var(--primary)" : "var(--text-link)",
                           padding: "6px 10px", cursor: "pointer", fontSize: "0.7rem",
                           minHeight: 44,
                         }}>
-                          {isWatched(stock.ticker) ? "Watching" : "Watch"}
+                          {isWatched(stock.ticker) ? "\u2605 Watching" : "\u2606 Watch"}
                         </button>
                       )}
                     </div>
                   </div>
                   {/* Company name */}
-                  <div style={{ fontSize: "0.7rem", color: "#7a9ab8", marginBottom: 8 }}>{stock.name}</div>
+                  <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginBottom: 8 }}>{stock.name}</div>
                   {/* Metrics row */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "0.45rem", color: "#1a4060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Yield</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#005EB8" }}>{stock.yld > 0 ? `${stock.yld.toFixed(2)}%` : "—"}</div>
+                      <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Yield</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--primary)" }}>{stock.yld > 0 ? `${stock.yld.toFixed(2)}%` : "—"}</div>
                     </div>
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "0.45rem", color: "#1a4060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Growth</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: stock.g5 > 0 ? "#00cc66" : "#7a9ab8" }}>{stock.g5 > 0 ? `${stock.g5}%` : "—"}</div>
+                      <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Growth</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: stock.g5 > 0 ? "var(--green)" : "var(--text-muted)" }}>{stock.g5 > 0 ? `${stock.g5}%` : "—"}</div>
                     </div>
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "0.45rem", color: "#1a4060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Streak</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#c8dff0" }}>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</div>
+                      <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Streak</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</div>
                     </div>
                     <div style={{ textAlign: "center" }}>
-                      <div style={{ fontSize: "0.45rem", color: "#1a4060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Sector</div>
-                      <div style={{ fontSize: "0.7rem", color: "#7a9ab8" }}>{stock.sector}</div>
+                      <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Sector</div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{stock.sector}</div>
                     </div>
                   </div>
                 </div>
@@ -255,8 +255,8 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                       style={{ cursor: "pointer" }}
                     >
                       <td>
-                        <span style={{ fontWeight: 600, color: "#5aaff8" }}>{stock.ticker}</span>
-                        <div style={{ fontSize: "0.7rem", color: "#7a9ab8" }}>{stock.name}</div>
+                        <span style={{ fontWeight: 600, color: "var(--accent)" }}>{stock.ticker}</span>
+                        <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{stock.name}</div>
                       </td>
                       <td>${stock.cap}B</td>
                       <td>
@@ -264,18 +264,18 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                         {stock.yld > 0 && <MiniProgressBar value={stock.yld} max={8} />}
                       </td>
                       <td>{stock.div > 0 ? `$${stock.div.toFixed(2)}` : "—"}</td>
-                      <td style={{ color: stock.g5 > 0 ? "#00cc66" : "#7a9ab8" }}>
+                      <td style={{ color: stock.g5 > 0 ? "var(--green)" : "var(--text-muted)" }}>
                         {stock.g5 > 0 ? `${stock.g5}%` : "—"}
                       </td>
                       <td>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</td>
-                      <td style={{ fontSize: "0.75rem", color: "#7a9ab8" }}>{stock.sector}</td>
+                      <td style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{stock.sector}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
                           {inPortfolio ? (
-                            <span style={{ color: "#00cc66", fontSize: "0.7rem" }}>In Portfolio</span>
+                            <span style={{ color: "var(--green)", fontSize: "0.7rem" }}>In Portfolio</span>
                           ) : (
                             <button onClick={e => { e.stopPropagation(); onAdd(stock); }} style={{
-                              background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
+                              background: "none", border: "1px solid var(--border-dim)", color: "var(--accent)",
                               padding: "3px 10px", cursor: "pointer", fontSize: "0.7rem",
                             }}>
                               + Add
@@ -286,11 +286,11 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                               e.stopPropagation();
                               isWatched(stock.ticker) ? onUnwatch?.(stock.ticker) : onWatch?.(stock.ticker, stock.name);
                             }} style={{
-                              background: "none", border: "1px solid #0a1e30",
-                              color: isWatched(stock.ticker) ? "#005EB8" : "#2a4a6a",
+                              background: "none", border: "1px solid var(--border-dim)",
+                              color: isWatched(stock.ticker) ? "var(--primary)" : "var(--text-link)",
                               padding: "3px 8px", cursor: "pointer", fontSize: "0.65rem",
                             }}>
-                              {isWatched(stock.ticker) ? "Watching" : "Watch"}
+                              {isWatched(stock.ticker) ? "\u2605 Watching" : "\u2606 Watch"}
                             </button>
                           )}
                         </div>
@@ -310,18 +310,18 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
           display: "flex", justifyContent: "center", gap: 4, marginTop: "1rem",
         }}>
           <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} style={{
-            padding: isMobile ? "8px 16px" : "4px 12px", background: "transparent", border: "1px solid #0a1e30",
-            color: page === 0 ? "#0a1e30" : "#5aaff8", cursor: page === 0 ? "default" : "pointer",
+            padding: isMobile ? "8px 16px" : "4px 12px", background: "transparent", border: "1px solid var(--border-dim)",
+            color: page === 0 ? "var(--border-dim)" : "var(--accent)", cursor: page === 0 ? "default" : "pointer",
             minHeight: isMobile ? 44 : "auto",
           }}>
             Prev
           </button>
-          <span style={{ padding: "4px 12px", color: "#7a9ab8", fontSize: "0.8rem", display: "flex", alignItems: "center" }}>
+          <span style={{ padding: "4px 12px", color: "var(--text-muted)", fontSize: "0.8rem", display: "flex", alignItems: "center" }}>
             Page {page + 1} of {totalPages}
           </span>
           <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} style={{
-            padding: isMobile ? "8px 16px" : "4px 12px", background: "transparent", border: "1px solid #0a1e30",
-            color: page >= totalPages - 1 ? "#0a1e30" : "#5aaff8", cursor: page >= totalPages - 1 ? "default" : "pointer",
+            padding: isMobile ? "8px 16px" : "4px 12px", background: "transparent", border: "1px solid var(--border-dim)",
+            color: page >= totalPages - 1 ? "var(--border-dim)" : "var(--accent)", cursor: page >= totalPages - 1 ? "default" : "pointer",
             minHeight: isMobile ? 44 : "auto",
           }}>
             Next

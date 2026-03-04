@@ -382,7 +382,7 @@ export default function HistoricalProjectedChart({
             onChange={e => setCustomContrib(e.target.value.replace(/[^0-9]/g, ""))}
             style={{ width: 60, padding: "4px 8px", fontSize: "0.75rem", background: "transparent",
               border: "1px solid #1a3a5c", color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif",
-              outline: "none", marginLeft: -1 }}
+              marginLeft: -1 }}
           />
         </div>
       </div>

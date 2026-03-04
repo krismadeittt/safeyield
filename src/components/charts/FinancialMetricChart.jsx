@@ -107,19 +107,19 @@ export default function FinancialMetricChart({
 
   return (
     <div ref={containerRef} style={{
-      background: "#0a1628", border: "1px solid #1a3a5c", marginBottom: "1rem",
+      background: "var(--bg-card)", border: "1px solid var(--border-accent)", marginBottom: "1rem",
     }}>
       {/* Header */}
       <div style={{ padding: "1.2rem 1.2rem 0" }}>
         <div style={{
-          fontWeight: 700, fontSize: "0.95rem", color: "#c8dff0",
+          fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)",
           fontFamily: "'Playfair Display', Georgia, serif",
         }}>
           {title}
         </div>
         {subtitle && (
           <div style={{
-            fontSize: "0.7rem", color: "#2a4a6a", marginTop: 2,
+            fontSize: "0.7rem", color: "var(--text-dim)", marginTop: 2,
             fontFamily: "Georgia, serif", fontStyle: "italic",
           }}>
             {subtitle}
@@ -138,19 +138,19 @@ export default function FinancialMetricChart({
             {statCards.map((card, i) => (
               <div key={i} style={{
                 padding: "0.7rem 0.8rem",
-                border: "1px solid #1a3a5c",
+                border: "1px solid var(--border-accent)",
                 marginRight: i < statCards.length - 1 ? -1 : 0,
                 marginBottom: -1,
               }}>
                 <div style={{
-                  fontSize: "0.5rem", color: "#2a4a6a", textTransform: "uppercase",
+                  fontSize: "0.5rem", color: "var(--text-dim)", textTransform: "uppercase",
                   letterSpacing: "0.15em", marginBottom: "0.3rem", fontFamily: "system-ui",
                 }}>
                   {card.label}
                 </div>
                 <div style={{
                   fontSize: "1.15rem", fontWeight: 700,
-                  color: card.color || "#c8dff0", lineHeight: 1,
+                  color: card.color || "var(--text-primary)", lineHeight: 1,
                   fontFamily: "'Playfair Display', Georgia, serif",
                 }}>
                   {card.value}
@@ -168,18 +168,18 @@ export default function FinancialMetricChart({
       }}>
         {hovBar ? (
           <div style={{
-            background: "#0a1628", border: "1px solid #1a3a5c",
+            background: "var(--bg-card)", border: "1px solid var(--border-accent)",
             padding: "4px 16px", display: "inline-flex", gap: 10, alignItems: "center",
           }}>
             <span style={{
-              fontSize: "0.72rem", color: "#5a8ab8",
+              fontSize: "0.72rem", color: "var(--text-link)",
               fontFamily: "system-ui", fontWeight: 600,
             }}>
               {hovBar.date?.slice(0, 4) || ''}
               {hovBar.isHistorical ? ' (actual)' : ' (projected)'}
             </span>
             <span style={{
-              fontSize: "0.95rem", color: "#5aaff8",
+              fontSize: "0.95rem", color: "var(--accent)",
               fontWeight: 800, fontFamily: "system-ui",
             }}>
               {formatValue(hovBar.value)}
@@ -187,7 +187,7 @@ export default function FinancialMetricChart({
           </div>
         ) : (
           <span style={{
-            fontSize: "0.5rem", color: "#1a4060", letterSpacing: "0.15em",
+            fontSize: "0.5rem", color: "var(--text-label)", letterSpacing: "0.15em",
             textTransform: "uppercase", fontFamily: "system-ui",
           }}>
             {isMobile ? 'Tap for details' : 'Hover for details'}
@@ -213,9 +213,9 @@ export default function FinancialMetricChart({
           return (
             <g key={gi}>
               <line x1={padL} y1={y} x2={svgW - padR} y2={y}
-                stroke="#081828" strokeWidth={0.5} />
+                stroke="var(--border-row)" strokeWidth={0.5} />
               <text x={padL - 6} y={y + 3} textAnchor="end"
-                fontSize="8" fill="#1a4060" fontFamily="system-ui">
+                fontSize="8" fill="var(--text-label)" fontFamily="system-ui">
                 {formatValue(Math.round(val))}
               </text>
             </g>
@@ -225,7 +225,7 @@ export default function FinancialMetricChart({
         {/* Zero line (if negatives exist) */}
         {rawMin < 0 && (
           <line x1={padL} y1={zeroY} x2={svgW - padR} y2={zeroY}
-            stroke="#2a4a6a" strokeWidth={0.8} strokeDasharray="2,2" />
+            stroke="var(--text-dim)" strokeWidth={0.8} strokeDasharray="2,2" />
         )}
 
         {/* Bars */}
@@ -238,7 +238,6 @@ export default function FinancialMetricChart({
           if (isHov) {
             fill = "#ffffff";
           } else if (bar.isHistorical) {
-            // Most recent historical bar = white glow
             fill = i === nowIndex ? "#e0f0e0" : "#2a8a3a";
           } else {
             fill = "#3a9aff";
@@ -274,10 +273,10 @@ export default function FinancialMetricChart({
           <>
             <line x1={nowX + stepW * 0.4} y1={padTop - 4}
               x2={nowX + stepW * 0.4} y2={padTop + chartH + 4}
-              stroke="#5aaff8" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
+              stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
             <text x={nowX + stepW * 0.4} y={padTop - 8}
               textAnchor="middle" fontSize="7" fontWeight="700"
-              fill="#5aaff8" fontFamily="system-ui">
+              fill="var(--accent)" fontFamily="system-ui">
               NOW
             </text>
           </>
@@ -290,7 +289,7 @@ export default function FinancialMetricChart({
           return (
             <text key={i} x={x} y={height - 6}
               textAnchor="middle" fontSize={barCount > 15 ? 7 : 8.5}
-              fill={hovered === i ? "#5aaff8" : bar?.isHistorical ? "#1a4060" : "#1a3a5c"}
+              fill={hovered === i ? "var(--accent)" : "var(--text-label)"}
               fontWeight={hovered === i ? 700 : 400}
               fontFamily="system-ui">
               {label}

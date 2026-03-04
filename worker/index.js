@@ -55,8 +55,10 @@ function cors(origin) {
     "http://localhost:3000",
     "http://localhost:5173",
   ];
+  const isAllowed = allowed.includes(origin)
+    || (origin && (origin.endsWith(".justasite.pages.dev") || origin.endsWith(".safeyield.pages.dev")));
   return {
-    "Access-Control-Allow-Origin":  allowed.includes(origin) ? origin : "",
+    "Access-Control-Allow-Origin":  isAllowed ? origin : "",
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
@@ -129,7 +131,7 @@ function quarterly(section, field, scale) {
   if (!section || typeof section !== "object") return [];
   return Object.entries(section)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
-    .slice(-20)
+    .slice(-80)
     .map(function(entry) {
       var val = sf(entry[1] && entry[1][field], scale);
       return val !== null ? { date: entry[0], value: val } : null;
@@ -142,7 +144,7 @@ function annual(section, field, scale) {
   if (!section || typeof section !== "object") return [];
   return Object.entries(section)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
-    .slice(-12)
+    .slice(-20)
     .map(function(entry) {
       var val = sf(entry[1] && entry[1][field], scale);
       return val !== null ? { date: entry[0], value: val } : null;
@@ -192,7 +194,7 @@ function parseFundamentals(raw) {
 
   var fcfHistory = Object.entries(cfQ)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
-    .slice(-20)
+    .slice(-80)
     .map(function(entry) {
       var row   = entry[1] || {};
       var ocf   = parseFloat(row.totalCashFromOperatingActivities);
@@ -204,7 +206,7 @@ function parseFundamentals(raw) {
 
   var netDebtHistory = Object.entries(balQ)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
-    .slice(-20)
+    .slice(-80)
     .map(function(entry) {
       var row  = entry[1] || {};
       var debt = parseFloat(row.shortLongTermDebtTotal || row.longTermDebt || 0);
@@ -216,7 +218,7 @@ function parseFundamentals(raw) {
 
   var ebitHistory = Object.entries(incQ)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
-    .slice(-20)
+    .slice(-80)
     .map(function(entry) {
       var row      = entry[1] || {};
       var ebit     = parseFloat(row.ebit || row.operatingIncome);
@@ -271,6 +273,117 @@ function parseFundamentals(raw) {
     }
   }
 
+  // ── New data sections ──
+
+  // Valuation
+  var VA = raw.Valuation || {};
+  var valuation = {
+    trailingPE:      sf(VA.TrailingPE),
+    forwardPE:       sf(VA.ForwardPE),
+    pegRatio:        sf(H.PEGRatio),
+    priceSales:      sf(VA.PriceSalesTTM),
+    priceBook:       sf(VA.PriceBookMRQ),
+    evToRevenue:     sf(VA.EnterpriseValueRevenue),
+    evToEbitda:      sf(VA.EnterpriseValueEbitda),
+    enterpriseValue: sf(VA.EnterpriseValue),
+  };
+
+  // Analyst Ratings
+  var AR = raw.AnalystRatings || {};
+  var analyst = {
+    rating:     sf(AR.Rating),
+    targetPrice: sf(AR.TargetPrice),
+    strongBuy:  AR.StrongBuy != null ? parseInt(AR.StrongBuy) : null,
+    buy:        AR.Buy != null ? parseInt(AR.Buy) : null,
+    hold:       AR.Hold != null ? parseInt(AR.Hold) : null,
+    sell:       AR.Sell != null ? parseInt(AR.Sell) : null,
+    strongSell: AR.StrongSell != null ? parseInt(AR.StrongSell) : null,
+  };
+
+  // Technicals (extend)
+  var technicals = {
+    beta:         beta,
+    week52High:   sf(TE["52WeekHigh"]),
+    week52Low:    sf(TE["52WeekLow"]),
+    ma50:         sf(TE["50DayMA"]),
+    ma200:        sf(TE["200DayMA"]),
+    sharesShort:  sf(TE.SharesShort),
+    shortRatio:   sf(TE.ShortRatio),
+    shortPercent: sf(TE.ShortPercent),
+  };
+
+  // Earnings surprises from Earnings.History
+  var EA = raw.Earnings || {};
+  var earningsHist = EA.History || {};
+  var earningsSurprises = Object.entries(earningsHist)
+    .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
+    .slice(-80)
+    .map(function(entry) {
+      var row = entry[1] || {};
+      var actual = parseFloat(row.epsActual);
+      var est = parseFloat(row.epsEstimate);
+      if (isNaN(actual) || isNaN(est)) return null;
+      var surprise = est !== 0 ? round((actual - est) / Math.abs(est) * 100, 2) : null;
+      return { date: entry[0], epsActual: actual, epsEstimate: est, surprise: surprise };
+    })
+    .filter(Boolean);
+
+  // Forward estimates from Earnings.Trend
+  var trend = EA.Trend || {};
+  var trendEntries = Object.entries(trend)
+    .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
+  var estimates = { epsCurrentQ: null, epsNextQ: null, epsCurrentY: null, epsNextY: null,
+                    revCurrentY: null, revNextY: null, epsGrowthCurrentY: null, epsGrowthNextY: null };
+  trendEntries.forEach(function(entry) {
+    var row = entry[1] || {};
+    var period = row.period;
+    if (period === "0q") {
+      estimates.epsCurrentQ = sf(row.earningsEstimateAvg);
+    } else if (period === "+1q") {
+      estimates.epsNextQ = sf(row.earningsEstimateAvg);
+    } else if (period === "0y") {
+      estimates.epsCurrentY = sf(row.earningsEstimateAvg);
+      estimates.revCurrentY = sf(row.revenueEstimateAvg);
+      estimates.epsGrowthCurrentY = sf(row.earningsEstimateGrowth, 100);
+    } else if (period === "+1y") {
+      estimates.epsNextY = sf(row.earningsEstimateAvg);
+      estimates.revNextY = sf(row.revenueEstimateAvg);
+      estimates.epsGrowthNextY = sf(row.earningsEstimateGrowth, 100);
+    }
+  });
+
+  // Insider Transactions
+  var IT = raw.InsiderTransactions || {};
+  var insiders = Object.entries(IT)
+    .filter(function(e) { return e[1] && typeof e[1] === "object" && e[1].transactionDate; })
+    .sort(function(a, b) { return (b[1].transactionDate || "") < (a[1].transactionDate || "") ? -1 : 1; })
+    .slice(0, 20)
+    .map(function(entry) {
+      var row = entry[1];
+      return {
+        date: row.transactionDate || null,
+        name: row.ownerName || null,
+        code: row.transactionCode || null,
+        price: sf(row.transactionPrice),
+        acquired: row.transactionAcquiredDisposed || null,
+      };
+    });
+
+  // Top Holders
+  var HO = raw.Holders || {};
+  var instHolders = Object.values(HO.Institutions || {})
+    .filter(function(h) { return h && h.name; })
+    .slice(0, 10)
+    .map(function(h) {
+      return { name: h.name, shares: h.currentShares || null, pct: sf(h.totalShares), change: sf(h.change_p) };
+    });
+  var fundHolders = Object.values(HO.Funds || {})
+    .filter(function(h) { return h && h.name; })
+    .slice(0, 10)
+    .map(function(h) {
+      return { name: h.name, shares: h.currentShares || null, pct: sf(h.totalShares), change: sf(h.change_p) };
+    });
+
   return {
     name:    G.Name   || null,
     sector:  G.Sector || null,
@@ -278,7 +391,7 @@ function parseFundamentals(raw) {
     divYield:         round(divYield, 3),
     annualDiv:        round(annualDiv, 4),
     payout:           round(payout, 1),
-    marketCap:        H.MarketCapitalization ? Math.round(parseFloat(H.MarketCapitalization) / 1e9) : null, // billions
+    marketCap:        H.MarketCapitalization ? Math.round(parseFloat(H.MarketCapitalization) / 1e9) : null,
     week52High:       sf(H["52WeekHigh"]),
     week52Low:        sf(H["52WeekLow"]),
     sharesOut:        sharesOut,
@@ -299,14 +412,27 @@ function parseFundamentals(raw) {
     netDebt:          latestNetDebt,
     netDebtToEbitda:  round(netDebtToEbitda, 2),
     interestCoverage: round(latestCoverage, 2),
+    // New fields
+    valuation:        valuation,
+    analyst:          analyst,
+    technicals:       technicals,
+    estimates:        estimates,
+    insiders:         insiders,
+    holders:          { institutions: instHolders, funds: fundHolders },
+    exDivDate:        SD.ExDividendDate || null,
+    divPayDate:       SD.DividendDate || null,
+    bookValue:        sf(H.BookValue),
+    grossProfit:      sf(H.GrossProfitTTM),
+    revenuePerShare:  sf(H.RevenuePerShareTTM),
     history: {
-      revenue:   quarterly(incQ, "totalRevenue"),
-      eps:       quarterly(incQ, "dilutedEPS"),
-      netIncome: quarterly(incQ, "netIncome"),
-      fcf:       fcfHistory,
-      netDebt:   netDebtHistory,
-      shares:    quarterly(balQ, "commonStockSharesOutstanding", 1 / 1e6),
-      ebit:      ebitHistory.map(function(d) { return { date: d.date, value: d.value }; }),
+      revenue:           quarterly(incQ, "totalRevenue"),
+      eps:               quarterly(incQ, "dilutedEPS"),
+      netIncome:         quarterly(incQ, "netIncome"),
+      fcf:               fcfHistory,
+      netDebt:           netDebtHistory,
+      shares:            quarterly(balQ, "commonStockSharesOutstanding", 1 / 1e6),
+      ebit:              ebitHistory.map(function(d) { return { date: d.date, value: d.value }; }),
+      earningsSurprises: earningsSurprises,
     },
     annualHistory: annHist,
     g5:     annHist.dps ? computeG5(annHist.dps) : null,
@@ -354,7 +480,7 @@ function buildAnnualHistory(incY, balY, cfY) {
     var s = parseFloat((e[1] || {}).commonStockSharesOutstanding);
     if (!isNaN(s) && s > 0) sharesMap0[e[0]] = s;
   });
-  var eps = incEntries0.slice(-12).map(function(entry) {
+  var eps = incEntries0.slice(-20).map(function(entry) {
     var ni = parseFloat((entry[1] || {}).netIncome);
     var s = sharesMap0[entry[0]];
     if (isNaN(ni) || !s) return null;
@@ -364,7 +490,7 @@ function buildAnnualHistory(incY, balY, cfY) {
   // FCF = operating cash flow + capital expenditures (capex is negative)
   var fcf = Object.entries(cfY)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
-    .slice(-12)
+    .slice(-20)
     .map(function(entry) {
       var row = entry[1] || {};
       var ocf = parseFloat(row.totalCashFromOperatingActivities);
@@ -377,7 +503,7 @@ function buildAnnualHistory(incY, balY, cfY) {
   // Net debt = total debt - cash
   var netDebt = Object.entries(balY)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
-    .slice(-12)
+    .slice(-20)
     .map(function(entry) {
       var row = entry[1] || {};
       var debt = parseFloat(row.shortLongTermDebtTotal || row.longTermDebt || 0);
@@ -392,7 +518,7 @@ function buildAnnualHistory(incY, balY, cfY) {
   // Margins: operating margin & net margin (computed from revenue and income)
   var margins = Object.entries(incY)
     .sort(function(a, b) { return a[0] < b[0] ? -1 : 1; })
-    .slice(-12)
+    .slice(-20)
     .map(function(entry) {
       var row = entry[1] || {};
       var rev = parseFloat(row.totalRevenue);
@@ -413,7 +539,7 @@ function buildAnnualHistory(incY, balY, cfY) {
   var balEntries = Object.entries(balY).sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
   var balMap = {};
   balEntries.forEach(function(e) { balMap[e[0]] = e[1]; });
-  incEntries.slice(-12).forEach(function(entry) {
+  incEntries.slice(-20).forEach(function(entry) {
     var ni = parseFloat((entry[1] || {}).netIncome);
     var bal = balMap[entry[0]] || {};
     var equity = parseFloat(bal.totalStockholderEquity);
@@ -430,7 +556,7 @@ function buildAnnualHistory(incY, balY, cfY) {
     var s = parseFloat((e[1] || {}).commonStockSharesOutstanding);
     if (!isNaN(s) && s > 0) sharesMap[e[0]] = s;
   });
-  cfEntries.slice(-12).forEach(function(entry) {
+  cfEntries.slice(-20).forEach(function(entry) {
     var divPaid = parseFloat((entry[1] || {}).dividendsPaid);
     var s = sharesMap[entry[0]];
     if (!isNaN(divPaid) && s) {
@@ -481,6 +607,7 @@ export default {
     if (path === "/health" || path === "") {
       return json({ ok: true, ts: Date.now(), routes: ["/quote","/price","/batch","/batch-fundamentals","/fundamentals","/search","/history","/history-batch"] }, origin, 200, 0);
     }
+
 
     if (path === "/quote") {
       var symbol = (reqUrl.searchParams.get("symbol") || "").toUpperCase().trim();
