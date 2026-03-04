@@ -22,7 +22,7 @@ export function EditRow({ stock, weightPct, onRemove, onEdit }) {
   }, [shares, stock.ticker, onEdit]);
 
   return (
-    <tr ref={ref} style={{ background: "rgba(0,94,184,0.06)" }}>
+    <tr ref={ref} style={{ background: "var(--accent-bg)" }}>
       <td style={{ fontWeight: 700, color: "var(--text-primary)", letterSpacing: "0.06em" }}>{stock.ticker}</td>
       <td>
         <input
@@ -36,8 +36,9 @@ export function EditRow({ stock, weightPct, onRemove, onEdit }) {
             }
           }}
           style={{
-            width: 90, background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
-            color: "var(--text-primary)", padding: "4px 8px", fontFamily: "'EB Garamond', Georgia, serif",
+            width: 90, background: "var(--bg-pill)", border: "1px solid var(--primary)",
+            color: "var(--text-primary)", padding: "4px 8px", fontFamily: "'JetBrains Mono', monospace",
+            borderRadius: 6,
           }}
           autoFocus
         />
@@ -49,7 +50,7 @@ export function EditRow({ stock, weightPct, onRemove, onEdit }) {
         <button
           onClick={() => onRemove(stock.ticker)}
           style={{
-            background: "none", border: "none", color: "#3a7abd",
+            background: "none", border: "none", color: "var(--red)",
             cursor: "pointer", fontSize: "0.82rem",
           }}
         >
@@ -61,15 +62,14 @@ export function EditRow({ stock, weightPct, onRemove, onEdit }) {
 }
 
 /**
- * Display row — matches old monolith exactly.
+ * Display row — redesigned for light theme.
  */
 export default function HoldingRow({
-  stock, live, loading, onClick, onRemove, weightPct, onEdit,
+  stock, live, loading, onClick, onRemove, weightPct, onEdit, index = 0,
 }) {
   const [editing, setEditing] = useState(false);
   const [rowHover, setRowHover] = useState(false);
   const data = live || {};
-  // Use live price if available and > 0, otherwise fall back to holding's stored price
   const price = (live?.price > 0 ? live.price : null) || stock.price || 0;
   const value = price * (stock.shares || 0);
   const yld = (data.divYield > 0 ? data.divYield : null) ?? stock.yld ?? 0;
@@ -77,7 +77,6 @@ export default function HoldingRow({
   const payout = data.payout ?? stock.payout ?? null;
   const change = data.change ?? 0;
   const g5 = data.g5 ?? stock.g5 ?? 0;
-  // Use the higher of API streak (max 11yr window) and static streak (curated)
   const streak = Math.max(data.streak ?? 0, stock.streak ?? 0);
 
   if (editing) {
@@ -94,6 +93,13 @@ export default function HoldingRow({
     );
   }
 
+  // Yield color coding
+  const yieldColor = yld >= 3 ? "var(--warning)" : yld >= 2 ? "var(--primary)" : "var(--text-secondary)";
+  const yieldWeight = yld >= 3 ? 700 : 600;
+
+  // Payout bar: 48px x 4px
+  const payoutBarColor = payout >= 80 ? "var(--red)" : payout >= 60 ? "var(--warning)" : "var(--green)";
+
   return (
     <tr
       onClick={() => onClick?.(stock)}
@@ -102,31 +108,31 @@ export default function HoldingRow({
       style={{
         cursor: onClick ? "pointer" : "default",
         borderBottom: "1px solid var(--border-row)",
-        background: rowHover ? "var(--bg-hover)" : "transparent",
+        background: rowHover ? "var(--bg-pill)" : (index % 2 ? "var(--row-alt)" : "var(--bg-card)"),
         transition: "background 0.12s",
       }}
     >
-      {/* Ticker + LIVE badge + Company name */}
+      {/* Ticker + Company name */}
       <td>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <span style={{
-            fontWeight: 700, color: "var(--text-primary)", fontSize: "0.88rem",
-            letterSpacing: "0.06em", fontFamily: "'EB Garamond', Georgia, serif",
+            fontWeight: 700, color: "var(--text-primary)", fontSize: "13px",
+            letterSpacing: "0.04em", fontFamily: "'DM Sans', system-ui, sans-serif",
           }}>
             {stock.ticker}
           </span>
-        </div>
-        <div style={{
-          fontSize: "0.67rem", color: "var(--text-dim)", marginTop: 2,
-          maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
-          {stock.name || stock.ticker}
+          <span style={{
+            fontSize: "10.5px", color: "var(--text-sub)", marginTop: 2,
+            maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {stock.name || stock.ticker}
+          </span>
         </div>
       </td>
 
       {/* Shares */}
       <td
-        style={{ color: "var(--text-primary)", cursor: "pointer" }}
+        style={{ color: "var(--text-primary)", cursor: "pointer", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}
         onClick={e => { e.stopPropagation(); setEditing(true); }}
         title="Click to edit"
       >
@@ -139,13 +145,14 @@ export default function HoldingRow({
           <span style={{ color: "var(--primary)", fontSize: "0.7rem" }}>···</span>
         ) : (
           <div>
-            <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+            <div style={{ fontWeight: 700, color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
               ${price.toFixed(2)}
             </div>
             {change !== 0 && (
               <div style={{
-                fontSize: "0.68rem",
-                color: change > 0 ? "var(--primary)" : "#3a7abd",
+                fontSize: "9.5px",
+                color: change > 0 ? "var(--green)" : "var(--red)",
+                fontFamily: "'JetBrains Mono', monospace",
               }}>
                 {change > 0 ? "▲" : "▼"}{Math.abs(change).toFixed(2)}%
               </div>
@@ -154,15 +161,12 @@ export default function HoldingRow({
         )}
       </td>
 
-      {/* Yield + mini bar */}
+      {/* Yield */}
       <td>
         {yld > 0 ? (
-          <div>
-            <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-              {yld.toFixed(2)}%
-            </span>
-            <MiniProgressBar value={yld} max={10} color="var(--primary)" />
-          </div>
+          <span style={{ fontWeight: yieldWeight, color: yieldColor, fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
+            {yld.toFixed(2)}%
+          </span>
         ) : (
           <NaValue reason="No dividend yield data" />
         )}
@@ -172,31 +176,34 @@ export default function HoldingRow({
       <td>
         {annualDiv > 0 ? (
           <div>
-            <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+            <span style={{ fontWeight: 600, color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
               ${annualDiv.toFixed(2)}
             </span>
-            <div style={{ fontSize: "0.68rem", color: "var(--text-dim)" }}>per share</div>
+            <div style={{ fontSize: "9.5px", color: "var(--text-sub)" }}>per share</div>
           </div>
         ) : (
           <NaValue reason="No annual dividend data" />
         )}
       </td>
 
-      {/* Payout + mini bar */}
+      {/* Payout + bar */}
       <td>
         {payout != null && payout !== 0 ? (
           <div>
-            <span style={{ fontWeight: 700, color: payout > 80 ? "#3a7abd" : "var(--primary)" }}>
+            <span style={{ fontWeight: 600, color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
               {payout.toFixed ? payout.toFixed(0) : payout}%
             </span>
-            <MiniProgressBar
-              value={payout}
-              max={100}
-              color={payout > 80 ? "#3a7abd" : "var(--primary)"}
-            />
+            <div style={{
+              width: 48, height: 4, background: "var(--border-dim)", borderRadius: 2, marginTop: 4,
+            }}>
+              <div style={{
+                width: `${Math.min(payout, 100)}%`, height: "100%",
+                background: payoutBarColor, borderRadius: 2,
+              }} />
+            </div>
           </div>
         ) : payout === 0 ? (
-          <span style={{ fontWeight: 700, color: "var(--primary)" }}>0%</span>
+          <span style={{ fontWeight: 600, color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>0%</span>
         ) : (
           <NaValue reason="No payout ratio data" />
         )}
@@ -205,11 +212,11 @@ export default function HoldingRow({
       {/* 5Y Growth */}
       <td>
         {g5 > 0 ? (
-          <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+          <span style={{ fontWeight: 600, color: "var(--green)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
             +{g5.toFixed(1)}%
           </span>
         ) : g5 < 0 ? (
-          <span style={{ fontWeight: 700, color: "#3a7abd" }}>
+          <span style={{ fontWeight: 600, color: "var(--red)", fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>
             {g5.toFixed(1)}%
           </span>
         ) : (
@@ -220,7 +227,11 @@ export default function HoldingRow({
       {/* Streak */}
       <td>
         {streak > 0 ? (
-          <span style={{ fontFamily: "'EB Garamond', Georgia, serif", color: "var(--text-link)" }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
+            background: "var(--bg-pill)", padding: "2px 8px", borderRadius: 8,
+            color: "var(--text-secondary)",
+          }}>
             {streak}y
           </span>
         ) : (
@@ -229,13 +240,13 @@ export default function HoldingRow({
       </td>
 
       {/* Weight */}
-      <td style={{ color: "var(--text-link)", fontSize: "0.85rem" }}>
+      <td style={{ color: "var(--text-dim)", fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
         {weightPct?.toFixed(1)}%
       </td>
 
       {/* Edit + Remove icons */}
       <td>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", opacity: rowHover ? 1 : 0, transition: "opacity 0.15s" }}>
           <button
             onClick={e => { e.stopPropagation(); setEditing(true); }}
             title="Edit shares"

@@ -14,7 +14,7 @@ export default function UserMenu({ getToken, dripEnabled, toggleDrip, onShowTour
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--text-link)', fontSize: '0.75rem',
-            fontFamily: "'EB Garamond', Georgia, serif",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
           }}
         >
           {user?.firstName || 'Profile'}

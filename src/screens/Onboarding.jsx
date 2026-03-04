@@ -112,7 +112,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
           Almost There
         </div>
         <h2 style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
+          fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
           color: "var(--text-primary)", marginBottom: "0.5rem",
         }}>
           Choose Your Dashboard View
@@ -148,7 +148,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
             >
               <div style={{
                 fontSize: "1.1rem", fontWeight: 600, color: "var(--text-primary)",
-                fontFamily: "'Playfair Display', Georgia, serif", marginBottom: 4,
+                fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: 4,
               }}>
                 {opt.label}
               </div>
@@ -167,7 +167,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
           style={{
             background: "none", border: "none", cursor: "pointer",
             color: "var(--text-sub)", fontSize: "0.8rem", marginTop: "1.5rem",
-            fontFamily: "'EB Garamond', Georgia, serif",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
           }}
         >
           Skip — go straight to dashboard
@@ -184,7 +184,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
         alignItems: "center", justifyContent: "center", padding: isMobile ? "1rem" : "2rem",
       }}>
         <h1 style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.6rem" : "2.5rem",
+          fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: isMobile ? "1.6rem" : "2.5rem",
           color: "var(--text-primary)", fontWeight: 700, marginBottom: "0.5rem",
         }}>
           SafeYield
@@ -224,14 +224,14 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
         <button onClick={() => setMode("pick")} style={{
           background: "none", border: "1px solid var(--border-accent)", color: "var(--text-link)",
           padding: "4px 12px", cursor: "pointer", fontSize: "0.75rem",
-          fontFamily: "'EB Garamond', Georgia, serif", alignSelf: "flex-start",
+          fontFamily: "'DM Sans', system-ui, sans-serif", alignSelf: "flex-start",
           marginBottom: "1.5rem",
         }}>
           ← Back
         </button>
 
         <h2 style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
+          fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
           color: "var(--text-primary)", marginBottom: "0.5rem",
         }}>
           Build Your Portfolio
@@ -300,7 +300,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
         {strategy.name}
       </div>
       <h2 style={{
-        fontFamily: "'Playfair Display', Georgia, serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
+        fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: isMobile ? "1.2rem" : "1.5rem",
         color: "var(--text-primary)", marginBottom: "1.5rem",
       }}>
         Starting Balance
@@ -325,7 +325,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
         style={{
           width: isMobile ? "100%" : 200, maxWidth: 300, padding: "10px 16px", textAlign: "center", fontSize: "1.2rem",
           background: "var(--bg-input)", border: "1px solid var(--border)", color: "var(--text-primary)",
-          fontFamily: "'EB Garamond', Georgia, serif", marginBottom: "1rem",
+          fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: "1rem",
         }}
       />
       {error && <div style={{ color: "var(--red)", fontSize: "0.8rem", marginBottom: 8 }}>{error}</div>}
@@ -360,7 +360,7 @@ function CustomRow({ row, index, isMobile, onChange, onPick, onResults }) {
   const inputStyle = {
     width: "100%", padding: "8px 10px",
     background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
-    color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",
+    color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif",
     fontSize: "0.85rem",
   };
 
@@ -451,7 +451,7 @@ function StrategyCard({ strat, onClick, isMobile, fullWidth }) {
     >
       <div style={{
         fontSize: "1.1rem", fontWeight: 600, color: "var(--text-primary)",
-        fontFamily: "'Playfair Display', Georgia, serif", marginBottom: 4,
+        fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: 4,
       }}>
         {strat.name}
       </div>

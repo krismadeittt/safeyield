@@ -32,11 +32,11 @@ export default function MonthlyHeatmap({ fullYearData, avgYield, monthlyData }) 
 
   return (
     <div style={{
-      background: "#071525", border: "1px solid #0a1e30", padding: "1.2rem",
+      background: "var(--bg-dark)", border: "1px solid var(--border-dim)", padding: "1.2rem",
       overflowX: "auto",
     }}>
       <div style={{
-        fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em",
+        fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.2em",
         textTransform: "uppercase", marginBottom: "0.8rem",
       }}>
         Monthly Dividend Payments
@@ -51,7 +51,7 @@ export default function MonthlyHeatmap({ fullYearData, avgYield, monthlyData }) 
             <g key={yi}>
               <text
                 x={groupX + groupW / 2} y={H - 8}
-                textAnchor="middle" fontSize="10" fill="#1a4060"
+                textAnchor="middle" fontSize="10" fill="var(--text-label)"
               >
                 Y{yi}
               </text>
@@ -72,7 +72,7 @@ export default function MonthlyHeatmap({ fullYearData, avgYield, monthlyData }) 
                   >
                     <rect
                       x={x} y={y} width={barW} height={barH}
-                      fill={isHov ? "#5aaff8" : `rgb(${r},${g},${b})`}
+                      fill={isHov ? "var(--primary)" : `rgb(${r},${g},${b})`}
                       opacity={isHov ? 1 : 0.85}
                     />
                   </g>
@@ -85,7 +85,7 @@ export default function MonthlyHeatmap({ fullYearData, avgYield, monthlyData }) 
         {hovered && (
           <text
             x={totalW / 2} y={14}
-            textAnchor="middle" fontSize="11" fill="#c8dff0"
+            textAnchor="middle" fontSize="11" fill="var(--text-primary)"
           >
             Y{hovered.yr} {MONTHS[hovered.mo]}: ${hovered.val?.toLocaleString()}
           </text>

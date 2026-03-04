@@ -11,7 +11,7 @@ export default function Fundamentals({ fd, loading }) {
 
   if (loading) {
     return (
-      <div style={{ textAlign: "center", padding: "2rem", color: "#2a4a6a" }}>
+      <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
         Loading fundamentals...
       </div>
     );
@@ -75,7 +75,7 @@ export default function Fundamentals({ fd, loading }) {
             <SingleSeriesBar
               pts={chartData}
               valKey="value"
-              color="#005EB8"
+              color="var(--primary)"
               fmt={chartFmt || formatCurrency}
               H={100}
               PL={isMobile ? 30 : 35}

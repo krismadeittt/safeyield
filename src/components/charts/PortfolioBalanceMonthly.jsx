@@ -50,11 +50,11 @@ export default function PortfolioBalanceMonthly({
 
   return (
     <div style={{
-      background: "#071525", border: "1px solid #0a1e30", padding: "1.2rem",
+      background: "var(--bg-dark)", border: "1px solid var(--border-dim)", padding: "1.2rem",
       overflowX: "auto",
     }}>
       <div style={{
-        fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em",
+        fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.2em",
         textTransform: "uppercase", marginBottom: "0.8rem",
       }}>
         Portfolio Balance — Monthly View
@@ -65,8 +65,8 @@ export default function PortfolioBalanceMonthly({
           const y = padTop + chartH * (1 - pct);
           return (
             <g key={pct}>
-              <line x1={0} y1={y} x2={totalW} y2={y} stroke="#0a1e30" strokeWidth={0.5} />
-              <text x={2} y={y - 3} fontSize="8" fill="#1a4060">
+              <line x1={0} y1={y} x2={totalW} y2={y} stroke="var(--border-dim)" strokeWidth={0.5} />
+              <text x={2} y={y - 3} fontSize="8" fill="var(--text-label)">
                 {formatCurrency(maxVal * pct)}
               </text>
             </g>
@@ -83,7 +83,7 @@ export default function PortfolioBalanceMonthly({
             <rect
               key={i}
               x={x} y={y} width={barW} height={barH}
-              fill={isHov ? "#5aaff8" : getColor(bar.yr)}
+              fill={isHov ? "var(--primary)" : getColor(bar.yr)}
               opacity={isHov ? 1 : 0.8}
               onMouseEnter={() => setHovered({ yr: bar.yr, mo: bar.mo })}
               onMouseLeave={() => setHovered(null)}
@@ -99,12 +99,12 @@ export default function PortfolioBalanceMonthly({
               x={Math.min(hovIdx * stepW + barW + 6, totalW - 140)}
               y={padTop}
               width={130} height={24}
-              fill="#071020" stroke="#1a3a5c" strokeWidth={1}
+              fill="var(--bg-dark)" stroke="var(--border-accent)" strokeWidth={1}
             />
             <text
               x={Math.min(hovIdx * stepW + barW + 12, totalW - 134)}
               y={padTop + 16}
-              fontSize={10} fill="#c8dff0" fontFamily="system-ui"
+              fontSize={10} fill="var(--text-primary)" fontFamily="system-ui"
             >
               {hovBar.label}: {formatCurrency(hovBar.value)}
             </text>

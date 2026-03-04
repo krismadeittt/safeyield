@@ -3,22 +3,17 @@ import React, { lazy, Suspense } from 'react';
 const PortfolioSunburst = lazy(() => import('./PortfolioSunburst'));
 const PortfolioMountains = lazy(() => import('./PortfolioMountains'));
 
-const TABS = [
-  { key: 'sunburst', label: 'Sunburst' },
-  { key: 'mountain', label: 'Mountain' },
-];
-
-export default function VisualizerToggle({ vizType, setVizType, holdings, liveData, portfolioValue, weightedYield, annualIncome }) {
+export default function VisualizerToggle({ vizType, setVizType, holdings, liveData, portfolioValue, weightedYield, annualIncome, expanded, setExpanded }) {
   if (vizType === 'none') {
     return (
       <div style={{ textAlign: "center", padding: "8px 0" }}>
         <button
           onClick={() => setVizType('sunburst')}
           style={{
-            background: "none", border: "1px solid var(--border-accent)",
-            color: "var(--text-link)", padding: "6px 16px", cursor: "pointer",
-            fontSize: "0.75rem", fontFamily: "'EB Garamond', Georgia, serif",
-            letterSpacing: "0.1em",
+            background: "var(--accent-bg)", border: "none",
+            color: "var(--primary)", padding: "8px 20px", cursor: "pointer",
+            fontSize: "0.75rem", fontFamily: "'DM Sans', system-ui, sans-serif",
+            borderRadius: 8, fontWeight: 500,
           }}
         >
           Show Portfolio Visualizer
@@ -31,55 +26,50 @@ export default function VisualizerToggle({ vizType, setVizType, holdings, liveDa
 
   return (
     <div style={{
-      background: "var(--bg-card)", border: "1px solid var(--border-accent)",
+      background: "var(--bg-card)", border: "1px solid var(--border)",
+      borderRadius: 16, padding: "20px 22px", overflow: "hidden",
     }}>
-      {/* Tab bar */}
+      {/* Header: expand/hide buttons */}
       <div style={{
-        display: "flex", alignItems: "center", borderBottom: "1px solid var(--border-dim)",
-        padding: "0 16px",
+        display: "flex", alignItems: "center", justifyContent: "flex-end",
+        marginBottom: 16,
       }}>
-        {TABS.map(tab => (
+        <div style={{ display: "flex", gap: 8 }}>
+          {setExpanded && (
+            <button
+              onClick={() => setExpanded(e => !e)}
+              style={{
+                background: "var(--bg-pill)", border: "none", cursor: "pointer",
+                color: "var(--text-muted)", fontSize: "0.65rem",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                padding: "4px 10px", borderRadius: 6,
+              }}
+            >
+              {expanded ? "Collapse" : "Expand"}
+            </button>
+          )}
           <button
-            key={tab.key}
-            onClick={() => setVizType(tab.key)}
+            onClick={() => setVizType('none')}
             style={{
-              background: "none", border: "none", cursor: "pointer",
-              padding: "10px 16px",
-              color: vizType === tab.key ? "var(--accent)" : "var(--text-dim)",
-              fontSize: "0.72rem",
-              fontFamily: "'EB Garamond', Georgia, serif",
-              fontWeight: vizType === tab.key ? 700 : 400,
-              textTransform: "uppercase",
-              letterSpacing: "0.15em",
-              borderBottom: vizType === tab.key ? "2px solid var(--accent)" : "2px solid transparent",
-              transition: "color 0.2s",
+              background: "var(--bg-pill)", border: "none", cursor: "pointer",
+              color: "var(--text-dim)", fontSize: "0.65rem",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              padding: "4px 10px", borderRadius: 6,
             }}
           >
-            {tab.label}
+            Hide
           </button>
-        ))}
-        <div style={{ flex: 1 }} />
-        <button
-          onClick={() => setVizType('none')}
-          style={{
-            background: "none", border: "none", cursor: "pointer",
-            color: "var(--text-sub)", fontSize: "0.65rem",
-            fontFamily: "'EB Garamond', Georgia, serif",
-            letterSpacing: "0.1em",
-          }}
-        >
-          HIDE
-        </button>
+        </div>
       </div>
 
-      {/* Content */}
+      {/* Content: both visualizations stacked */}
       <Suspense fallback={
         <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-dim)", fontSize: "0.85rem" }}>
           Loading visualizer...
         </div>
       }>
-        {vizType === 'sunburst' && <PortfolioSunburst {...vizProps} />}
-        {vizType === 'mountain' && <PortfolioMountains {...vizProps} />}
+        <PortfolioSunburst {...vizProps} expanded={expanded} />
+        <PortfolioMountains {...vizProps} expanded={expanded} />
       </Suspense>
     </div>
   );

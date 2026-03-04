@@ -45,8 +45,8 @@ export default function SingleSeriesBar({
           const y = padTop + chartH * (1 - pct);
           return (
             <g key={pct}>
-              <line x1={PL} y1={y} x2={width - PR} y2={y} stroke="#0a1e30" strokeWidth={0.5} />
-              <text x={PL - 6} y={y + 3} textAnchor="end" fontSize="8" fill="#1a4060">
+              <line x1={PL} y1={y} x2={width - PR} y2={y} stroke="var(--border-dim)" strokeWidth={0.5} />
+              <text x={PL - 6} y={y + 3} textAnchor="end" fontSize="8" fill="var(--text-label)">
                 {fmt ? fmt(maxVal * pct) : (maxVal * pct).toFixed(0)}
               </text>
             </g>
@@ -68,11 +68,11 @@ export default function SingleSeriesBar({
             >
               <rect
                 x={x} y={y} width={barW} height={barH}
-                fill={isHov ? "#5aaff8" : color}
+                fill={isHov ? "var(--primary)" : color}
                 opacity={isPast ? 0.5 : (isHov ? 1 : 0.8)}
               />
               {isHov && (
-                <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize="9" fill="#c8dff0">
+                <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize="9" fill="var(--text-primary)">
                   {fmt ? fmt(val) : val.toFixed(2)}
                 </text>
               )}
@@ -85,7 +85,7 @@ export default function SingleSeriesBar({
           if (pts.length > 15 && i % Math.ceil(pts.length / 10) !== 0) return null;
           return (
             <text key={i} x={PL + i * stepW + stepW / 2} y={H - 6}
-              textAnchor="middle" fontSize="8" fill="#1a4060">
+              textAnchor="middle" fontSize="8" fill="var(--text-label)">
               {p[labelKey] || i}
             </text>
           );

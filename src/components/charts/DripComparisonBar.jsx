@@ -54,10 +54,10 @@ export default function DripComparisonBar({
 
   return (
     <div ref={containerRef} style={{
-      background: "#071525", border: "1px solid #0a1e30", padding: "1.2rem",
+      background: "var(--bg-dark)", border: "1px solid var(--border-dim)", padding: "1.2rem",
     }}>
       <div style={{
-        fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em",
+        fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.2em",
         textTransform: "uppercase", marginBottom: "0.8rem",
       }}>
         DRIP vs No-DRIP — Portfolio Value
@@ -68,8 +68,8 @@ export default function DripComparisonBar({
           const y = padTop + chartH * (1 - pct);
           return (
             <g key={pct}>
-              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#081828" strokeWidth={0.5} />
-              <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#1a4060">
+              <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="var(--border-dim)" strokeWidth={0.5} />
+              <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="var(--text-label)">
                 {fmtY ? fmtY(maxVal * pct) : n(maxVal * pct)}
               </text>
             </g>
@@ -93,7 +93,7 @@ export default function DripComparisonBar({
               <rect
                 x={x} y={padTop + chartH - noDripH}
                 width={barW} height={noDripH}
-                fill={isHov ? "#2a4a70" : "#1a3050"}
+                fill={isHov ? "var(--text-dim)" : "var(--border-accent)"}
                 opacity={isHov ? 1 : 0.85}
               />
               {/* DRIP advantage */}
@@ -101,7 +101,7 @@ export default function DripComparisonBar({
                 <rect
                   x={x} y={padTop + chartH - dripH}
                   width={barW} height={dripH - noDripH}
-                  fill={isHov ? "#1a8eff" : "#005EB8"}
+                  fill={isHov ? "var(--primary)" : "var(--primary)"}
                   opacity={isHov ? 1 : 0.75}
                 />
               )}
@@ -109,7 +109,7 @@ export default function DripComparisonBar({
               <text
                 x={midX} y={H - padBot + 14}
                 textAnchor="middle" fontSize={9}
-                fill={isHov ? "#5a9ad0" : "#1e3a58"}
+                fill={isHov ? "var(--text-muted)" : "var(--border-accent)"}
                 fontFamily="system-ui"
               >
                 {barCount > 20 && i % 5 !== 0 ? "" : i}
@@ -125,22 +125,22 @@ export default function DripComparisonBar({
               x={flipLeft ? tipX - 154 : tipX + 10}
               y={tipY}
               width={144} height={76}
-              fill="#071020" stroke="#1a3a5c" strokeWidth={1}
+              fill="var(--bg-dark)" stroke="var(--border-accent)" strokeWidth={1}
             />
             <text x={flipLeft ? tipX - 146 : tipX + 18} y={tipY + 14}
-              fontSize={10} fontWeight={700} fill="#c8dff0" fontFamily="system-ui">
+              fontSize={10} fontWeight={700} fill="var(--text-primary)" fontFamily="system-ui">
               {hovData.label}
             </text>
             <text x={flipLeft ? tipX - 146 : tipX + 18} y={tipY + 30}
-              fontSize={9.5} fill="#5a8ab0" fontFamily="system-ui">
+              fontSize={9.5} fill="var(--text-muted)" fontFamily="system-ui">
               No DRIP: {n(hovData.nodrip)}
             </text>
             <text x={flipLeft ? tipX - 146 : tipX + 18} y={tipY + 46}
-              fontSize={9.5} fill="#1a8eff" fontFamily="system-ui">
+              fontSize={9.5} fill="var(--primary)" fontFamily="system-ui">
               DRIP: {n(hovData.drip)}
             </text>
             <text x={flipLeft ? tipX - 146 : tipX + 18} y={tipY + 62}
-              fontSize={9.5} fontWeight={700} fill="#005EB8" fontFamily="system-ui">
+              fontSize={9.5} fontWeight={700} fill="var(--primary)" fontFamily="system-ui">
               Advantage: +{n(hovData.drip - hovData.nodrip)}
               {hovData.nodrip > 0 && ` (${((hovData.drip - hovData.nodrip) / hovData.nodrip * 100).toFixed(1)}%)`}
             </text>

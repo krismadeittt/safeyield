@@ -128,7 +128,7 @@ export default function Tour({ onComplete }) {
           left: rect.left - pad,
           width: rect.width + pad * 2,
           height: rect.height + pad * 2,
-          border: '2px solid var(--primary, #005EB8)',
+          border: '2px solid var(--primary, #5B8DEF)',
           boxShadow: '0 0 20px rgba(0,94,184,0.3)',
           pointerEvents: 'none',
           transition: 'all 0.3s ease',
@@ -138,8 +138,8 @@ export default function Tour({ onComplete }) {
       {/* Tooltip card */}
       <div style={{
         ...tooltipStyle,
-        background: 'var(--bg-card, #0a1628)',
-        border: '1px solid var(--border-accent, #1a3a5c)',
+        background: 'var(--bg-card, #FFFFFF)',
+        border: '1px solid var(--border-accent, #DDE1EA)',
         padding: '1.2rem',
         width: 300,
         maxWidth: 'calc(100vw - 32px)',
@@ -149,13 +149,13 @@ export default function Tour({ onComplete }) {
         <div style={{
           fontSize: '0.65rem', color: 'var(--text-label, #4a7090)',
           letterSpacing: '0.15em', textTransform: 'uppercase',
-          marginBottom: '0.3rem', fontFamily: "'EB Garamond', Georgia, serif",
+          marginBottom: '0.3rem', fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
           Step {step + 1} of {STEPS.length}
         </div>
         <div style={{
-          fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary, #c8dff0)',
-          fontFamily: "'Playfair Display', Georgia, serif",
+          fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary, #1F2234)',
+          fontFamily: "'DM Sans', system-ui, sans-serif",
           marginBottom: '0.5rem',
         }}>
           {current.title}
@@ -163,33 +163,33 @@ export default function Tour({ onComplete }) {
         <div style={{
           fontSize: '0.85rem', color: 'var(--text-muted, #7a9ab8)',
           lineHeight: 1.5, marginBottom: '1rem',
-          fontFamily: "'EB Garamond', Georgia, serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
           {current.content}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button onClick={finish} style={{
             background: 'none', border: 'none', color: 'var(--text-dim, #4a6a8a)',
-            cursor: 'pointer', fontSize: '0.75rem', fontFamily: "'EB Garamond', Georgia, serif",
+            cursor: 'pointer', fontSize: '0.75rem', fontFamily: "'DM Sans', system-ui, sans-serif",
           }}>
             Skip tour
           </button>
           <div style={{ display: 'flex', gap: 6 }}>
             {step > 0 && (
               <button onClick={prev} style={{
-                background: 'none', border: '1px solid var(--border-accent, #1a3a5c)',
+                background: 'none', border: '1px solid var(--border-accent, #DDE1EA)',
                 color: 'var(--text-link, #5a8ab0)', padding: '6px 14px',
                 cursor: 'pointer', fontSize: '0.8rem',
-                fontFamily: "'EB Garamond', Georgia, serif",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
               }}>
                 Back
               </button>
             )}
             <button onClick={next} style={{
-              background: 'var(--primary, #005EB8)', border: 'none',
+              background: 'var(--primary, #5B8DEF)', border: 'none',
               color: 'white', padding: '6px 18px', cursor: 'pointer',
               fontSize: '0.8rem', fontWeight: 700,
-              fontFamily: "'EB Garamond', Georgia, serif",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
             }}>
               {step >= STEPS.length - 1 ? 'Done' : 'Next'}
             </button>

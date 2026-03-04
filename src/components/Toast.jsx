@@ -51,7 +51,7 @@ export function ToastProvider({ children }) {
             <div key={t.id} className="toast-enter" style={{
               background: colors.bg, borderLeft: `3px solid ${colors.border}`,
               color: '#ffffff', padding: '10px 16px', fontSize: '0.85rem',
-              fontFamily: "'EB Garamond', Georgia, serif",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
               boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
               pointerEvents: 'auto', cursor: 'pointer',
               maxWidth: 320, animation: 'toastSlideIn 0.25s ease-out',

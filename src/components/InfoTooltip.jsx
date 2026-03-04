@@ -26,7 +26,7 @@ export default function InfoTooltip({ text }) {
         style={{
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           width: 14, height: 14, borderRadius: '50%',
-          border: '1px solid #3a5a78', color: '#3a5a78',
+          border: '1px solid var(--text-sub)', color: 'var(--text-sub)',
           fontSize: '0.55rem', fontWeight: 700, cursor: 'help',
           marginLeft: 4, lineHeight: 1, fontFamily: 'system-ui',
           flexShrink: 0,
@@ -37,11 +37,11 @@ export default function InfoTooltip({ text }) {
       {show && (
         <div style={{
           position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
-          marginTop: 6, padding: '8px 12px', background: '#0a1628',
-          border: '1px solid #1a3a5c', color: '#c8dff0', fontSize: '0.75rem',
-          fontFamily: "'EB Garamond', Georgia, serif", lineHeight: 1.4,
+          marginTop: 6, padding: '8px 12px', background: 'var(--bg-card)',
+          border: '1px solid var(--border-accent)', color: 'var(--text-primary)', fontSize: '0.75rem',
+          fontFamily: "'DM Sans', system-ui, sans-serif", lineHeight: 1.4,
           whiteSpace: 'normal', width: 220, zIndex: 50,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.5)', fontWeight: 400,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1)', borderRadius: 8, fontWeight: 400,
           pointerEvents: 'auto',
         }}>
           {text}

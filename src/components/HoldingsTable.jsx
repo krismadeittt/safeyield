@@ -59,22 +59,31 @@ export default function HoldingsTable({
 
   return (
     <div style={{
-      background: "var(--bg-card)", border: "1px solid var(--border-accent)", overflow: "hidden",
+      background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, overflow: "hidden",
     }}>
       {/* Header bar */}
       <div style={{
-        padding: isMobile ? "0.7rem 0.8rem" : "0.9rem 1.5rem", borderBottom: "1px solid var(--border-accent)",
+        padding: isMobile ? "0.7rem 0.8rem" : "0.9rem 1.5rem", borderBottom: "1px solid var(--border)",
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        background: "var(--bg-input)", flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 8 : 0,
+        flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 8 : 0,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 16 }}>
-          <span style={{
-            fontWeight: 600, letterSpacing: "0.12em", fontSize: "0.72rem",
-            textTransform: "uppercase", color: "var(--text-muted)",
-            fontFamily: "'EB Garamond', Georgia, serif",
-          }}>
-            {title || "My Holdings"} ({holdings.length})
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{
+              fontWeight: 600, fontSize: "0.9rem",
+              color: "var(--text-primary)",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+            }}>
+              {title || "My Holdings"}
+            </span>
+            <span style={{
+              background: "var(--bg-pill)", borderRadius: 10,
+              padding: "2px 8px", fontSize: "0.68rem", color: "var(--text-muted)",
+              fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+            }}>
+              {holdings.length}
+            </span>
+          </div>
           {toggleDrip && (
             <div
               onClick={toggleDrip}
@@ -90,21 +99,21 @@ export default function HoldingsTable({
             >
               <div style={{
                 width: 28, height: 14, borderRadius: 7,
-                background: dripEnabled ? "var(--primary)" : "rgba(255,255,255,0.1)",
+                background: dripEnabled ? "var(--primary)" : "var(--border-accent)",
                 position: "relative", transition: "background 0.2s",
               }}>
                 <div style={{
                   width: 10, height: 10, borderRadius: 5,
-                  background: "var(--text-primary)",
+                  background: "#fff",
                   position: "absolute", top: 2,
                   left: dripEnabled ? 16 : 2,
                   transition: "left 0.2s",
                 }} />
               </div>
               <span style={{
-                fontSize: "0.65rem", color: dripEnabled ? "var(--text-link)" : "#2a4a6a",
-                fontFamily: "'EB Garamond', Georgia, serif",
-                letterSpacing: "0.05em",
+                fontSize: "0.68rem", color: dripEnabled ? "var(--primary)" : "var(--text-muted)",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                fontWeight: 500,
               }}>
                 DRIP {dripEnabled ? "On" : "Off"}
               </span>
@@ -112,21 +121,30 @@ export default function HoldingsTable({
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", width: isMobile ? "100%" : "auto" }}>
-          <input
-            placeholder="Search..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onFocus={() => setSearchFocus(true)}
-            onBlur={() => setSearchFocus(false)}
-            aria-label="Search holdings"
-            style={{
-              background: "var(--bg-input-fill)",
-              border: `1px solid ${searchFocus ? "rgba(0,94,184,0.6)" : "rgba(255,255,255,0.08)"}`,
-              color: "var(--text-primary)", padding: "0.4rem 0.8rem",
-              fontSize: "0.82rem", width: isMobile ? "100%" : 190, flex: isMobile ? 1 : "none",              fontFamily: "'EB Garamond', Georgia, serif",
-              transition: "border-color 0.2s",
-            }}
-          />
+          <div style={{ position: "relative", flex: isMobile ? 1 : "none" }}>
+            <span style={{
+              position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+              color: "var(--text-dim)", fontSize: "0.75rem", pointerEvents: "none",
+            }}>
+              &#x1F50D;
+            </span>
+            <input
+              placeholder="Search..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onFocus={() => setSearchFocus(true)}
+              onBlur={() => setSearchFocus(false)}
+              aria-label="Search holdings"
+              style={{
+                background: "var(--bg-pill)",
+                border: searchFocus ? "1px solid var(--primary)" : "1px solid transparent",
+                color: "var(--text-primary)", padding: "0.4rem 0.8rem 0.4rem 2rem",
+                fontSize: "0.82rem", width: isMobile ? "100%" : 190,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                borderRadius: 8, transition: "border-color 0.2s",
+              }}
+            />
+          </div>
           {holdings.length > 0 && onRefresh && (() => {
             const elapsed = lastUpdatedAt ? Date.now() - lastUpdatedAt.getTime() : Infinity;
             const canRefresh = elapsed >= 15 * 60 * 1000 && !refreshing;
@@ -137,12 +155,12 @@ export default function HoldingsTable({
                 aria-label="Refresh prices"
                 style={{
                   padding: isMobile ? "0.5rem 0.8rem" : "0.4rem 0.8rem",
-                  background: "transparent", border: "1px solid var(--border-accent)",
-                  color: canRefresh ? "var(--text-link)" : "var(--text-dim)",
+                  background: "transparent", border: "1px solid var(--border)",
+                  color: canRefresh ? "var(--text-muted)" : "var(--text-dim)",
                   cursor: canRefresh ? "pointer" : "not-allowed",
                   fontSize: "0.75rem", whiteSpace: "nowrap",
-                  fontFamily: "'EB Garamond', Georgia, serif",
-                  opacity: canRefresh ? 1 : 0.5,
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
+                  opacity: canRefresh ? 1 : 0.5, borderRadius: 8,
                 }}
               >
                 {refreshing ? "Refreshing..." : "↻ Refresh"}
@@ -155,10 +173,11 @@ export default function HoldingsTable({
               aria-label="Export holdings as CSV"
               style={{
                 padding: isMobile ? "0.5rem 0.8rem" : "0.4rem 0.8rem",
-                background: "transparent", border: "1px solid var(--border-accent)",
-                color: "var(--text-link)", cursor: "pointer",
+                background: "transparent", border: "1px solid var(--border)",
+                color: "var(--text-muted)", cursor: "pointer",
                 fontSize: "0.75rem", whiteSpace: "nowrap",
-                fontFamily: "'EB Garamond', Georgia, serif",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                borderRadius: 8,
               }}
             >
               Export
@@ -167,9 +186,8 @@ export default function HoldingsTable({
           {onAdd && (
             <button onClick={onAdd} aria-label="Add stock to portfolio" style={{
               padding: isMobile ? "0.5rem 1rem" : "0.4rem 1rem", background: "var(--primary)", border: "none",
-              color: "white", fontWeight: 700, cursor: "pointer",
-              fontSize: "0.8rem", letterSpacing: "0.02em",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+              color: "white", fontWeight: 600, cursor: "pointer",
+              fontSize: "0.8rem", borderRadius: 8,
               whiteSpace: "nowrap",
             }}>
               + Add
@@ -187,9 +205,9 @@ export default function HoldingsTable({
               onChange={e => handleSort(e.target.value)}
               aria-label="Sort holdings by"
               style={{
-                padding: "6px 10px", background: "var(--bg-input)", border: "1px solid var(--border-dim)",
-                color: "var(--text-primary)", fontSize: "0.75rem", fontFamily: "'EB Garamond', Georgia, serif",
-                width: "100%",
+                padding: "6px 10px", background: "var(--bg-pill)", border: "1px solid var(--border)",
+                color: "var(--text-primary)", fontSize: "0.75rem", fontFamily: "'DM Sans', system-ui, sans-serif",
+                width: "100%", borderRadius: 8,
               }}
             >
               {SORT_FIELDS.map(f => (
@@ -200,7 +218,7 @@ export default function HoldingsTable({
             </select>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {filtered.map(h => {
+            {filtered.map((h, idx) => {
               const live = liveData?.[h.ticker];
               const price = (live?.price > 0 ? live.price : null) || h.price || 0;
               const value = price * (h.shares || 0);
@@ -214,6 +232,7 @@ export default function HoldingsTable({
                   style={{
                     padding: "0.8rem", borderBottom: "1px solid var(--border-row)",
                     cursor: "pointer",
+                    background: idx % 2 ? "var(--row-alt)" : "var(--bg-card)",
                   }}
                 >
                   {/* Top row: ticker + price */}
@@ -223,19 +242,19 @@ export default function HoldingsTable({
                         {h.ticker}
                       </span>
                     </div>
-                    <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.9rem" }}>
+                    <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.9rem", fontFamily: "'JetBrains Mono', monospace" }}>
                       ${price.toFixed(2)}
                     </span>
                   </div>
                   {/* Company name */}
-                  <div style={{ fontSize: "0.7rem", color: "#4a6a8a", marginBottom: 8 }}>
+                  <div style={{ fontSize: "0.7rem", color: "var(--text-sub)", marginBottom: 8 }}>
                     {h.name || h.ticker}
                   </div>
                   {/* 4-col metric grid */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 8 }}>
                     <MobileMetric label="Yield" value={yld > 0 ? `${yld.toFixed(2)}%` : null} color="var(--primary)" />
                     <MobileMetric label="Div" value={annualDiv > 0 ? `$${annualDiv.toFixed(2)}` : null} />
-                    <MobileMetric label="Growth" value={g5 > 0 ? `+${g5.toFixed(1)}%` : null} color="var(--primary)" />
+                    <MobileMetric label="Growth" value={g5 > 0 ? `+${g5.toFixed(1)}%` : null} color="var(--green)" />
                     <MobileMetric label="Weight" value={`${weightPct.toFixed(1)}%`} />
                   </div>
                   {/* Bottom: shares + buttons */}
@@ -259,9 +278,9 @@ export default function HoldingsTable({
                           aria-label={`Edit shares for ${h.ticker}`}
                           style={{
                             width: 90, padding: "6px 8px",
-                            background: "var(--bg-input-fill)", border: "1px solid rgba(0,94,184,0.6)",
-                            color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",
-                            fontSize: "0.85rem",
+                            background: "var(--bg-pill)", border: "1px solid var(--primary)",
+                            color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: "0.85rem", borderRadius: 8,
                           }}
                         />
                         <button
@@ -273,7 +292,7 @@ export default function HoldingsTable({
                           style={{
                             background: "var(--primary)", border: "none", color: "white",
                             padding: "6px 12px", cursor: "pointer", fontSize: "0.75rem",
-                            minHeight: 44, fontWeight: 700,
+                            minHeight: 44, fontWeight: 600, borderRadius: 8,
                           }}
                           aria-label="Save shares"
                         >
@@ -282,9 +301,9 @@ export default function HoldingsTable({
                         <button
                           onClick={() => setEditingTicker(null)}
                           style={{
-                            background: "none", border: "1px solid var(--border-accent)", color: "var(--text-link)",
+                            background: "var(--bg-pill)", border: "none", color: "var(--text-muted)",
                             padding: "6px 10px", cursor: "pointer", fontSize: "0.75rem",
-                            minHeight: 44,
+                            minHeight: 44, borderRadius: 8,
                           }}
                           aria-label="Cancel edit"
                         >
@@ -293,7 +312,7 @@ export default function HoldingsTable({
                       </div>
                     ) : (
                       <>
-                        <span style={{ fontSize: "0.75rem", color: "var(--text-link)" }}>
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "'JetBrains Mono', monospace" }}>
                           {h.shares?.toFixed(3)} shares
                         </span>
                         <div style={{ display: "flex", gap: 8 }}>
@@ -304,9 +323,9 @@ export default function HoldingsTable({
                               setEditValue(String(h.shares?.toFixed(3) || ""));
                             }}
                             style={{
-                              background: "none", border: "1px solid var(--border-accent)", color: "var(--text-link)",
+                              background: "var(--bg-pill)", border: "none", color: "var(--text-muted)",
                               padding: "6px 14px", cursor: "pointer", fontSize: "0.75rem",
-                              minHeight: 44, minWidth: 44,
+                              minHeight: 44, minWidth: 44, borderRadius: 8,
                             }}
                             aria-label={`Edit shares for ${h.ticker}`}
                           >
@@ -315,9 +334,9 @@ export default function HoldingsTable({
                           <button
                             onClick={e => { e.stopPropagation(); onRemove?.(h.ticker); }}
                             style={{
-                              background: "none", border: "1px solid var(--border-accent)", color: "#3a7abd",
+                              background: "var(--bg-pill)", border: "none", color: "var(--red)",
                               padding: "6px 14px", cursor: "pointer", fontSize: "0.75rem",
-                              minHeight: 44, minWidth: 44,
+                              minHeight: 44, minWidth: 44, borderRadius: 8,
                             }}
                             aria-label={`Remove ${h.ticker}`}
                           >
@@ -342,21 +361,19 @@ export default function HoldingsTable({
                   {SORT_FIELDS.map(f => (
                     <th key={f.key} onClick={() => handleSort(f.key)} style={{
                       cursor: "pointer", padding: "0.7rem 1rem", textAlign: "left",
-                      fontSize: "0.6rem", color: "var(--border-accent)", textTransform: "uppercase",
-                      letterSpacing: "0.12em", whiteSpace: "nowrap",
-                      borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      fontSize: "10px", color: "var(--text-label)", textTransform: "uppercase",
+                      letterSpacing: "0.08em", whiteSpace: "nowrap", fontWeight: 600,
                     }}>
                       {f.label} {sortKey === f.key ? (sortDir === "asc" ? "↑" : "↓") : ""}
                     </th>
                   ))}
                   <th style={{
-                    padding: "0.7rem 1rem", fontSize: "0.6rem",
-                    borderBottom: "1px solid rgba(255,255,255,0.04)",
+                    padding: "0.7rem 1rem", fontSize: "10px",
                   }}></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(h => {
+                {filtered.map((h, idx) => {
                   const price = liveData?.[h.ticker]?.price || h.price || 0;
                   const value = price * (h.shares || 0);
                   const weightPct = totalValue > 0 ? (value / totalValue) * 100 : 0;
@@ -370,6 +387,7 @@ export default function HoldingsTable({
                       onRemove={onRemove}
                       weightPct={weightPct}
                       onEdit={onEdit}
+                      index={idx}
                     />
                   );
                 })}
@@ -382,7 +400,7 @@ export default function HoldingsTable({
             <div style={{
               padding: "0.5rem 1.5rem", borderTop: "1px solid var(--border)",
               fontSize: "0.7rem", color: "var(--text-sub)",
-              fontFamily: "'EB Garamond', Georgia, serif",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
             }}>
               Click any row for charts, data & 10-year projection
             </div>
@@ -396,10 +414,10 @@ export default function HoldingsTable({
 function MobileMetric({ label, value, color }) {
   return (
     <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: "0.45rem", color: "#4a7090", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+      <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
         {label}
       </div>
-      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: color || "var(--text-primary)" }}>
+      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: color || "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace" }}>
         {value != null ? value : <NaValue reason={`No ${label.toLowerCase()} data`} />}
       </div>
     </div>

@@ -1,7 +1,48 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 /* ===== THEME CUSTOM PROPERTIES ===== */
 :root {
+  --bg: #F4F5F9;
+  --bg-card: #FFFFFF;
+  --bg-dark: #ECEEF4;
+  --bg-input: #F0F1F7;
+  --bg-overlay: rgba(0,0,0,0.4);
+  --bg-overlay-nav: rgba(255,255,255,0.97);
+  --bg-input-fill: rgba(0,0,0,0.03);
+  --bg-input-border: rgba(0,0,0,0.10);
+  --bg-hover: rgba(91,141,239,0.08);
+  --bg-hover-subtle: rgba(91,141,239,0.04);
+  --primary: #5B8DEF;
+  --primary-hover: #4A7DE0;
+  --accent: #5B8DEF;
+  --text-primary: #1F2234;
+  --text-secondary: #4A5069;
+  --text-muted: #6B7394;
+  --text-dim: #929AB0;
+  --text-label: #929AB0;
+  --text-sub: #B8BFCE;
+  --text-link: #5B8DEF;
+  --border: #ECEEF2;
+  --border-accent: #DDE1EA;
+  --border-dim: #F2F3F7;
+  --border-subtle: #F5F6FA;
+  --border-row: #F2F3F7;
+  --green: #3CBFA3;
+  --green-dark: #2A9A80;
+  --red: #D4668E;
+  --red-muted: #C05578;
+  --chart-hist: #3CBFA3;
+  --chart-hist-bright: #4DD9BC;
+  --chart-proj: rgba(91,141,239,0.5);
+  --chart-proj-bright: #5B8DEF;
+  --scrollbar: #DDE1EA;
+  --row-alt: #FCFCFD;
+  --bg-pill: #F0F1F5;
+  --accent-bg: #EDF1FF;
+  --warning: #E09145;
+}
+
+[data-theme="dark"] {
   --bg: #020817;
   --bg-card: #0a1628;
   --bg-dark: #040c18;
@@ -12,8 +53,8 @@
   --bg-input-border: rgba(255,255,255,0.08);
   --bg-hover: rgba(0,94,184,0.08);
   --bg-hover-subtle: rgba(0,94,184,0.04);
-  --primary: #005EB8;
-  --primary-hover: #0070d4;
+  --primary: #5B8DEF;
+  --primary-hover: #6E9DF5;
   --accent: #5aaff8;
   --text-primary: #c8dff0;
   --text-secondary: #a8c4dc;
@@ -27,52 +68,19 @@
   --border-dim: #0a1e30;
   --border-subtle: #081828;
   --border-row: #0f2540;
-  --green: #00cc66;
+  --green: #3CBFA3;
   --green-dark: #1a7a3a;
-  --red: #ff4466;
+  --red: #D4668E;
   --red-muted: #c85a5a;
   --chart-hist: #1e5a28;
   --chart-hist-bright: #60e850;
   --chart-proj: #1a3a5c;
   --chart-proj-bright: #3a9aff;
   --scrollbar: #0a2040;
-}
-
-[data-theme="light"] {
-  --bg: #f5f7fa;
-  --bg-card: #ffffff;
-  --bg-dark: #edf0f5;
-  --bg-input: #f0f2f6;
-  --bg-overlay: rgba(0,0,0,0.4);
-  --bg-overlay-nav: rgba(255,255,255,0.97);
-  --bg-input-fill: rgba(0,0,0,0.04);
-  --bg-input-border: rgba(0,0,0,0.12);
-  --bg-hover: rgba(0,94,184,0.08);
-  --bg-hover-subtle: rgba(0,94,184,0.04);
-  --primary: #005EB8;
-  --primary-hover: #004a94;
-  --accent: #0066cc;
-  --text-primary: #1a1a2e;
-  --text-secondary: #2d3748;
-  --text-muted: #4a5568;
-  --text-dim: #718096;
-  --text-label: #5a6a7a;
-  --text-sub: #6a7a8a;
-  --text-link: #005EB8;
-  --border: #e2e8f0;
-  --border-accent: #cbd5e0;
-  --border-dim: #e2e8f0;
-  --border-subtle: #edf2f7;
-  --border-row: #edf2f7;
-  --green: #00994d;
-  --green-dark: #006633;
-  --red: #e53e3e;
-  --red-muted: #c53030;
-  --chart-hist: #38a169;
-  --chart-hist-bright: #48bb78;
-  --chart-proj: #90cdf4;
-  --chart-proj-bright: #3182ce;
-  --scrollbar: #cbd5e0;
+  --row-alt: #0c1a2e;
+  --bg-pill: #0f1e32;
+  --accent-bg: rgba(91,141,239,0.1);
+  --warning: #E09145;
 }
 
 *, *::before, *::after {
@@ -84,7 +92,7 @@
 body {
   background: var(--bg);
   color: var(--text-secondary);
-  font-family: 'EB Garamond', Georgia, serif;
+  font-family: 'DM Sans', system-ui, sans-serif;
   min-height: 100vh;
 }
 
@@ -96,7 +104,7 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--scrollbar); }
 
 button, input, select, td, th {
-  font-family: 'EB Garamond', Georgia, serif;
+  font-family: 'DM Sans', system-ui, sans-serif;
 }
 
 *:focus-visible {
@@ -104,17 +112,17 @@ button, input, select, td, th {
   outline-offset: 2px;
 }
 
-* { border-radius: 0 !important; }
+* { border-radius: 0; }
 
 thead th {
   background: var(--bg-dark) !important;
   color: var(--text-label) !important;
-  font-size: 0.55rem !important;
-  letter-spacing: 0.2em !important;
+  font-size: 10px !important;
+  letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   padding: 0.65rem 1rem !important;
-  border-bottom: 1px solid var(--border-subtle) !important;
+  border-bottom: 1px solid var(--border) !important;
 }
 
 tbody tr { border-bottom: 1px solid var(--border-row) !important; }
@@ -140,36 +148,36 @@ svg { pointer-events: auto; }
   left: -100%;
   width: 60%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(120, 160, 200, 0.5), transparent);
+  background: linear-gradient(90deg, transparent, rgba(91, 141, 239, 0.4), transparent);
   animation: neonSweep 2.4s ease-in-out infinite;
   pointer-events: none;
 }
 
-/* Clerk dark theme overrides */
+/* Clerk theme overrides */
 .cl-card,
 .cl-rootBox,
 .cl-signIn-root,
 .cl-signUp-root {
   background: var(--bg-card) !important;
-  border-radius: 0 !important;
+  border-radius: 12px !important;
 }
 
 .cl-formButtonPrimary {
   background: var(--primary) !important;
-  border-radius: 0 !important;
+  border-radius: 8px !important;
 }
 
 .cl-formFieldInput {
   background: var(--bg-input-fill) !important;
   border: 1px solid var(--bg-input-border) !important;
   color: var(--text-primary) !important;
-  border-radius: 0 !important;
+  border-radius: 8px !important;
 }
 
 .cl-userButtonPopoverCard {
   background: var(--bg-card) !important;
   border: 1px solid var(--border-accent) !important;
-  border-radius: 0 !important;
+  border-radius: 12px !important;
 }
 
 .cl-userButtonPopoverActionButton {
@@ -181,15 +189,15 @@ svg { pointer-events: auto; }
 }
 
 .cl-avatarBox {
-  border-radius: 0 !important;
+  border-radius: 50% !important;
 }
 
 .cl-userButtonTrigger {
-  border-radius: 0 !important;
+  border-radius: 50% !important;
 }
 
 .cl-internal-b3fm6y {
-  border-radius: 0 !important;
+  border-radius: 12px !important;
 }
 
 @keyframes toastSlideIn {
@@ -208,6 +216,6 @@ svg { pointer-events: auto; }
 
 @media (max-width: 767px) {
   body { overflow-x: hidden; }
-  thead th { padding: 0.45rem 0.5rem !important; font-size: 0.5rem !important; }
+  thead th { padding: 0.45rem 0.5rem !important; font-size: 9px !important; }
   tbody td { padding: 0.5rem 0.5rem !important; }
 }

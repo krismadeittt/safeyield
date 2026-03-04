@@ -57,8 +57,8 @@ export default function MultiLineChart({
           const val = minVal + range * pct;
           return (
             <g key={pct}>
-              <line x1={PL} y1={y} x2={width - PR} y2={y} stroke="#0a1e30" strokeWidth={0.5} />
-              <text x={PL - 6} y={y + 3} textAnchor="end" fontSize="8" fill="#1a4060">
+              <line x1={PL} y1={y} x2={width - PR} y2={y} stroke="var(--border-dim)" strokeWidth={0.5} />
+              <text x={PL - 6} y={y + 3} textAnchor="end" fontSize="8" fill="var(--text-label)">
                 {fmt ? fmt(val) : val.toFixed(0)}
               </text>
             </g>
@@ -76,7 +76,7 @@ export default function MultiLineChart({
               key={key}
               points={points}
               fill="none"
-              stroke={colors[ki] || "#005EB8"}
+              stroke={colors[ki] || "var(--primary)"}
               strokeWidth={1.5}
               strokeDasharray={dashes[ki] || "none"}
             />
@@ -89,7 +89,7 @@ export default function MultiLineChart({
             <line
               x1={getX(hovIdx)} y1={padTop}
               x2={getX(hovIdx)} y2={padTop + chartH}
-              stroke="#2a4a6a" strokeWidth={0.5}
+              stroke="var(--text-dim)" strokeWidth={0.5}
             />
             {keys.map((key, ki) => {
               const val = pts[hovIdx]?.[key];
@@ -98,7 +98,7 @@ export default function MultiLineChart({
                 <circle
                   key={key}
                   cx={getX(hovIdx)} cy={getY(val)} r={3}
-                  fill={colors[ki] || "#005EB8"}
+                  fill={colors[ki] || "var(--primary)"}
                 />
               );
             })}
@@ -115,9 +115,9 @@ export default function MultiLineChart({
           return (
             <g>
               <rect x={tx} y={ty} width={tipW} height={tipH}
-                fill="#071020" stroke="#1a3a5c" strokeWidth={1} />
+                fill="var(--bg-dark)" stroke="var(--border-accent)" strokeWidth={1} />
               <text x={tx + 6} y={ty + 13} fontSize={9} fontWeight={700}
-                fill="#c8dff0" fontFamily="system-ui">
+                fill="var(--text-primary)" fontFamily="system-ui">
                 {pts[hovIdx].label || `Year ${hovIdx}`}
               </text>
               {keys.map((key, ki) => {
@@ -126,7 +126,7 @@ export default function MultiLineChart({
                 const labels = { noDrip: "No DRIP", drip: "DRIP", contrib: "DRIP+Contrib" };
                 return (
                   <text key={key} x={tx + 6} y={ty + 13 + (ki + 1) * 16}
-                    fontSize={9} fill={colors[ki] || "#5a8ab0"} fontFamily="system-ui">
+                    fontSize={9} fill={colors[ki] || "var(--text-muted)"} fontFamily="system-ui">
                     {labels[key] || key}: {fmt ? fmt(val) : val.toFixed(0)}
                   </text>
                 );
@@ -153,7 +153,7 @@ export default function MultiLineChart({
         {pts.map((p, i) => {
           if (pts.length > 20 && i % 5 !== 0) return null;
           return (
-            <text key={i} x={getX(i)} y={H - 6} textAnchor="middle" fontSize="8" fill="#1a4060">
+            <text key={i} x={getX(i)} y={H - 6} textAnchor="middle" fontSize="8" fill="var(--text-label)">
               {p.label || i}
             </text>
           );

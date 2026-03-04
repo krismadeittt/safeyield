@@ -16,6 +16,8 @@ export default function Dashboard({
   const [useVolatility, setUseVolatility] = useState(false);
   const [extraContrib, setExtraContrib] = useState(0);
   const [customContrib, setCustomContrib] = useState("");
+  const [vizExpanded, setVizExpanded] = useState(false);
+  const [chartExpanded, setChartExpanded] = useState(false);
 
   const contrib = customContrib ? parseFloat(customContrib) || 0 : extraContrib;
   const rng = useMemo(() => seededPRNG(42), []);
@@ -43,83 +45,110 @@ export default function Dashboard({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
 
-      {/* Stats row — bordered strip */}
+      {/* Stats row — card layout */}
       <div data-tour="stats" style={{
-        display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 0,
-        marginBottom: isMobile ? "1rem" : "2rem",
-        borderTop: "1px solid var(--border-dim)", borderBottom: "1px solid var(--border-dim)",
-        background: "transparent",
+        display: "flex", flexWrap: "wrap", gap: 12,
+        marginBottom: isMobile ? "1rem" : "1.5rem",
       }}>
         <StatCell label="Portfolio Value" value={formatCurrency(portfolioValue)} sub={cashBalance > 0 ? `${holdings.length} holdings + ${formatCurrency(cashBalance)} cash` : `${holdings.length} holdings`} isMobile={isMobile} />
         <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" isMobile={isMobile} tooltip="Weighted average dividend yield across all holdings, based on each position's share of total portfolio value." />
         <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} isMobile={isMobile} tooltip="Total estimated annual dividend income from all holdings, based on current annual dividend rates." />
         <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg)} sub="estimated" isMobile={isMobile} />
-        <StatCell label="Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" last isMobile={isMobile} tooltip="Weighted average 5-year dividend growth rate across all holdings. Higher growth means your income is increasing faster." />
+        <StatCell label="Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" isGrowth isMobile={isMobile} tooltip="Weighted average 5-year dividend growth rate across all holdings. Higher growth means your income is increasing faster." />
       </div>
 
-      {/* Portfolio Visualizer */}
-      <VisualizerToggle
-        vizType={vizType}
-        setVizType={setVizType}
-        holdings={holdings}
-        liveData={liveData}
-        portfolioValue={portfolioValue}
-        weightedYield={avgYield}
-        annualIncome={totalIncome}
-      />
+      {/* Chart row — side-by-side grid */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns:
+          isMobile ? '1fr' :
+          vizExpanded ? '1fr' :
+          chartExpanded ? '1fr' :
+          vizType === 'none' ? '1fr' :
+          '380px 1fr',
+        gap: 16,
+        marginBottom: 16,
+      }}>
+        {/* Left: Portfolio Visualizer */}
+        {!chartExpanded && (
+          <VisualizerToggle
+            vizType={vizType}
+            setVizType={setVizType}
+            holdings={holdings}
+            liveData={liveData}
+            portfolioValue={portfolioValue}
+            weightedYield={avgYield}
+            annualIncome={totalIncome}
+            expanded={vizExpanded}
+            setExpanded={setVizExpanded}
+          />
+        )}
 
-      {/* Single unified chart with all controls inside */}
-      <div data-tour="chart">
-      <HistoricalProjectedChart
-        portfolioValue={portfolioValue}
-        avgYield={avgYield}
-        growth={growth}
-        horizon={horizon}
-        setHorizon={setHorizon}
-        useVolatility={useVolatility}
-        setUseVolatility={setUseVolatility}
-        extraContrib={extraContrib}
-        setExtraContrib={setExtraContrib}
-        customContrib={customContrib}
-        setCustomContrib={setCustomContrib}
-        noDripVals={noDripVals}
-        dripVals={dripVals}
-        contribVals={contribVals}
-        totalIncome={totalIncome}
-        monthlyData={monthlyData}
-        holdings={holdings}
-      />
+        {/* Right: Historical & Projected Income Chart */}
+        {!vizExpanded && (
+          <div data-tour="chart">
+          <HistoricalProjectedChart
+            portfolioValue={portfolioValue}
+            avgYield={avgYield}
+            growth={growth}
+            horizon={horizon}
+            setHorizon={setHorizon}
+            useVolatility={useVolatility}
+            setUseVolatility={setUseVolatility}
+            extraContrib={extraContrib}
+            setExtraContrib={setExtraContrib}
+            customContrib={customContrib}
+            setCustomContrib={setCustomContrib}
+            noDripVals={noDripVals}
+            dripVals={dripVals}
+            contribVals={contribVals}
+            totalIncome={totalIncome}
+            monthlyData={monthlyData}
+            holdings={holdings}
+            expanded={chartExpanded}
+            setExpanded={setChartExpanded}
+          />
+          </div>
+        )}
       </div>
 
     </div>
   );
 }
 
-function StatCell({ label, value, sub, last, isMobile, tooltip }) {
+function StatCell({ label, value, sub, isMobile, tooltip, isGrowth }) {
   return (
     <div style={{
-      padding: isMobile ? "0.9rem 0.8rem" : "1.8rem 2rem",
-      borderRight: last ? "none" : "1px solid var(--border-dim)",
-      borderBottom: isMobile ? "1px solid var(--border-dim)" : "none",
+      flex: isMobile ? "1 1 calc(50% - 6px)" : "1 1 0",
+      minWidth: isMobile ? 140 : 160,
+      padding: isMobile ? "0.9rem 0.8rem" : "1.2rem 1.4rem",
+      background: "var(--bg-card)",
+      borderRadius: 14,
+      boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+      border: "1px solid var(--border)",
     }}>
       <div style={{
-        fontSize: isMobile ? "0.5rem" : "0.56rem", color: "var(--text-label)", textTransform: "uppercase",
-        letterSpacing: "0.2em", marginBottom: isMobile ? "0.4rem" : "0.65rem",
-        fontFamily: "'EB Garamond', Georgia, serif",
+        fontSize: 12, color: "var(--text-muted)",
+        marginBottom: isMobile ? "0.4rem" : "0.6rem",
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        fontWeight: 500,
         display: "flex", alignItems: "center",
       }}>
         {label}
         {tooltip && <InfoTooltip text={tooltip} />}
       </div>
       <div style={{
-        fontSize: isMobile ? "1.1rem" : "1.5rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1,
-        fontFamily: "'Playfair Display', Georgia, serif",
+        fontSize: isMobile ? "1.2rem" : "1.6rem", fontWeight: 700,
+        color: isGrowth ? "var(--green)" : "var(--text-primary)",
+        lineHeight: 1,
+        fontFamily: "'JetBrains Mono', monospace",
       }}>
         {value}
       </div>
       {sub && (
         <div style={{
-          fontSize: isMobile ? "0.6rem" : "0.7rem", color: "var(--text-sub)", marginTop: "0.4rem", fontStyle: "italic",
+          fontSize: 11, color: "var(--text-sub)", marginTop: "0.35rem",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
           {sub}
         </div>

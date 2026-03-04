@@ -18,13 +18,13 @@ function LegalModal({ title, onClose, children }) {
         <div style={{
           fontWeight: 600, letterSpacing: '0.12em', fontSize: '0.72rem',
           textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '1rem',
-          fontFamily: "'EB Garamond', Georgia, serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
           {title}
         </div>
         <div style={{
           fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6,
-          fontFamily: "'EB Garamond', Georgia, serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
           {children}
         </div>
@@ -32,7 +32,7 @@ function LegalModal({ title, onClose, children }) {
           marginTop: '1.5rem', padding: '8px 20px', cursor: 'pointer',
           background: 'transparent', border: '1px solid var(--border-accent)',
           color: 'var(--text-link)', fontSize: '0.85rem',
-          fontFamily: "'EB Garamond', Georgia, serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
           Close
         </button>
@@ -48,7 +48,7 @@ export default function LegalFooter() {
   const linkStyle = {
     background: 'none', border: 'none', cursor: 'pointer',
     color: 'var(--text-link)', fontSize: '0.7rem',
-    fontFamily: "'EB Garamond', Georgia, serif",
+    fontFamily: "'DM Sans', system-ui, sans-serif",
     textDecoration: 'underline', padding: 0,
   };
 
@@ -56,7 +56,7 @@ export default function LegalFooter() {
     <>
       <div style={{
         marginTop: '2rem', padding: '1.5rem 0', borderTop: '1px solid var(--border-dim)',
-        textAlign: 'center', fontFamily: "'EB Garamond', Georgia, serif",
+        textAlign: 'center', fontFamily: "'DM Sans', system-ui, sans-serif",
       }}>
         <div style={{ fontSize: '0.72rem', color: 'var(--text-sub)', marginBottom: '0.5rem' }}>
           SafeYield is for informational purposes only. Not investment advice.

@@ -6,50 +6,50 @@ import App from '../App';
 
 const clerkAppearance = {
   variables: {
-    colorPrimary: '#005EB8',
-    colorBackground: '#0a1628',
-    colorText: '#c8dff0',
-    colorTextSecondary: '#7a9ab8',
+    colorPrimary: 'var(--primary)',
+    colorBackground: 'var(--bg-card)',
+    colorText: 'var(--text-primary)',
+    colorTextSecondary: 'var(--text-muted)',
     colorInputBackground: 'rgba(255,255,255,0.04)',
-    colorInputText: '#c8dff0',
+    colorInputText: 'var(--text-primary)',
     borderRadius: '0px',
-    fontFamily: "'EB Garamond', Georgia, serif",
+    fontFamily: "'DM Sans', system-ui, sans-serif",
   },
   elements: {
     card: {
-      background: '#0a1628',
-      border: '1px solid #1a3a5c',
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-accent)',
       boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
     },
     headerTitle: {
-      fontFamily: "'Playfair Display', Georgia, serif",
-      color: '#c8dff0',
+      fontFamily: "'DM Sans', system-ui, sans-serif",
+      color: 'var(--text-primary)',
     },
     headerSubtitle: {
-      color: '#7a9ab8',
+      color: 'var(--text-muted)',
     },
     socialButtonsBlockButton: {
       background: 'rgba(255,255,255,0.04)',
-      border: '1px solid #1a3a5c',
-      color: '#c8dff0',
+      border: '1px solid var(--border-accent)',
+      color: 'var(--text-primary)',
     },
     formFieldInput: {
       background: 'rgba(255,255,255,0.04)',
       border: '1px solid rgba(255,255,255,0.08)',
-      color: '#c8dff0',
+      color: 'var(--text-primary)',
     },
     formButtonPrimary: {
-      background: '#005EB8',
+      background: 'var(--primary)',
       fontWeight: 700,
     },
     footerActionLink: {
-      color: '#005EB8',
+      color: 'var(--primary)',
     },
     dividerLine: {
-      background: '#1a3a5c',
+      background: 'var(--border-accent)',
     },
     dividerText: {
-      color: '#2a4a6a',
+      color: 'var(--text-dim)',
     },
   },
 };
@@ -60,21 +60,21 @@ function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#020817',
+      background: 'var(--bg)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: "'EB Garamond', Georgia, serif",
+      fontFamily: "'DM Sans', system-ui, sans-serif",
     }}>
       {/* Logo */}
       <div style={{ marginBottom: 32, display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{
-          width: 9, height: 9, background: '#005EB8',
+          width: 9, height: 9, background: 'var(--primary)',
           boxShadow: '0 0 8px #10b981',
         }} />
-        <span style={{ fontWeight: 800, fontSize: '1.4rem', letterSpacing: '-0.02em', color: '#c8dff0' }}>
-          Safe<span style={{ color: '#005EB8' }}>Yield</span>
+        <span style={{ fontWeight: 800, fontSize: '1.4rem', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+          Safe<span style={{ color: 'var(--primary)' }}>Yield</span>
         </span>
       </div>
 
@@ -100,10 +100,10 @@ function LoginPage() {
           marginTop: 16,
           background: 'none',
           border: 'none',
-          color: '#005EB8',
+          color: 'var(--primary)',
           cursor: 'pointer',
           fontSize: '0.9rem',
-          fontFamily: "'EB Garamond', Georgia, serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}
       >
         {mode === 'signIn' ? "Don't have an account? Sign up" : "Already have an account? Sign in"}

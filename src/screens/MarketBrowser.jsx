@@ -7,6 +7,13 @@ import MiniProgressBar from '../components/MiniProgressBar';
 import { formatCurrency } from '../utils/format';
 import useIsMobile from '../hooks/useIsMobile';
 
+function fmtCap(b) {
+  if (b == null) return '—';
+  if (b >= 1000) return `$${(b / 1000).toFixed(1)}T`;
+  if (b >= 1) return `$${Math.round(b)}B`;
+  return `$${Math.round(b * 1000)}M`;
+}
+
 const SECTORS = [
   "All", "Technology", "Healthcare", "Financials", "Consumer Staples",
   "Consumer Disc.", "Industrials", "Energy", "Utilities", "REITs",
@@ -110,7 +117,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
             style={{
               width: "100%", padding: "8px 12px", fontSize: "0.85rem",
               background: "var(--bg-input)", border: "1px solid var(--border-dim)", color: "var(--text-primary)",
-              fontFamily: "'EB Garamond', Georgia, serif",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
             }}
           />
           {/* Typeahead dropdown */}
@@ -140,7 +147,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
           onChange={e => { setSector(e.target.value); setPage(0); }}
           style={{
             padding: "8px 12px", background: "var(--bg-input)", border: "1px solid var(--border-dim)",
-            color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",
+            color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif",
             width: isMobile ? "100%" : "auto",
           }}
         >
@@ -157,7 +164,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
               onChange={e => handleSort(e.target.value)}
               style={{
                 padding: "6px 10px", background: "var(--bg-input)", border: "1px solid var(--border-dim)",
-                color: "var(--text-primary)", fontSize: "0.75rem", fontFamily: "'EB Garamond', Georgia, serif",
+                color: "var(--text-primary)", fontSize: "0.75rem", fontFamily: "'DM Sans', system-ui, sans-serif",
                 width: "100%",
               }}
             >
@@ -184,7 +191,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                     <div>
                       <span style={{ fontWeight: 700, color: "var(--accent)", fontSize: "0.95rem" }}>{stock.ticker}</span>
-                      <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", marginLeft: 8 }}>${stock.cap}B</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.7rem", marginLeft: 8 }}>{fmtCap(stock.cap)}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       {inPortfolio ? (
@@ -280,7 +287,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                         <span style={{ fontWeight: 600, color: "var(--accent)" }}>{stock.ticker}</span>
                         <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{stock.name}</div>
                       </td>
-                      <td>${stock.cap}B</td>
+                      <td>{fmtCap(stock.cap)}</td>
                       <td>
                         {displayYld > 0 ? `${displayYld.toFixed(2)}%` : "—"}
                         {displayYld > 0 && <MiniProgressBar value={displayYld} max={8} />}

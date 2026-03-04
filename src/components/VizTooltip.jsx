@@ -6,9 +6,10 @@ export function MetricBox({ label, value, color }) {
       background: "var(--bg-hover-subtle)",
       padding: "5px 7px",
       border: "1px solid var(--border-subtle)",
+      borderRadius: 6,
     }}>
-      <div style={{ fontSize: 7, color: "var(--text-dim)", letterSpacing: 1.5 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, color, marginTop: 1 }}>{value}</div>
+      <div style={{ fontSize: 7, color: "var(--text-dim)", letterSpacing: 1.5, fontFamily: "'DM Sans', system-ui, sans-serif" }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color, marginTop: 1, fontFamily: "'JetBrains Mono', monospace" }}>{value}</div>
     </div>
   );
 }
@@ -16,8 +17,16 @@ export function MetricBox({ label, value, color }) {
 export default function VizTooltip({ mouse, containerRef, children, width = 240, height = 340 }) {
   const cw = containerRef.current?.clientWidth || 900;
   const ch = containerRef.current?.clientHeight || 900;
-  const x = Math.min(Math.max(mouse.x + 18, 8), cw - width - 8);
-  const y = Math.min(Math.max(mouse.y + 14, 8), ch - height - 8);
+
+  const gap = 14;
+  const inRight = mouse.x > cw / 2;
+  const inBottom = mouse.y > ch / 2;
+
+  const rawX = inRight ? mouse.x - width - gap : mouse.x + gap;
+  const rawY = inBottom ? mouse.y - height - gap : mouse.y + gap;
+
+  const x = Math.max(4, Math.min(rawX, cw - width - 4));
+  const y = Math.max(4, Math.min(rawY, ch - height - 4));
 
   return (
     <div style={{
@@ -28,7 +37,8 @@ export default function VizTooltip({ mouse, containerRef, children, width = 240,
       background: "var(--bg-overlay-nav)",
       border: "1px solid var(--border-accent)",
       padding: 14,
-      boxShadow: "0 16px 48px rgba(0,0,0,0.8)",
+      boxShadow: "0 16px 48px rgba(0,0,0,0.12)",
+      borderRadius: 12,
       pointerEvents: "none",
       zIndex: 50,
       backdropFilter: "blur(8px)",

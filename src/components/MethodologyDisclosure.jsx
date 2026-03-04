@@ -30,7 +30,7 @@ export default function MethodologyDisclosure() {
 
   return (
     <div style={{
-      background: '#0a1628', border: '1px solid #1a3a5c',
+      background: 'var(--bg-card)', border: '1px solid var(--border-accent)',
       marginTop: '1.5rem',
     }}>
       <button
@@ -41,7 +41,7 @@ export default function MethodologyDisclosure() {
           width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           padding: isMobile ? '0.8rem' : '1rem 1.5rem',
           background: 'transparent', border: 'none', cursor: 'pointer',
-          color: '#7a9ab8', fontFamily: "'EB Garamond', Georgia, serif",
+          color: 'var(--text-muted)', fontFamily: "'DM Sans', system-ui, sans-serif",
         }}
       >
         <span style={{
@@ -50,7 +50,7 @@ export default function MethodologyDisclosure() {
         }}>
           Methodology & Data Sources
         </span>
-        <span style={{ fontSize: '0.8rem', color: '#5a8ab0', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>
           ▼
         </span>
       </button>
@@ -58,28 +58,28 @@ export default function MethodologyDisclosure() {
       {open && (
         <div style={{
           padding: isMobile ? '0 0.8rem 0.8rem' : '0 1.5rem 1.5rem',
-          borderTop: '1px solid #0a1e30',
+          borderTop: '1px solid var(--border-dim)',
         }}>
           {SECTIONS.map((s, i) => (
             <div key={i} style={{ marginTop: '1rem' }}>
               <div style={{
-                fontSize: '0.7rem', color: '#5a8ab0', letterSpacing: '0.1em',
+                fontSize: '0.7rem', color: 'var(--text-muted)', letterSpacing: '0.1em',
                 textTransform: 'uppercase', marginBottom: '0.3rem',
-                fontFamily: "'EB Garamond', Georgia, serif", fontWeight: 600,
+                fontFamily: "'DM Sans', system-ui, sans-serif", fontWeight: 600,
               }}>
                 {s.title}
               </div>
               <div style={{
-                fontSize: '0.82rem', color: '#7a9ab8', lineHeight: 1.5,
-                fontFamily: "'EB Garamond', Georgia, serif",
+                fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5,
+                fontFamily: "'DM Sans', system-ui, sans-serif",
               }}>
                 {s.content}
               </div>
             </div>
           ))}
           <div style={{
-            marginTop: '1rem', fontSize: '0.7rem', color: '#3a5a78',
-            fontStyle: 'italic', fontFamily: "Georgia, serif",
+            marginTop: '1rem', fontSize: '0.7rem', color: 'var(--text-sub)',
+            fontStyle: 'italic', fontFamily: "'DM Sans', system-ui, sans-serif",
           }}>
             SafeYield is for informational and educational purposes only and does not constitute investment advice.
             Past performance does not guarantee future results. All data is provided on a 15-minute delay.

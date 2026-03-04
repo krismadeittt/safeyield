@@ -50,7 +50,7 @@ export default function WatchlistScreen({ watchlist, liveData, onSelect, onRemov
             style={{
               width: '100%', padding: '8px 12px', fontSize: '0.85rem',
               background: 'var(--bg-input)', border: '1px solid var(--border-dim)', color: 'var(--text-primary)',
-              fontFamily: "'EB Garamond', Georgia, serif",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
             }}
           />
           {search && searchResults.length > 0 && (
@@ -77,7 +77,7 @@ export default function WatchlistScreen({ watchlist, liveData, onSelect, onRemov
         <span style={{
           fontWeight: 600, letterSpacing: '0.12em', fontSize: '0.72rem',
           textTransform: 'uppercase', color: 'var(--text-muted)',
-          fontFamily: "'EB Garamond', Georgia, serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
           whiteSpace: 'nowrap',
         }}>
           Watchlist ({watchlist.length})
@@ -116,7 +116,7 @@ export default function WatchlistScreen({ watchlist, liveData, onSelect, onRemov
                       + Add
                     </button>
                     <button onClick={e => { e.stopPropagation(); onRemove(item.ticker); }} style={{
-                      background: 'none', border: '1px solid var(--border-accent)', color: '#3a7abd',
+                      background: 'none', border: '1px solid var(--border-accent)', color: 'var(--red)',
                       padding: '6px 12px', cursor: 'pointer', fontSize: '0.7rem', minHeight: 44,
                     }}>
                       Remove
@@ -180,7 +180,7 @@ export default function WatchlistScreen({ watchlist, liveData, onSelect, onRemov
                           + Add
                         </button>
                         <button onClick={e => { e.stopPropagation(); onRemove(item.ticker); }} style={{
-                          background: 'none', border: '1px solid var(--border-accent)', color: '#3a7abd',
+                          background: 'none', border: '1px solid var(--border-accent)', color: 'var(--red)',
                           padding: '3px 10px', cursor: 'pointer', fontSize: '0.7rem',
                         }}>
                           Remove

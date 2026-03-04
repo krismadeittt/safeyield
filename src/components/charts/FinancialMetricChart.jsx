@@ -113,14 +113,14 @@ export default function FinancialMetricChart({
       <div style={{ padding: "1.2rem 1.2rem 0" }}>
         <div style={{
           fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)",
-          fontFamily: "'Playfair Display', Georgia, serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
           {title}
         </div>
         {subtitle && (
           <div style={{
             fontSize: "0.7rem", color: "var(--text-dim)", marginTop: 2,
-            fontFamily: "Georgia, serif", fontStyle: "italic",
+            fontFamily: "'DM Sans', system-ui, sans-serif", fontStyle: "italic",
           }}>
             {subtitle}
           </div>
@@ -151,7 +151,7 @@ export default function FinancialMetricChart({
                 <div style={{
                   fontSize: "1.15rem", fontWeight: 700,
                   color: card.color || "var(--text-primary)", lineHeight: 1,
-                  fontFamily: "'Playfair Display', Georgia, serif",
+                  fontFamily: "'DM Sans', system-ui, sans-serif",
                 }}>
                   {card.value}
                 </div>
@@ -238,7 +238,7 @@ export default function FinancialMetricChart({
           if (isHov) {
             fill = "#ffffff";
           } else if (bar.isHistorical) {
-            fill = i === nowIndex ? "#e0f0e0" : "#2a8a3a";
+            fill = i === nowIndex ? "#e0f0e0" : "var(--green)";
           } else {
             fill = "#3a9aff";
           }

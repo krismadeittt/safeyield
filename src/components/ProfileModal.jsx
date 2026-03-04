@@ -40,7 +40,7 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
   const inputStyle = {
     width: '100%', padding: '8px 12px',
     background: 'var(--bg-input-fill)', border: '1px solid var(--bg-input-border)',
-    color: 'var(--text-primary)', fontFamily: "'EB Garamond', Georgia, serif",
+    color: 'var(--text-primary)', fontFamily: "'DM Sans', system-ui, sans-serif",
     marginBottom: 12,
   };
 
@@ -59,7 +59,7 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
         <div style={{
           fontWeight: 600, letterSpacing: '0.12em', fontSize: '0.72rem',
           textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '1rem',
-          fontFamily: "'EB Garamond', Georgia, serif",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
           Profile Settings
         </div>
@@ -117,7 +117,7 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
                   left: dripEnabled ? 18 : 2, transition: 'left 0.2s',
                 }} />
               </div>
-              <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: "'EB Garamond', Georgia, serif" }}>
+              <span style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
                 {dripEnabled ? 'ON — Reinvest dividends as shares' : 'OFF — Accumulate as cash'}
               </span>
             </div>
@@ -126,7 +126,7 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
               width: '100%', padding: '8px', cursor: 'pointer', marginBottom: 12,
               background: 'none', border: '1px solid var(--border-accent)',
               color: 'var(--text-link)', fontSize: '0.8rem',
-              fontFamily: "'EB Garamond', Georgia, serif",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
             }}>
               Show Welcome Tour
             </button>

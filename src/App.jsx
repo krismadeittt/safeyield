@@ -80,13 +80,13 @@ function AppInner() {
   if (isLoadingSaved) {
     return (
       <div style={{
-        fontFamily: "Georgia, serif", background: "var(--bg)", minHeight: "100vh",
+        fontFamily: "'DM Sans', system-ui, sans-serif", background: "var(--bg)", minHeight: "100vh",
         color: "var(--text-primary)", display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         <div style={{ textAlign: "center" }}>
           <div style={{
             width: 9, height: 9, background: "var(--primary)",
-            boxShadow: "0 0 8px #10b981", margin: "0 auto 16px",
+            borderRadius: "50%", margin: "0 auto 16px",
           }} />
           <div style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>Loading your portfolio...</div>
         </div>
@@ -102,24 +102,23 @@ function AppInner() {
   // Stock detail view
   if (detailView) {
     return (
-      <div style={{ fontFamily: "Georgia, serif", background: "var(--bg)", minHeight: "100vh", color: "var(--text-primary)" }}>
+      <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: "var(--bg)", minHeight: "100vh", color: "var(--text-primary)" }}>
         <nav style={{
-          background: "var(--bg-overlay-nav)", borderBottom: "1px solid var(--border)",
+          background: "var(--bg-card)", borderBottom: "1px solid var(--border)",
           padding: isMobile ? "0 0.75rem" : "0 1.5rem", display: "flex", alignItems: "center",
-          justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100,
+          justifyContent: "space-between", height: 58, position: "sticky", top: 0, zIndex: 100,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12 }}>
             <Logo />
             <button onClick={() => setDetailView(null)} style={{
-              background: "none", border: "1px solid var(--border-accent)", color: "var(--text-link)",
-              padding: isMobile ? "6px 12px" : "4px 12px", cursor: "pointer", fontSize: "0.75rem",
-              fontFamily: "'EB Garamond', Georgia, serif",
+              background: "var(--bg-pill)", border: "none", color: "var(--text-muted)",
+              padding: isMobile ? "6px 12px" : "6px 14px", cursor: "pointer", fontSize: "0.75rem",
+              fontFamily: "'DM Sans', system-ui, sans-serif", borderRadius: 8,
             }}>
               ← Back
             </button>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            {/* Watch button in detail nav */}
             <button
               onClick={() => {
                 if (isWatched(detailView.ticker)) {
@@ -131,15 +130,20 @@ function AppInner() {
                 }
               }}
               style={{
-                background: "none", border: "1px solid var(--border-accent)",
-                color: isWatched(detailView.ticker) ? "var(--primary)" : "var(--text-link)",
-                padding: "4px 10px", cursor: "pointer", fontSize: "0.7rem",
-                fontFamily: "'EB Garamond', Georgia, serif",
+                background: isWatched(detailView.ticker) ? "var(--accent-bg)" : "var(--bg-pill)",
+                border: "none",
+                color: isWatched(detailView.ticker) ? "var(--primary)" : "var(--text-muted)",
+                padding: "6px 12px", cursor: "pointer", fontSize: "0.7rem",
+                fontFamily: "'DM Sans', system-ui, sans-serif", borderRadius: 8,
               }}
             >
               {isWatched(detailView.ticker) ? "\u2605 Watching" : "\u2606 Watch"}
             </button>
-            <span style={{ color: "var(--text-link)", fontSize: "0.82rem" }}>
+            <span style={{
+              color: "var(--text-primary)", fontSize: "0.82rem",
+              fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+              background: "var(--bg-pill)", padding: "4px 10px", borderRadius: 8,
+            }}>
               {formatCurrency(summary.portfolioValue)}
             </span>
           </div>
@@ -164,14 +168,14 @@ function AppInner() {
 
   // Main app
   return (
-    <div style={{ fontFamily: "Georgia, serif", background: "var(--bg)", minHeight: "100vh", color: "var(--text-primary)" }}>
+    <div style={{ fontFamily: "'DM Sans', system-ui, sans-serif", background: "var(--bg)", minHeight: "100vh", color: "var(--text-primary)" }}>
       {/* Navigation */}
       <nav style={{
-        background: "var(--bg-overlay-nav)", borderBottom: "1px solid var(--border)",
+        background: "var(--bg-card)", borderBottom: "1px solid var(--border)",
         padding: isMobile ? "0 0.75rem" : "0 1.5rem", display: "flex", alignItems: "center",
-        justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100,
+        justifyContent: "space-between", height: 58, position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.3rem" : "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.3rem" : "1.2rem" }}>
           <Logo />
           {["dashboard", "market", "watchlist"].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
@@ -180,19 +184,23 @@ function AppInner() {
               aria-label={`${tab.charAt(0).toUpperCase() + tab.slice(1)} tab`}
               {...(tab === "market" ? { "data-tour": "market-tab" } : tab === "watchlist" ? { "data-tour": "watchlist-tab" } : {})}
               style={{
-                background: "none", border: "none", cursor: "pointer",
-                color: activeTab === tab ? "var(--primary)" : "var(--text-dim)",
-                fontSize: isMobile ? "0.75rem" : "0.85rem", fontFamily: "'EB Garamond', Georgia, serif",
-                fontWeight: activeTab === tab ? 700 : 400,
-                transition: "color 0.2s",
+                background: activeTab === tab ? "var(--accent-bg)" : "transparent",
+                border: "none", cursor: "pointer",
+                color: activeTab === tab ? "var(--primary)" : "var(--text-muted)",
+                fontSize: isMobile ? "0.75rem" : "0.85rem",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                fontWeight: activeTab === tab ? 600 : 500,
+                padding: "6px 12px", borderRadius: 8,
+                transition: "all 0.2s",
               }}>
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
           <button onClick={() => setShowConfirm(true)} style={{
-            background: "none", border: "none", cursor: "pointer",
+            background: "transparent", border: "none", cursor: "pointer",
             color: "var(--text-dim)", fontSize: "0.75rem",
-            fontFamily: "'EB Garamond', Georgia, serif",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            padding: "6px 10px", borderRadius: 8,
           }} aria-label="Reset portfolio">
             Reset
           </button>
@@ -200,20 +208,25 @@ function AppInner() {
 
         <div style={{ display: "flex", gap: isMobile ? 8 : 16, alignItems: "center" }}>
           <button onClick={toggleTheme} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} style={{
-            background: "none", border: "1px solid var(--border-accent)", cursor: "pointer",
-            color: "var(--text-link)", padding: "3px 8px", fontSize: "0.8rem",
+            background: "var(--bg-pill)", border: "none", cursor: "pointer",
+            color: "var(--text-muted)", padding: "5px 10px", fontSize: "0.8rem",
+            borderRadius: 8,
           }}>
             {theme === 'dark' ? '\u2600' : '\u263E'}
           </button>
-          <span style={{ color: "var(--text-link)", fontSize: "0.82rem" }}>
+          <span style={{
+            color: "var(--text-primary)", fontSize: "0.82rem",
+            fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+            background: "var(--bg-pill)", padding: "4px 10px", borderRadius: 8,
+          }}>
             {isMobile ? shortMoney(summary.portfolioValue) : formatCurrency(summary.portfolioValue)}
           </span>
           {!isMobile && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
               <span style={{
                 fontSize: "0.6rem", color: "var(--primary)",
-                fontFamily: "'EB Garamond', Georgia, serif",
-                letterSpacing: "0.15em", textTransform: "uppercase",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                letterSpacing: "0.1em", textTransform: "uppercase",
                 position: "relative", overflow: "hidden", display: "inline-block",
               }} className="delayed-badge">
                 15-Min Delayed
@@ -308,15 +321,16 @@ function AppInner() {
           alignItems: "center", justifyContent: "center",
         }} onClick={() => setShowAddModal(false)}>
           <div style={{
-            background: "var(--bg-card)", border: "1px solid var(--border-accent)",
+            background: "var(--bg-card)", border: "1px solid var(--border)",
             padding: isMobile ? "1.5rem" : "2rem",
             width: isMobile ? "calc(100vw - 2rem)" : 360,
-            maxWidth: 360,
+            maxWidth: 360, borderRadius: 16,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
           }} onClick={e => e.stopPropagation()}>
             <div style={{
-              fontWeight: 600, letterSpacing: "0.12em", fontSize: "0.72rem",
-              textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "1rem",
-              fontFamily: "'EB Garamond', Georgia, serif",
+              fontWeight: 600, fontSize: "0.9rem",
+              color: "var(--text-primary)", marginBottom: "1rem",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
             }}>
               Add Stock to Portfolio
             </div>
@@ -329,17 +343,19 @@ function AppInner() {
                 onChange={e => setAddTicker(e.target.value.toUpperCase())}
                 aria-label="Ticker symbol"
                 style={{
-                  width: "100%", padding: "8px 12px",
-                  background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
-                  color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",
-                                 }}
+                  width: "100%", padding: "10px 14px",
+                  background: "var(--bg-input)", border: "1px solid var(--border)",
+                  color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif",
+                  borderRadius: 8,
+                }}
                 autoFocus
               />
               {addResults.length > 0 && (
                 <div style={{
                   position: "absolute", top: "100%", left: 0, right: 0,
-                  background: "var(--bg-input)", border: "1px solid var(--border-accent)",
-                  maxHeight: 150, overflowY: "auto", zIndex: 10,
+                  background: "var(--bg-card)", border: "1px solid var(--border)",
+                  maxHeight: 150, overflowY: "auto", zIndex: 10, borderRadius: 8,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
                 }}>
                   {addResults.map(r => (
                     <div key={r.ticker} onClick={() => {
@@ -347,7 +363,7 @@ function AppInner() {
                       setTimeout(() => sharesInputRef.current?.focus(), 50);
                     }}
                       style={{
-                        padding: "6px 12px", cursor: "pointer",
+                        padding: "8px 14px", cursor: "pointer",
                         borderBottom: "1px solid var(--border-row)",
                         display: "flex", justifyContent: "space-between",
                       }}>
@@ -368,9 +384,11 @@ function AppInner() {
               type="number"
               aria-label="Number of shares"
               style={{
-                width: "100%", padding: "8px 12px", marginBottom: 12,
-                background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
-                color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",              }}
+                width: "100%", padding: "10px 14px", marginBottom: 12,
+                background: "var(--bg-input)", border: "1px solid var(--border)",
+                color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif",
+                borderRadius: 8,
+              }}
             />
 
             {/* Yield override */}
@@ -382,9 +400,11 @@ function AppInner() {
               aria-label="Yield override percentage"
               step="0.1"
               style={{
-                width: "100%", padding: "8px 12px", marginBottom: 16,
-                background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
-                color: "var(--text-primary)", fontFamily: "'EB Garamond', Georgia, serif",              }}
+                width: "100%", padding: "10px 14px", marginBottom: 16,
+                background: "var(--bg-input)", border: "1px solid var(--border)",
+                color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif",
+                borderRadius: 8,
+              }}
             />
 
             <div style={{ display: "flex", gap: 8 }}>
@@ -392,14 +412,15 @@ function AppInner() {
                 flex: 1, padding: "10px", cursor: "pointer",
                 background: !addTicker || isAdding ? "var(--border-accent)" : "var(--primary)",
                 color: "white", border: "none", fontSize: "0.9rem",
-                fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                fontWeight: 600, borderRadius: 8,
               }}>
                 {isAdding ? "Adding..." : "Add to Portfolio"}
               </button>
               <button onClick={() => setShowAddModal(false)} style={{
                 padding: "10px 16px", cursor: "pointer",
-                background: "transparent", border: "1px solid var(--border-accent)",
-                color: "var(--text-link)", fontSize: "0.9rem",
+                background: "var(--bg-pill)", border: "none",
+                color: "var(--text-muted)", fontSize: "0.9rem",
+                borderRadius: 8,
               }}>
                 Cancel
               </button>
@@ -431,13 +452,9 @@ function AppInner() {
 
 function Logo() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginRight: 8 }}>
-      <div style={{
-        width: 7, height: 7, background: "var(--primary)",
-        boxShadow: "0 0 8px #10b981",
-      }} />
-      <span style={{ fontWeight: 800, fontSize: "1.05rem", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
-        Safe<span style={{ color: "var(--primary)" }}>Yield</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 4, marginRight: 8 }}>
+      <span style={{ fontWeight: 800, fontSize: "1.1rem", letterSpacing: "-0.02em" }}>
+        <span style={{ color: "#3CBFA3" }}>Safe</span><span style={{ color: "var(--text-primary)" }}>Yield</span>
       </span>
     </div>
   );

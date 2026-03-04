@@ -34,14 +34,14 @@ export default function DividendHistoryForecast({
 
   return (
     <div style={{
-      background: "#071525", border: "1px solid #0a1e30", padding: "1.2rem",
+      background: "var(--bg-dark)", border: "1px solid var(--border-dim)", padding: "1.2rem",
     }}>
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
         marginBottom: "0.8rem",
       }}>
         <div style={{
-          fontSize: "0.6rem", color: "#1a4060", letterSpacing: "0.2em",
+          fontSize: "0.6rem", color: "var(--text-label)", letterSpacing: "0.2em",
           textTransform: "uppercase",
         }}>
           {label} — History & Forecast
@@ -50,9 +50,9 @@ export default function DividendHistoryForecast({
           {views.map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               padding: "3px 10px", fontSize: "0.65rem",
-              background: view === v ? "#005EB8" : "transparent",
-              color: view === v ? "#c8dff0" : "#2a4a6a",
-              border: `1px solid ${view === v ? "#005EB8" : "#0a1e30"}`,
+              background: view === v ? "var(--primary)" : "transparent",
+              color: view === v ? "var(--text-primary)" : "var(--text-dim)",
+              border: `1px solid ${view === v ? "var(--primary)" : "var(--border-dim)"}`,
               cursor: "pointer", textTransform: "capitalize",
             }}>
               {v}

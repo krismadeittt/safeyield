@@ -21,6 +21,7 @@ export default function HistoricalProjectedChart({
   noDripVals, dripVals, contribVals,
   totalIncome,
   monthlyData, holdings,
+  expanded, setExpanded,
 }) {
   const isMobile = useIsMobile();
   const containerRef = useRef(null);
@@ -275,72 +276,88 @@ export default function HistoricalProjectedChart({
   const divHovBar = divHovered != null ? divBars[divHovered] : null;
 
   return (
-    <div ref={containerRef} style={{ background: "#0a1628", border: "1px solid #1a3a5c" }}>
+    <div ref={containerRef} style={{ background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--border)", overflow: "hidden" }}>
       {/* ==================== HEADER ==================== */}
-      <div style={{ padding: isMobile ? "0.8rem 0.8rem 0" : "1.5rem 1.5rem 0" }}>
+      <div style={{ padding: isMobile ? "0.8rem 0.8rem 0" : "1.2rem 1.5rem 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.3rem" }}>
           <div>
-            <div style={{ fontWeight: 800, fontSize: "1.1rem", color: "#c8dff0", fontFamily: "'Playfair Display', Georgia, serif" }}>
+            <div style={{ fontWeight: 700, fontSize: "1rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               Historical & Projected Income
             </div>
-            <div style={{ fontSize: "0.72rem", color: "#2a4a6a", marginTop: 2, fontFamily: "Georgia, serif", fontStyle: "italic" }}>
+            <div style={{ fontSize: "0.72rem", color: "var(--text-sub)", marginTop: 2, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               {horizon}-yr · {growth.toFixed(1)}% avg div growth · 7% base return
               {realHistData && " · real data"}{histLoading && " · loading..."}
             </div>
           </div>
-          <div style={{ padding: "6px 16px", border: "1px solid #1a3a5c", fontWeight: 700, fontSize: "1rem", color: "#5aaff8", fontFamily: "'Playfair Display', Georgia, serif" }}>
-            {shortMoney(totalIncome)}/yr
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {setExpanded && (
+              <button onClick={() => setExpanded(e => !e)} style={{
+                background: "var(--bg-pill)", border: "none", cursor: "pointer",
+                color: "var(--text-muted)", fontSize: "0.65rem", padding: "4px 10px",
+                borderRadius: 6, fontFamily: "'DM Sans', system-ui, sans-serif",
+              }}>
+                {expanded ? "Collapse" : "Expand"}
+              </button>
+            )}
+            <div style={{
+              padding: "6px 14px", background: "var(--accent-bg)", borderRadius: 8,
+              fontWeight: 700, fontSize: "0.95rem", color: "var(--primary)",
+              fontFamily: "'JetBrains Mono', monospace",
+            }}>
+              {shortMoney(totalIncome)}/yr
+            </div>
           </div>
         </div>
 
         {/* Legend */}
         <div style={{ display: "flex", gap: isMobile ? 10 : 16, alignItems: "center", margin: "0.8rem 0 0.6rem", flexWrap: "wrap" }}>
-          <LegendItem color="#60e850" label="Div Return" />
-          <LegendItem color="#1e5a28" label="Price" />
-          <LegendItem color="#3a9aff" label="Proj DRIP" />
-          <LegendItem color="#1a3a5c" label="Proj Base" />
+          <LegendItem color="var(--chart-hist-bright)" label="Div Return" />
+          <LegendItem color="var(--chart-hist)" label="Price" />
+          <LegendItem color="var(--chart-proj-bright)" label="Proj DRIP" />
+          <LegendItem color="var(--chart-proj)" label="Proj Base" />
         </div>
 
         {/* Stat cards: STARTING, CURRENT (DRIP), DRIP ADVANTAGE */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
-          <StatCard label={`STARTING (${startingYear})`} value={formatCurrency(startingValue)} color="#1a7a3a" compact={isMobile} />
-          <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="#005EB8" compact={isMobile} />
-          <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="#5aaff8" last compact={isMobile} />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
+          <StatCard label={`STARTING (${startingYear})`} value={formatCurrency(startingValue)} color="var(--text-sub)" compact={isMobile} borderColor="var(--text-sub)" />
+          <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="var(--primary)" compact={isMobile} borderColor="var(--primary)" />
+          <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="var(--green)" last compact={isMobile} borderColor="var(--green)" />
         </div>
 
         {/* Row 1: Horizon + Real World Returns + Granularity */}
         <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem", flexWrap: "wrap", rowGap: 6, alignItems: "center" }}>
           {HORIZONS.map(h => (
             <button key={h} onClick={() => setHorizon(h)} style={{
-              padding: isMobile ? "4px 8px" : "5px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
-              fontSize: isMobile ? "0.7rem" : "0.78rem", fontWeight: horizon === h ? 700 : 400,
-              fontFamily: "'EB Garamond', Georgia, serif",
-              background: horizon === h ? "#005EB8" : "transparent",
-              color: horizon === h ? "#ffffff" : "#2a4a6a",
-              marginRight: -1, transition: "all 0.15s",
+              padding: isMobile ? "4px 8px" : "5px 12px", border: "none", cursor: "pointer",
+              fontSize: isMobile ? "0.7rem" : "0.78rem", fontWeight: horizon === h ? 600 : 400,
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              background: horizon === h ? "var(--primary)" : "var(--bg-pill)",
+              color: horizon === h ? "#ffffff" : "var(--text-muted)",
+              borderRadius: 8, marginRight: 4, transition: "all 0.15s",
             }}>
               {h}Y
             </button>
           ))}
           <button onClick={() => setUseVolatility(v => !v)} style={{
-            padding: isMobile ? "4px 8px" : "5px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
-            fontSize: isMobile ? "0.7rem" : "0.72rem", fontWeight: 600, fontFamily: "Georgia, serif",
-            marginLeft: isMobile ? 6 : 12,
-            background: useVolatility ? "rgba(0,94,184,0.15)" : "transparent",
-            color: useVolatility ? "#5aaff8" : "#2a4a6a", transition: "all 0.15s",
+            padding: isMobile ? "4px 8px" : "5px 12px", border: "none", cursor: "pointer",
+            fontSize: isMobile ? "0.7rem" : "0.72rem", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif",
+            marginLeft: isMobile ? 6 : 12, borderRadius: 8,
+            background: useVolatility ? "var(--accent-bg)" : "var(--bg-pill)",
+            color: useVolatility ? "var(--primary)" : "var(--text-muted)", transition: "all 0.15s",
           }}>
             ~ Real World
           </button>
           <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", gap: 0, border: "1px solid #1a3a5c" }}>
+          <div style={{ display: "inline-flex", background: "var(--bg-pill)", borderRadius: 8, padding: 2 }}>
             {["weekly", "monthly", "yearly"].map(m => (
               <button key={m} onClick={() => setGranularity(m)} style={{
                 padding: "5px 12px", border: "none", fontSize: "0.72rem", fontWeight: 600,
-                cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase",
-                fontFamily: "'EB Garamond', Georgia, serif",
-                background: granularity === m ? "#005EB8" : "transparent",
-                color: granularity === m ? "#ffffff" : "#2a4a6a",
-                transition: "all 0.15s",
+                cursor: "pointer", textTransform: "uppercase",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                background: granularity === m ? "var(--bg-card)" : "transparent",
+                color: granularity === m ? "var(--text-primary)" : "var(--text-muted)",
+                borderRadius: 6, transition: "all 0.15s",
+                boxShadow: granularity === m ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
               }}>
                 {m}
               </button>
@@ -350,64 +367,65 @@ export default function HistoricalProjectedChart({
 
         {/* Row 2: Historical + Invest/yr */}
         <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: isMobile ? "0.4rem" : "0.8rem", flexWrap: "wrap", rowGap: 6 }}>
-          <span style={{ fontSize: "0.72rem", color: "#2a4a6a", marginRight: 8, fontFamily: "Georgia, serif" }}>
+          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginRight: 8, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
             Historical:
           </span>
           {[{ l: "Off", v: 0 }, { l: "5Y", v: 5 }, { l: "10Y", v: 10 }, { l: "15Y", v: 15 }, { l: "20Y", v: 20 }].map(opt => (
             <button key={opt.v} onClick={() => setHistRange(opt.v)} style={{
-              padding: "4px 10px", border: "1px solid #1a3a5c", cursor: "pointer",
-              fontSize: "0.75rem", fontWeight: 600, fontFamily: "'EB Garamond', Georgia, serif",
-              background: histRange === opt.v ? "#1a7a3a" : "transparent",
-              color: histRange === opt.v ? "#ffffff" : "#2a4a6a",
-              marginRight: -1, transition: "all 0.15s",
+              padding: "4px 10px", border: "none", cursor: "pointer",
+              fontSize: "0.75rem", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif",
+              background: histRange === opt.v ? "var(--green)" : "var(--bg-pill)",
+              color: histRange === opt.v ? "#ffffff" : "var(--text-muted)",
+              borderRadius: 8, marginRight: 4, transition: "all 0.15s",
             }}>
               {opt.l}
             </button>
           ))}
-          <span style={{ fontSize: "0.72rem", color: "#2a4a6a", margin: "0 8px 0 16px", fontFamily: "Georgia, serif" }}>
+          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", margin: "0 8px 0 16px", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
             Invest/yr:
           </span>
           {[{ l: "None", v: 0 }, { l: "$5k", v: 5000 }, { l: "$10k", v: 10000 }, { l: "$25k", v: 25000 }].map(c => (
             <button key={c.v} onClick={() => { setExtraContrib(c.v); setCustomContrib(""); }} style={{
-              padding: "4px 10px", border: "1px solid #1a3a5c", cursor: "pointer",
-              fontSize: "0.75rem", fontWeight: 600, fontFamily: "'EB Garamond', Georgia, serif",
-              background: extraContrib === c.v && !customContrib ? "#005EB8" : "transparent",
-              color: extraContrib === c.v && !customContrib ? "#ffffff" : "#2a4a6a",
-              marginRight: -1, transition: "all 0.15s",
+              padding: "4px 10px", border: "none", cursor: "pointer",
+              fontSize: "0.75rem", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif",
+              background: extraContrib === c.v && !customContrib ? "var(--primary)" : "var(--bg-pill)",
+              color: extraContrib === c.v && !customContrib ? "#ffffff" : "var(--text-muted)",
+              borderRadius: 8, marginRight: 4, transition: "all 0.15s",
             }}>
               {c.l}
             </button>
           ))}
           <input placeholder="Custom" value={customContrib}
             onChange={e => setCustomContrib(e.target.value.replace(/[^0-9]/g, ""))}
-            style={{ width: 60, padding: "4px 8px", fontSize: "0.75rem", background: "transparent",
-              border: "1px solid #1a3a5c", color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif",
-              marginLeft: -1 }}
+            style={{ width: 60, padding: "4px 8px", fontSize: "0.75rem", background: "var(--bg-pill)",
+              border: "none", color: "var(--text-primary)", fontFamily: "'JetBrains Mono', monospace",
+              borderRadius: 8 }}
           />
         </div>
       </div>
 
       {/* ==================== PORTFOLIO VALUE CHART ==================== */}
-      <div style={{ background: "#071020", borderTop: "1px solid #0a1e30" }}>
+      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)" }}>
         {/* Fixed-height tooltip area — prevents jitter */}
         <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 1rem" }}>
           {hovBar ? (
             <div style={{
-              background: "#0a1628", border: "1px solid #1a3a5c", padding: "6px 18px",
+              background: "var(--bg-card)", border: "1px solid var(--border)", padding: "6px 18px",
               display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 2,
+              borderRadius: 8,
             }}>
-              <span style={{ fontSize: "0.75rem", color: "#5a8ab8", fontFamily: "system-ui", fontWeight: 600 }}>
+              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif", fontWeight: 600 }}>
                 {hovBar.fullLabel}
               </span>
-              <span style={{ fontSize: "1rem", color: "#5aaff8", fontWeight: 800, fontFamily: "system-ui" }}>
+              <span style={{ fontSize: "1rem", color: "var(--primary)", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
                 {formatCurrency(hovBar.total)}
               </span>
-              <span style={{ fontSize: "0.68rem", color: "#2a4a6a", fontFamily: "system-ui" }}>
+              <span style={{ fontSize: "0.68rem", color: "var(--text-sub)", fontFamily: "'JetBrains Mono', monospace" }}>
                 No DRIP: {formatCurrency(hovBar.noDrip)} | DRIP +{formatCurrency(hovBar.dripBonus)}
               </span>
             </div>
           ) : (
-            <span style={{ fontSize: "0.5rem", color: "#1a4060", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "system-ui" }}>
+            <span style={{ fontSize: "0.5rem", color: "var(--text-sub)", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               Portfolio Value
             </span>
           )}
@@ -426,8 +444,8 @@ export default function HistoricalProjectedChart({
             const y = mainPadTop + mainChartH * (1 - pct);
             return (
               <g key={pct}>
-                <line x1={padL} y1={y} x2={svgW - padR} y2={y} stroke="#081828" strokeWidth={0.5} />
-                <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="#1a4060" fontFamily="system-ui">
+                <line x1={padL} y1={y} x2={svgW - padR} y2={y} stroke="var(--border)" strokeWidth={0.5} />
+                <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="9" fill="var(--text-sub)" fontFamily="'JetBrains Mono', monospace">
                   {shortMoney(maxVal * pct)}
                 </text>
               </g>
@@ -443,18 +461,16 @@ export default function HistoricalProjectedChart({
             const bonusH = Math.max(0, totalH - noDripH);
             const showStack = bar.isHistorical ? (showDivReturn && bar.dripBonus > 0) : true;
 
-            // Colors: historical = green (base dark, DRIP bright), projected = blue
+            // Colors: historical = green, projected = blue (using CSS vars)
             let bottomFill, topFill;
             if (bar.isHistorical) {
-              if (isHov) { bottomFill = "#b0e8b0"; topFill = "#ffffff"; }
-              else if (hovered != null && i > hovered) { bottomFill = "#0a1a10"; topFill = "#081208"; }
-              else if (hovered != null) { bottomFill = "#1e5a28"; topFill = "#60e850"; }
-              else { bottomFill = "#1e5a28"; topFill = "#60e850"; }
+              if (isHov) { bottomFill = "var(--chart-hist-bright)"; topFill = "var(--text-primary)"; }
+              else if (hovered != null && i > hovered) { bottomFill = "var(--border)"; topFill = "var(--border-dim)"; }
+              else { bottomFill = "var(--chart-hist)"; topFill = "var(--chart-hist-bright)"; }
             } else {
-              if (isHov) { bottomFill = "#c8dff0"; topFill = "#ffffff"; }
-              else if (hovered != null && i > hovered) { bottomFill = "#0f1e30"; topFill = "#0a1520"; }
-              else if (hovered != null) { bottomFill = "#1a3a5c"; topFill = "#3a9aff"; }
-              else { bottomFill = "#1a3a5c"; topFill = "#3a9aff"; }
+              if (isHov) { bottomFill = "var(--chart-proj-bright)"; topFill = "var(--text-primary)"; }
+              else if (hovered != null && i > hovered) { bottomFill = "var(--border)"; topFill = "var(--border-dim)"; }
+              else { bottomFill = "var(--chart-proj)"; topFill = "var(--chart-proj-bright)"; }
             }
 
             const bottomBarH = showStack ? noDripH : totalH;
@@ -471,6 +487,7 @@ export default function HistoricalProjectedChart({
                 <rect x={x} y={mainPadTop + mainChartH - bottomBarH} width={barW} height={bottomBarH}
                   fill={bottomFill}
                   opacity={isHov ? 1 : (hovered != null && i > hovered) ? 0.4 : 0.85}
+                  rx={1}
                 />
                 {/* Top (DRIP bonus / div return) */}
                 {topBarH > 0 && (
@@ -478,6 +495,7 @@ export default function HistoricalProjectedChart({
                     fill={topFill}
                     filter={isHov ? "url(#neonGlow)" : undefined}
                     opacity={isHov ? 1 : (hovered != null && i > hovered) ? 0.4 : 0.9}
+                    rx={1}
                   />
                 )}
               </g>
@@ -486,9 +504,10 @@ export default function HistoricalProjectedChart({
 
           {/* NOW divider */}
           <line x1={nowX} y1={mainPadTop - 8} x2={nowX} y2={mainPadTop + mainChartH + 4}
-            stroke="#5aaff8" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
-          <text x={nowX} y={mainPadTop - 12} textAnchor="middle" fontSize="8" fontWeight="700"
-            fill="#5aaff8" fontFamily="system-ui">NOW</text>
+            stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
+          <rect x={nowX - 16} y={mainPadTop - 22} width={32} height={16} rx={4} fill="var(--primary)" />
+          <text x={nowX} y={mainPadTop - 11} textAnchor="middle" fontSize="8" fontWeight="700"
+            fill="#ffffff" fontFamily="'DM Sans', system-ui, sans-serif">NOW</text>
 
           {/* Hovered bar line */}
           {hovBar && (() => {
@@ -497,7 +516,7 @@ export default function HistoricalProjectedChart({
             const barX = padL + hovered * stepW + stepW / 2;
             return (
               <line x1={barX} y1={mainPadTop} x2={barX} y2={barY}
-                stroke="#5aaff8" strokeWidth={1} strokeDasharray="3,2" opacity={0.5} />
+                stroke="var(--primary)" strokeWidth={1} strokeDasharray="3,2" opacity={0.5} />
             );
           })()}
         </svg>
@@ -513,9 +532,9 @@ export default function HistoricalProjectedChart({
             return (
               <text key={i} x={x} y={13}
                 textAnchor="middle" fontSize={barCount > 60 ? 6 : 7.5}
-                fill={hovered === i ? "#5aaff8" : bar.isCurrent ? "#5aaff8" : "#1a4060"}
+                fill={hovered === i ? "var(--primary)" : bar.isCurrent ? "var(--primary)" : "var(--text-sub)"}
                 fontWeight={hovered === i || bar.isCurrent ? 700 : 400}
-                fontFamily="system-ui">
+                fontFamily="'JetBrains Mono', monospace">
                 {bar.axisLabel}
               </text>
             );
@@ -524,16 +543,16 @@ export default function HistoricalProjectedChart({
       </div>
 
       {/* ==================== DIVIDEND INCOME (INDEPENDENT) ==================== */}
-      <div style={{ background: "#071020", borderTop: "1px solid #1a3a5c", marginTop: 8 }}>
+      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)", marginTop: 8 }}>
         {/* Fixed-height tooltip area */}
         <div style={{ height: 30, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 1rem" }}>
           {divHovBar ? (
-            <span style={{ fontSize: "0.72rem", fontFamily: "system-ui" }}>
-              <span style={{ color: "#1a7a3a" }}>{divHovBar.label}</span>
-              {" "}<span style={{ color: "#2a9a5a", fontWeight: 700 }}>${divHovBar.value.toLocaleString()}</span>
+            <span style={{ fontSize: "0.72rem", fontFamily: "'JetBrains Mono', monospace" }}>
+              <span style={{ color: "var(--chart-hist)" }}>{divHovBar.label}</span>
+              {" "}<span style={{ color: "var(--green)", fontWeight: 700 }}>${divHovBar.value.toLocaleString()}</span>
             </span>
           ) : (
-            <span style={{ fontSize: "0.5rem", color: "#1a4060", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "system-ui" }}>
+            <span style={{ fontSize: "0.5rem", color: "var(--text-sub)", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               Dividend Income
             </span>
           )}
@@ -544,8 +563,8 @@ export default function HistoricalProjectedChart({
             const y = divPadTop + divChartH * (1 - pct);
             return (
               <g key={pct}>
-                <line x1={padL} y1={y} x2={svgW - padR} y2={y} stroke="#081828" strokeWidth={0.5} />
-                <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="8" fill="#1a4060" fontFamily="system-ui">
+                <line x1={padL} y1={y} x2={svgW - padR} y2={y} stroke="var(--border)" strokeWidth={0.5} />
+                <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="8" fill="var(--text-sub)" fontFamily="'JetBrains Mono', monospace">
                   ${Math.round(maxDiv * pct).toLocaleString()}
                 </text>
               </g>
@@ -559,10 +578,10 @@ export default function HistoricalProjectedChart({
             const isHov = divHovered === i;
 
             let fill;
-            if (isHov) fill = "#ffffff";
-            else if (divHovered != null && i > divHovered) fill = "#0f3020";
-            else if (divHovered != null) fill = "#2a9a5a";
-            else fill = bar.isHistorical ? "#1a7a3a" : "#145a2a";
+            if (isHov) fill = "var(--green)";
+            else if (divHovered != null && i > divHovered) fill = "var(--border)";
+            else if (divHovered != null) fill = "var(--chart-hist-bright)";
+            else fill = bar.isHistorical ? "var(--chart-hist)" : "var(--chart-hist)";
 
             return (
               <g key={i}
@@ -575,13 +594,14 @@ export default function HistoricalProjectedChart({
                   fill={fill}
                   filter={isHov ? "url(#neonGlow)" : undefined}
                   opacity={isHov ? 1 : (divHovered != null && i > divHovered) ? 0.4 : 0.85}
+                  rx={1}
                 />
               </g>
             );
           })}
 
           <line x1={nowX} y1={0} x2={nowX} y2={divPadTop + divChartH + 4}
-            stroke="#5aaff8" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
+            stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
 
           {barData.map((bar, i) => {
             if (!bar.axisLabel) return null;
@@ -589,9 +609,9 @@ export default function HistoricalProjectedChart({
             return (
               <text key={i} x={x} y={divH - 4}
                 textAnchor="middle" fontSize={barCount > 60 ? 5 : 7}
-                fill={divHovered === i ? "#2a9a5a" : bar.isCurrent ? "#5aaff8" : "#1a4060"}
+                fill={divHovered === i ? "var(--green)" : bar.isCurrent ? "var(--primary)" : "var(--text-sub)"}
                 fontWeight={divHovered === i || bar.isCurrent ? 700 : 400}
-                fontFamily="system-ui">
+                fontFamily="'JetBrains Mono', monospace">
                 {bar.axisLabel}
               </text>
             );
@@ -602,9 +622,9 @@ export default function HistoricalProjectedChart({
       {/* Footer */}
       <div style={{
         padding: "0.5rem 1.5rem", display: "flex", justifyContent: "flex-end",
-        borderTop: "1px solid #0a1e30",
+        borderTop: "1px solid var(--border)",
       }}>
-        <span style={{ fontSize: "0.63rem", color: "#1a3a58", fontStyle: "italic", fontFamily: "Georgia, serif" }}>
+        <span style={{ fontSize: "0.63rem", color: "var(--text-sub)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
           7% avg return · divs reinvested quarterly
         </span>
       </div>
@@ -612,20 +632,21 @@ export default function HistoricalProjectedChart({
   );
 }
 
-function StatCard({ label, value, sub, color, last, compact }) {
+function StatCard({ label, value, sub, color, last, compact, borderColor }) {
   return (
     <div style={{
-      padding: compact ? "0.5rem 0.5rem" : "1rem 1.2rem", border: "1px solid #1a3a5c",
-      marginRight: last ? 0 : -1, marginBottom: -1,
+      padding: compact ? "0.5rem 0.5rem" : "0.8rem 1rem",
+      background: "var(--bg-pill)", borderRadius: 8,
+      borderLeft: `3px solid ${borderColor || "var(--text-sub)"}`,
     }}>
-      <div style={{ fontSize: compact ? "0.45rem" : "0.55rem", color: "#2a4a6a", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: compact ? "0.2rem" : "0.4rem", fontFamily: "system-ui" }}>
+      <div style={{ fontSize: compact ? "0.45rem" : "0.55rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: compact ? "0.2rem" : "0.35rem", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
         {label}
       </div>
-      <div style={{ fontSize: compact ? "0.95rem" : "1.45rem", fontWeight: 700, color: color || "#c8dff0", lineHeight: 1, fontFamily: "'Playfair Display', Georgia, serif" }}>
+      <div style={{ fontSize: compact ? "0.95rem" : "1.3rem", fontWeight: 700, color: color || "var(--text-primary)", lineHeight: 1, fontFamily: "'JetBrains Mono', monospace" }}>
         {value}
       </div>
       {sub && (
-        <div style={{ fontSize: compact ? "0.6rem" : "0.7rem", color: "#2a4a6a", marginTop: "0.3rem", fontFamily: "Georgia, serif" }}>
+        <div style={{ fontSize: compact ? "0.6rem" : "0.7rem", color: "var(--text-sub)", marginTop: "0.25rem", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
           {sub}
         </div>
       )}
@@ -636,8 +657,8 @@ function StatCard({ label, value, sub, color, last, compact }) {
 function LegendItem({ color, label }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <div style={{ width: 12, height: 8, background: color }} />
-      <span style={{ fontSize: "0.68rem", color: "#5a8ab8", fontFamily: "Georgia, serif" }}>{label}</span>
+      <div style={{ width: 12, height: 8, background: color, borderRadius: 2 }} />
+      <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{label}</span>
     </div>
   );
 }

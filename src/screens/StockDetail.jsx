@@ -303,7 +303,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
         <div>
           <span style={{
             fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)",
-            fontFamily: "'Playfair Display', Georgia, serif",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
           }}>
             {stock.ticker}
           </span>
@@ -370,7 +370,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
 
         return (
           <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", padding: "1.2rem", marginBottom: "1rem" }}>
-            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "1rem" }}>
+            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: "1rem" }}>
               Analyst Consensus
             </div>
 
@@ -381,7 +381,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
                   width: 72, height: 72, borderRadius: "50%", border: `3px solid ${activeZone.color}`,
                   display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 4px",
                 }}>
-                  <span style={{ fontSize: "1.6rem", fontWeight: 800, color: activeZone.color, fontFamily: "'Playfair Display', Georgia, serif" }}>{score}</span>
+                  <span style={{ fontSize: "1.6rem", fontWeight: 800, color: activeZone.color, fontFamily: "'DM Sans', system-ui, sans-serif" }}>{score}</span>
                 </div>
                 <div style={{ fontSize: "0.75rem", fontWeight: 700, color: activeZone.color, marginTop: 2 }}>
                   {activeZone.label}
@@ -666,7 +666,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
           {fd?.valuation && (
             <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)" }}>
               <div style={{ padding: "1.2rem 1.2rem 0" }}>
-                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
                   Valuation
                 </div>
               </div>
@@ -686,7 +686,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
                 ].map((m, i) => (
                   <div key={i} style={{ padding: "0.5rem 0.4rem", borderRight: i % 2 === 0 ? "1px solid var(--border-accent)" : "none" }}>
                     <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.25rem", fontFamily: "system-ui" }}>{m.label}</div>
-                    <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>{m.value || "—"}</div>
+                    <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{m.value || "—"}</div>
                   </div>
                 ))}
               </div>
@@ -695,7 +695,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
 
           {fd?.technicals && fd.technicals.week52High && fd.technicals.week52Low && (
             <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", padding: "1.2rem" }}>
-              <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.8rem" }}>
+              <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: "0.8rem" }}>
                 52-Week Range
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "0.8rem" }}>
@@ -740,7 +740,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
           {fd?.estimates && (fd.estimates.epsCurrentQ || fd.estimates.epsCurrentY) && (
             <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)" }}>
               <div style={{ padding: "1.2rem 1.2rem 0" }}>
-                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
                   Forward Estimates
                 </div>
               </div>
@@ -760,7 +760,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
                 ].map((m, i) => (
                   <div key={i} style={{ padding: "0.5rem 0.4rem", borderRight: i % 2 === 0 ? "1px solid var(--border-accent)" : "none" }}>
                     <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.25rem", fontFamily: "system-ui" }}>{m.label}</div>
-                    <div style={{ fontSize: "0.9rem", fontWeight: 700, color: m.color || "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>{m.value || "—"}</div>
+                    <div style={{ fontSize: "0.9rem", fontWeight: 700, color: m.color || "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{m.value || "—"}</div>
                   </div>
                 ))}
               </div>
@@ -796,7 +796,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
           {/* Institutional */}
           {fd.holders.institutions?.length > 0 && (
             <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", padding: "1.2rem" }}>
-              <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.6rem" }}>
+              <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: "0.6rem" }}>
                 Top Institutional Holders
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -824,7 +824,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
           {/* Funds */}
           {fd.holders.funds?.length > 0 && (
             <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", padding: "1.2rem" }}>
-              <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.6rem" }}>
+              <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: "0.6rem" }}>
                 Top Fund Holders
               </div>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -857,7 +857,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
         <div style={{ marginTop: "1.5rem" }}>
           <div style={{
             fontWeight: 700, fontSize: "1.1rem", color: "var(--text-primary)",
-            fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "0.8rem",
+            fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: "0.8rem",
             borderBottom: "1px solid var(--border-accent)", paddingBottom: "0.5rem",
           }}>
             Fundamentals
@@ -915,10 +915,10 @@ function EarningsSurprisesChart({ surprises, isMobile, compact }) {
   return (
     <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", marginBottom: "1rem" }}>
       <div style={{ padding: "1.2rem 1.2rem 0" }}>
-        <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
+        <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
           Earnings Surprises
         </div>
-        <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", marginTop: 2, fontFamily: "Georgia, serif", fontStyle: "italic" }}>
+        <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", marginTop: 2, fontFamily: "'DM Sans', system-ui, sans-serif", fontStyle: "italic" }}>
           Quarterly EPS actual vs estimate · {data.length} quarters
         </div>
         <div style={{ display: "grid", gridTemplateColumns: `repeat(3, 1fr)`, gap: 0, marginTop: "0.8rem" }}>
@@ -929,7 +929,7 @@ function EarningsSurprisesChart({ surprises, isMobile, compact }) {
           ].map((card, i) => (
             <div key={i} style={{ padding: "0.7rem 0.8rem", border: "1px solid var(--border-accent)", marginRight: i < 2 ? -1 : 0, marginBottom: -1 }}>
               <div style={{ fontSize: "0.5rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.3rem", fontFamily: "system-ui" }}>{card.label}</div>
-              <div style={{ fontSize: "1.15rem", fontWeight: 700, color: card.color, lineHeight: 1, fontFamily: "'Playfair Display', Georgia, serif" }}>{card.value}</div>
+              <div style={{ fontSize: "1.15rem", fontWeight: 700, color: card.color, lineHeight: 1, fontFamily: "'DM Sans', system-ui, sans-serif" }}>{card.value}</div>
             </div>
           ))}
         </div>
@@ -1048,10 +1048,10 @@ function InsiderBarChart({ insiders, isMobile }) {
   return (
     <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-accent)", marginBottom: "1rem" }}>
       <div style={{ padding: "1.2rem 1.2rem 0" }}>
-        <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'Playfair Display', Georgia, serif" }}>
+        <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
           Insider Transactions
         </div>
-        <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", marginTop: 2, fontFamily: "Georgia, serif", fontStyle: "italic" }}>
+        <div style={{ fontSize: "0.7rem", color: "var(--text-dim)", marginTop: 2, fontFamily: "'DM Sans', system-ui, sans-serif", fontStyle: "italic" }}>
           Net buys/sells per month · Last {recent.length} months
         </div>
         <div style={{ display: "flex", gap: 16, marginTop: 8, marginBottom: 4 }}>
