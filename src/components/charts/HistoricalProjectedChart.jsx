@@ -210,25 +210,46 @@ export default function HistoricalProjectedChart({
 
   const { bars: barData, nowBarIndex } = bars;
 
-  // Dividend income bars — use REAL dividend data from KV for historical, growth estimate for projected
+  // Dividend income bars — use REAL dividend data from KV for historical, growth estimate for projected.
+  // KV data may be incomplete (not all tickers have dividend history), so we compute a
+  // scaling factor from the most recent full year to normalize historical bars.
   const divBars = useMemo(() => {
     if (!monthlyData?.length) return [];
     const growthRate = (growth || 5) / 100;
     const isQuarterly = granularity === "quarterly";
 
+    // Compute expected annual income from fundamentals (complete picture)
+    const expectedAnnual = monthlyData.reduce((s, v) => s + v, 0);
+
+    // Find the most recent full year with KV data and compute a scaling factor
+    let divScale = 1;
+    if (realDivByYear && expectedAnnual > 0) {
+      // Check last year first (most likely to be complete), then year before
+      for (const checkYear of [currentYear - 1, currentYear - 2]) {
+        const yd = realDivByYear[checkYear];
+        if (yd && yd.annual > 0) {
+          // What the projected formula would show for that year
+          const yearsBack = currentYear - checkYear;
+          const expectedForYear = expectedAnnual / Math.pow(1 + growthRate, yearsBack);
+          divScale = expectedForYear / yd.annual;
+          break;
+        }
+      }
+    }
+
     return barData.map(bar => {
       let divIncome;
 
-      // For historical bars: use actual dividend payments from KV worker data
-      if (bar.isHistorical && realDivByYear && realDivByYear[bar.year]) {
+      // For historical bars: use actual dividend payments from KV worker data, scaled
+      if (bar.isHistorical && !bar.isCurrent && realDivByYear && realDivByYear[bar.year]) {
         const yearData = realDivByYear[bar.year];
         if (isQuarterly) {
-          divIncome = yearData.quarters[bar.periodIndex] || 0;
+          divIncome = (yearData.quarters[bar.periodIndex] || 0) * divScale;
         } else {
-          divIncome = yearData.months[bar.periodIndex] || 0;
+          divIncome = (yearData.months[bar.periodIndex] || 0) * divScale;
         }
       } else {
-        // Projected or no real data: estimate from current monthlyData with growth
+        // Projected, current year, or no real data: estimate from current monthlyData with growth
         const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
         if (isQuarterly) {
           const qStart = (bar.periodIndex || 0) * 3;
@@ -242,7 +263,7 @@ export default function HistoricalProjectedChart({
 
       return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity, realDivByYear]);
+  }, [barData, monthlyData, growth, granularity, realDivByYear, currentYear]);
 
   // Chart layout
   const padL = isMobile ? 35 : 55;
@@ -291,7 +312,7 @@ export default function HistoricalProjectedChart({
         </div>
 
         {/* Legend */}
-        <div style={{ display: "flex", gap: 16, alignItems: "center", margin: "0.8rem 0 0.6rem" }}>
+        <div style={{ display: "flex", gap: isMobile ? 10 : 16, alignItems: "center", margin: "0.8rem 0 0.6rem", flexWrap: "wrap" }}>
           <LegendItem color="#60e850" label="Div Return" />
           <LegendItem color="#1e5a28" label="Price" />
           <LegendItem color="#3a9aff" label="Proj DRIP" />
@@ -299,14 +320,14 @@ export default function HistoricalProjectedChart({
         </div>
 
         {/* Stat cards: STARTING, CURRENT (DRIP), DRIP ADVANTAGE */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 0, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
-          <StatCard label={`STARTING (${startingYear})`} value={formatCurrency(startingValue)} color="#1a7a3a" />
-          <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="#005EB8" />
-          <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="#5aaff8" last />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
+          <StatCard label={`STARTING (${startingYear})`} value={formatCurrency(startingValue)} color="#1a7a3a" compact={isMobile} />
+          <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="#005EB8" compact={isMobile} />
+          <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="#5aaff8" last compact={isMobile} />
         </div>
 
         {/* Horizon + controls */}
-        <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 0, marginBottom: "0.5rem", flexWrap: "wrap", rowGap: 6 }}>
           {HORIZONS.map(h => (
             <button key={h} onClick={() => setHorizon(h)} style={{
               padding: isMobile ? "4px 8px" : "5px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
@@ -355,12 +376,15 @@ export default function HistoricalProjectedChart({
         </div>
 
         {/* Contribution + volatility */}
-        <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: "0.8rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: isMobile ? "0.4rem" : "0.8rem", flexWrap: "wrap", rowGap: 6 }}>
           <span style={{ fontSize: "0.72rem", color: "#2a4a6a", marginRight: 8, fontFamily: "Georgia, serif" }}>
             + Invest yearly:
           </span>
-          {[{ l: "None", v: 0 }, { l: "$1k", v: 1000 }, { l: "$5k", v: 5000 }, { l: "$10k", v: 10000 },
-            { l: "$20k", v: 20000 }, { l: "$25k", v: 25000 }, { l: "$50k", v: 50000 }].map(c => (
+          {(isMobile
+            ? [{ l: "None", v: 0 }, { l: "$5k", v: 5000 }, { l: "$10k", v: 10000 }, { l: "$25k", v: 25000 }]
+            : [{ l: "None", v: 0 }, { l: "$1k", v: 1000 }, { l: "$5k", v: 5000 }, { l: "$10k", v: 10000 },
+               { l: "$20k", v: 20000 }, { l: "$25k", v: 25000 }, { l: "$50k", v: 50000 }]
+          ).map(c => (
             <button key={c.v} onClick={() => { setExtraContrib(c.v); setCustomContrib(""); }} style={{
               padding: isMobile ? "4px 6px" : "4px 10px", border: "1px solid #1a3a5c", cursor: "pointer",
               fontSize: isMobile ? "0.65rem" : "0.75rem", fontWeight: 600, fontFamily: "'EB Garamond', Georgia, serif",
@@ -377,7 +401,9 @@ export default function HistoricalProjectedChart({
               border: "1px solid #1a3a5c", color: "#c8dff0", fontFamily: "'EB Garamond', Georgia, serif",
               outline: "none", marginLeft: -1 }}
           />
-          <div style={{ flex: 1 }} />
+          {!isMobile && <div style={{ flex: 1 }} />}
+        </div>
+        <div style={{ marginBottom: "0.8rem" }}>
           <button onClick={() => setUseVolatility(v => !v)} style={{
             padding: "4px 12px", border: "1px solid #1a3a5c", cursor: "pointer",
             fontSize: "0.72rem", fontWeight: 600, fontFamily: "Georgia, serif",
@@ -466,6 +492,7 @@ export default function HistoricalProjectedChart({
               <g key={i}
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
+                onClick={() => setHovered(prev => prev === i ? null : i)}
                 style={{ cursor: "pointer" }}
               >
                 {/* Bottom (noDrip / price) */}
@@ -507,6 +534,11 @@ export default function HistoricalProjectedChart({
         <svg width={svgW} height={18} style={{ display: "block" }}>
           {barData.map((bar, i) => {
             if (!bar.axisLabel) return null;
+            // Thin labels when too many bars
+            if (barCount > 400 && bar.periodIndex !== 0) return null;
+            if (barCount > 400 && bar.year % 5 !== 0 && !bar.isCurrent) return null;
+            if (barCount > 150 && bar.periodIndex !== 0) return null;
+            if (barCount > 150 && bar.year % 2 !== 0 && !bar.isCurrent) return null;
             const x = padL + i * stepW + stepW / 2;
             return (
               <text key={i} x={x} y={13}
@@ -566,6 +598,7 @@ export default function HistoricalProjectedChart({
               <g key={i}
                 onMouseEnter={() => setDivHovered(i)}
                 onMouseLeave={() => setDivHovered(null)}
+                onClick={() => setDivHovered(prev => prev === i ? null : i)}
                 style={{ cursor: "pointer" }}
               >
                 <rect x={x} y={y} width={barW} height={barH}
@@ -609,20 +642,20 @@ export default function HistoricalProjectedChart({
   );
 }
 
-function StatCard({ label, value, sub, color, last }) {
+function StatCard({ label, value, sub, color, last, compact }) {
   return (
     <div style={{
-      padding: "1rem 1.2rem", border: "1px solid #1a3a5c",
+      padding: compact ? "0.5rem 0.5rem" : "1rem 1.2rem", border: "1px solid #1a3a5c",
       marginRight: last ? 0 : -1, marginBottom: -1,
     }}>
-      <div style={{ fontSize: "0.55rem", color: "#2a4a6a", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: "0.4rem", fontFamily: "system-ui" }}>
+      <div style={{ fontSize: compact ? "0.45rem" : "0.55rem", color: "#2a4a6a", textTransform: "uppercase", letterSpacing: "0.15em", marginBottom: compact ? "0.2rem" : "0.4rem", fontFamily: "system-ui" }}>
         {label}
       </div>
-      <div style={{ fontSize: "1.45rem", fontWeight: 700, color: color || "#c8dff0", lineHeight: 1, fontFamily: "'Playfair Display', Georgia, serif" }}>
+      <div style={{ fontSize: compact ? "0.95rem" : "1.45rem", fontWeight: 700, color: color || "#c8dff0", lineHeight: 1, fontFamily: "'Playfair Display', Georgia, serif" }}>
         {value}
       </div>
       {sub && (
-        <div style={{ fontSize: "0.7rem", color: "#2a4a6a", marginTop: "0.3rem", fontFamily: "Georgia, serif" }}>
+        <div style={{ fontSize: compact ? "0.6rem" : "0.7rem", color: "#2a4a6a", marginTop: "0.3rem", fontFamily: "Georgia, serif" }}>
           {sub}
         </div>
       )}

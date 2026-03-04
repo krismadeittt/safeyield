@@ -190,7 +190,7 @@ export default function FinancialMetricChart({
             fontSize: "0.5rem", color: "#1a4060", letterSpacing: "0.15em",
             textTransform: "uppercase", fontFamily: "system-ui",
           }}>
-            Hover for details
+            {isMobile ? 'Tap for details' : 'Hover for details'}
           </span>
         )}
       </div>
@@ -257,6 +257,7 @@ export default function FinancialMetricChart({
             <g key={i}
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
+              onClick={() => setHovered(prev => prev === i ? null : i)}
               style={{ cursor: "pointer" }}
             >
               <rect x={x} y={barY} width={barW} height={barH}

@@ -55,7 +55,7 @@ export default function Fundamentals({ fd, loading }) {
           {title}
         </div>
         <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+          display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(120px, 1fr))",
           gap: 8, marginBottom: chartData ? 12 : 0,
         }}>
           {items.map(([label, value]) => (

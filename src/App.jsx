@@ -11,6 +11,12 @@ import HoldingsTable from './components/HoldingsTable';
 import UserMenu from './components/UserMenu';
 import { formatCurrency } from './utils/format';
 
+function shortMoney(val) {
+  if (val >= 1e6) return `$${(val / 1e6).toFixed(2)}M`;
+  if (val >= 1e3) return `$${Math.round(val / 1e3)}k`;
+  return `$${Math.round(val)}`;
+}
+
 export default function App() {
   const { getToken } = useAuth();
   const {
@@ -118,13 +124,13 @@ export default function App() {
         padding: isMobile ? "0 0.75rem" : "0 1.5rem", display: "flex", alignItems: "center",
         justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.5rem" : "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.3rem" : "1.5rem" }}>
           <Logo />
           {["dashboard", "market", "watchlist"].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               background: "none", border: "none", cursor: "pointer",
               color: activeTab === tab ? "#005EB8" : "#2a4a6a",
-              fontSize: "0.85rem", fontFamily: "'EB Garamond', Georgia, serif",
+              fontSize: isMobile ? "0.75rem" : "0.85rem", fontFamily: "'EB Garamond', Georgia, serif",
               fontWeight: activeTab === tab ? 700 : 400,
               transition: "color 0.2s",
             }}>
@@ -144,16 +150,18 @@ export default function App() {
 
         <div style={{ display: "flex", gap: isMobile ? 8 : 16, alignItems: "center" }}>
           <span style={{ color: "#5a8ab0", fontSize: "0.82rem" }}>
-            {formatCurrency(summary.portfolioValue)}
+            {isMobile ? shortMoney(summary.portfolioValue) : formatCurrency(summary.portfolioValue)}
           </span>
-          <span style={{
-            fontSize: "0.6rem", color: "#3a7abd",
-            fontFamily: "'EB Garamond', Georgia, serif",
-            letterSpacing: "0.15em", textTransform: "uppercase",
-            position: "relative", overflow: "hidden", display: "inline-block",
-          }} className="live-sweep">
-            Live Data
-          </span>
+          {!isMobile && (
+            <span style={{
+              fontSize: "0.6rem", color: "#3a7abd",
+              fontFamily: "'EB Garamond', Georgia, serif",
+              letterSpacing: "0.15em", textTransform: "uppercase",
+              position: "relative", overflow: "hidden", display: "inline-block",
+            }} className="live-sweep">
+              Live Data
+            </span>
+          )}
           <UserMenu getToken={getToken} />
         </div>
       </nav>

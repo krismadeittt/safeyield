@@ -174,6 +174,9 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     return { noDripVals: zeros, dripVals: zeros, contribVals: null };
   }
 
+  const marketVol = 0.16;
+  const NUM_SIMS = 200;
+
   // Build initial per-stock state
   function initStocks() {
     return holdings.map(h => {
@@ -182,6 +185,8 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
       const yld = (live?.divYield ?? h.yld ?? 0) / 100;
       const divPerShare = live?.annualDiv ?? h.div ?? 0;
       const g5 = Math.max(0, Math.min((h.g5 ?? 5), 20)) / 100;
+      const beta = live?.beta ?? 1.0;
+      const sigma = Math.max(0.12, Math.abs(beta) * marketVol);
 
       // Gordon model: expected total return ≈ yield + dividend growth
       const expectedReturn = Math.max(0.02, Math.min(yld + g5, 0.25));
@@ -194,6 +199,7 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
         divPerShare,
         g5,
         priceGrowthRate,
+        sigma,
       };
     });
   }
@@ -202,65 +208,81 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     return Math.round(stocks.reduce((s, st) => s + st.shares * st.price, 0));
   }
 
-  const noDripStocks = initStocks();
-  const dripStocks = initStocks();
-  const contribStocks = extraContrib > 0 ? initStocks() : null;
+  // Run a single simulation path for a given scenario
+  function runPath(simRng, scenario) {
+    const stocks = initStocks();
+    const vals = [totalValue(stocks)];
 
-  const noDripVals = [totalValue(noDripStocks)];
-  const dripVals = [totalValue(dripStocks)];
-  const contribVals = contribStocks ? [totalValue(contribStocks)] : null;
-
-  for (let year = 1; year <= horizon; year++) {
-    // Generate per-stock price returns (same for ALL scenarios — market doesn't
-    // care whether the investor reinvests dividends)
-    const priceReturns = noDripStocks.map(st => {
-      if (useVolatility && rng) {
-        const vol = 0.22;
-        const drift = st.priceGrowthRate - 0.5 * vol * vol;
-        return Math.max(Math.exp(drift + vol * boxMuller(rng)) - 1, -0.5);
-      }
-      return st.priceGrowthRate;
-    });
-
-    // --- NO DRIP: price grows, dividends taken as cash ---
-    noDripStocks.forEach((st, i) => {
-      st.divPerShare *= (1 + st.g5);
-      st.price = Math.max(0, st.price * (1 + priceReturns[i]));
-    });
-    noDripVals.push(totalValue(noDripStocks));
-
-    // --- DRIP: dividends reinvested quarterly into same stock ---
-    dripStocks.forEach((st, i) => {
-      st.divPerShare *= (1 + st.g5);
-      // Quarterly DRIP before price move
-      for (let q = 0; q < 4; q++) {
-        const qDiv = st.shares * st.divPerShare / 4;
-        if (st.price > 0) st.shares += qDiv / st.price;
-      }
-      st.price = Math.max(0, st.price * (1 + priceReturns[i]));
-    });
-    dripVals.push(totalValue(dripStocks));
-
-    // --- DRIP + CONTRIBUTIONS ---
-    if (contribStocks) {
-      // Distribute annual contribution proportionally by current value
-      const totalV = contribStocks.reduce((s, st) => s + st.shares * st.price, 0);
-      contribStocks.forEach(st => {
-        const weight = totalV > 0 ? (st.shares * st.price) / totalV : 1 / contribStocks.length;
-        if (st.price > 0) st.shares += (extraContrib * weight) / st.price;
+    for (let year = 1; year <= horizon; year++) {
+      // Generate per-stock price returns
+      const priceReturns = stocks.map(st => {
+        if (simRng) {
+          const drift = Math.log(1 + st.priceGrowthRate) - 0.5 * st.sigma * st.sigma;
+          return Math.max(Math.exp(drift + st.sigma * boxMuller(simRng)) - 1, -0.30);
+        }
+        return st.priceGrowthRate;
       });
 
-      contribStocks.forEach((st, i) => {
+      if (scenario === 'contrib') {
+        // Distribute annual contribution proportionally by current value
+        const totalV = stocks.reduce((s, st) => s + st.shares * st.price, 0);
+        stocks.forEach(st => {
+          const weight = totalV > 0 ? (st.shares * st.price) / totalV : 1 / stocks.length;
+          if (st.price > 0) st.shares += (extraContrib * weight) / st.price;
+        });
+      }
+
+      stocks.forEach((st, i) => {
         st.divPerShare *= (1 + st.g5);
-        for (let q = 0; q < 4; q++) {
-          const qDiv = st.shares * st.divPerShare / 4;
-          if (st.price > 0) st.shares += qDiv / st.price;
+        if (scenario === 'drip' || scenario === 'contrib') {
+          for (let q = 0; q < 4; q++) {
+            const qDiv = st.shares * st.divPerShare / 4;
+            if (st.price > 0) st.shares += qDiv / st.price;
+          }
         }
         st.price = Math.max(0, st.price * (1 + priceReturns[i]));
       });
-      contribVals.push(totalValue(contribStocks));
+      vals.push(totalValue(stocks));
     }
+    return vals;
   }
 
-  return { noDripVals, dripVals, contribVals };
+  // When volatility is off, run a single deterministic path (same as before)
+  if (!useVolatility) {
+    const noDripVals = runPath(null, 'nodrip');
+    const dripVals = runPath(null, 'drip');
+    const contribVals = extraContrib > 0 ? runPath(null, 'contrib') : null;
+    return { noDripVals, dripVals, contribVals };
+  }
+
+  // Monte Carlo: run NUM_SIMS paths, take mean per year.
+  // Mean converges to the true expected value (matching the deterministic path)
+  // while median of log-normal is systematically lower due to right-skew.
+  const noDripAll = [];   // [sim][year]
+  const dripAll = [];
+  const contribAll = extraContrib > 0 ? [] : null;
+
+  for (let sim = 0; sim < NUM_SIMS; sim++) {
+    const seed = 42 + sim * 7919;
+    // Each scenario gets its own RNG seeded identically so price returns are
+    // consistent across noDrip/drip/contrib for the same simulation
+    noDripAll.push(runPath(seededPRNG(seed), 'nodrip'));
+    dripAll.push(runPath(seededPRNG(seed), 'drip'));
+    if (contribAll) contribAll.push(runPath(seededPRNG(seed), 'contrib'));
+  }
+
+  function meanAcrossSims(allPaths) {
+    const result = [];
+    for (let y = 0; y <= horizon; y++) {
+      const sum = allPaths.reduce((s, p) => s + p[y], 0);
+      result.push(Math.round(sum / allPaths.length));
+    }
+    return result;
+  }
+
+  return {
+    noDripVals: meanAcrossSims(noDripAll),
+    dripVals: meanAcrossSims(dripAll),
+    contribVals: contribAll ? meanAcrossSims(contribAll) : null,
+  };
 }

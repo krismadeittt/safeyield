@@ -122,6 +122,7 @@ export default function usePortfolio(getToken) {
                 fcfPayout,
                 g5: fd.g5 ?? merged[ticker]?.g5 ?? null,
                 streak: fd.streak ?? merged[ticker]?.streak ?? null,
+                beta: fd.beta ?? merged[ticker]?.beta ?? null,
               };
             }
           }
@@ -243,6 +244,7 @@ export default function usePortfolio(getToken) {
             fcfPayout,
             g5: fd.g5 ?? merged[ticker]?.g5 ?? null,
             streak: fd.streak ?? merged[ticker]?.streak ?? null,
+            beta: fd.beta ?? merged[ticker]?.beta ?? null,
           };
         }
         return merged;
