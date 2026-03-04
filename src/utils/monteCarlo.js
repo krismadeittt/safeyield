@@ -39,14 +39,14 @@ export function boxMuller(rng) {
  * @param {number} extraContrib - Annual extra contribution ($)
  * @param {boolean} useVolatility - Enable Monte Carlo noise
  * @param {Function|null} rng - PRNG function (required if useVolatility)
- * @param {number} periodsPerYear - Sub-annual resolution (1=yearly, 12=monthly, 52=weekly)
- * @returns {{ noDripVals: number[], dripVals: number[], contribVals: number[]|null }}
+ * @returns {{ noDripVals: number[], dripVals: number[], contribVals: number[]|null, divIncomePerYear: number[]|null, simPeriodsPerYear: number }}
  */
-export function projectPortfolioPerStock(horizon, holdings, liveData, extraContrib, useVolatility, rng, periodsPerYear = 1) {
+export function projectPortfolioPerStock(horizon, holdings, liveData, extraContrib, useVolatility, rng) {
   if (!holdings?.length) {
-    const len = useVolatility ? horizon * periodsPerYear + 1 : horizon + 1;
+    const simPPY = useVolatility ? 12 : 1;
+    const len = horizon * simPPY + 1;
     const zeros = new Array(len).fill(0);
-    return { noDripVals: zeros, dripVals: zeros, contribVals: null };
+    return { noDripVals: zeros, dripVals: zeros, contribVals: null, divIncomePerYear: new Array(horizon).fill(0), simPeriodsPerYear: simPPY };
   }
 
   const marketVol = 0.20;
@@ -96,6 +96,7 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     let cashDividends = 0;
     const vals = [totalValue(stocks, 0)];
     const totalPeriods = priceReturnsMatrix.length;
+    const divIncomePerYear = new Array(Math.ceil(totalPeriods / ppy)).fill(0);
 
     // Dividend payment schedule: up to 4 times per year (quarterly)
     const divEventsPerYear = Math.min(4, ppy);
@@ -130,18 +131,21 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
       // Pay dividends at quarter boundaries
       const isDivEvent = (periodInYear + 1) % periodsPerDivEvent === 0;
       if (isDivEvent) {
+        let periodDivTotal = 0;
         stocks.forEach(st => {
           // Cap effective yield at 15%
           if (st.price > 0 && st.divPerShare > st.price * 0.15) {
             st.divPerShare = st.price * 0.15;
           }
           const qDiv = st.shares * st.divPerShare / 4 * quartersPerEvent;
+          periodDivTotal += qDiv;
           if (scenario === 'drip' || scenario === 'contrib') {
             if (st.price > 0) st.shares += qDiv / st.price;
           } else {
             cashDividends += qDiv;
           }
         });
+        divIncomePerYear[Math.floor(t / ppy)] += periodDivTotal;
       }
 
       // End of year: dividend stress + dividend growth
@@ -162,7 +166,7 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
       const periodVal = totalValue(stocks, scenario === 'nodrip' ? cashDividends : 0);
       vals.push(Math.min(periodVal, 1e11));
     }
-    return vals;
+    return { vals, divIncomePerYear };
   }
 
   // Generate correlated GBM price returns for all stocks at sub-annual frequency.
@@ -203,23 +207,26 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     for (let year = 0; year < horizon; year++) {
       detReturns.push(template.map(st => st.priceGrowthRate));
     }
-    const noDripVals = runPath(detReturns, 'nodrip', false, 1);
-    const dripVals = runPath(detReturns, 'drip', false, 1);
-    const contribVals = extraContrib > 0 ? runPath(detReturns, 'contrib', false, 1) : null;
-    return { noDripVals, dripVals, contribVals };
+    const noDrip = runPath(detReturns, 'nodrip', false, 1);
+    const drip = runPath(detReturns, 'drip', false, 1);
+    const contrib = extraContrib > 0 ? runPath(detReturns, 'contrib', false, 1) : null;
+    // Use divIncomePerYear from the drip/contrib path (reflects DRIP share accumulation)
+    const divSource = contrib || drip;
+    return { noDripVals: noDrip.vals, dripVals: drip.vals, contribVals: contrib?.vals ?? null, divIncomePerYear: divSource.divIncomePerYear, simPeriodsPerYear: 1 };
   }
 
   // --- Real World mode: single realistic path (fixed seed) ---
-  // A single simulation shows actual period-to-period volatility: drawdowns,
-  // recoveries, choppy returns.  The fixed seed keeps the chart stable
-  // across re-renders while still looking "bumpy" and realistic.
+  // Always simulate at monthly resolution (simPPY=12) regardless of display granularity.
+  // This ensures the PRNG always consumes the same sequence → stable path across granularity toggles.
+  const simPPY = 12;
   const simRng = seededPRNG(42);
-  const priceReturnsMatrix = generatePriceReturns(simRng, periodsPerYear);
+  const priceReturnsMatrix = generatePriceReturns(simRng, simPPY);
 
   // divStress=true enables dividend cuts during bad years
-  const noDripVals = runPath(priceReturnsMatrix, 'nodrip', true, periodsPerYear);
-  const dripVals = runPath(priceReturnsMatrix, 'drip', true, periodsPerYear);
-  const contribVals = extraContrib > 0 ? runPath(priceReturnsMatrix, 'contrib', true, periodsPerYear) : null;
+  const noDrip = runPath(priceReturnsMatrix, 'nodrip', true, simPPY);
+  const drip = runPath(priceReturnsMatrix, 'drip', true, simPPY);
+  const contrib = extraContrib > 0 ? runPath(priceReturnsMatrix, 'contrib', true, simPPY) : null;
+  const divSource = contrib || drip;
 
-  return { noDripVals, dripVals, contribVals };
+  return { noDripVals: noDrip.vals, dripVals: drip.vals, contribVals: contrib?.vals ?? null, divIncomePerYear: divSource.divIncomePerYear, simPeriodsPerYear: simPPY };
 }

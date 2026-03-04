@@ -12,6 +12,7 @@ export default function HistoricalProjectedChart({
   useVolatility, setUseVolatility,
   extraContrib, setExtraContrib, customContrib, setCustomContrib,
   noDripVals, dripVals, contribVals,
+  divIncomePerYear, simPeriodsPerYear,
   totalIncome,
   monthlyData, holdings,
   expanded, setExpanded,
@@ -155,23 +156,29 @@ export default function HistoricalProjectedChart({
 
     const nowBarIndex = result.length - 1;
 
-    // --- PROJECTED --- (Real World: direct index; Deterministic: interpolate)
+    // --- PROJECTED --- (simulation arrays are at simPPY resolution; interpolate to display)
+    const simPPY = simPeriodsPerYear || 1;
+    const displayPPY = periodsPerYear;
     for (let yr = 1; yr <= projYears; yr++) {
-      for (let p = 0; p < periodsPerYear; p++) {
+      for (let p = 0; p < displayPPY; p++) {
         let interpNoDrip, interpDrip;
 
-        if (useVolatility && periodsPerYear > 1) {
-          // Real World: arrays are already at sub-annual granularity — index directly
-          const idx = (yr - 1) * periodsPerYear + p + 1;
-          interpNoDrip = noDripVals?.[idx] || portfolioValue;
-          interpDrip = contribVals ? (contribVals[idx] || portfolioValue) : (dripVals?.[idx] || portfolioValue);
+        if (useVolatility) {
+          // MC arrays are at simPPY (12/yr) resolution. Interpolate to display resolution.
+          const fractionalSimIdx = (yr - 1) * simPPY + ((p + 1) / displayPPY) * simPPY;
+          const lo = Math.floor(fractionalSimIdx);
+          const hi = Math.min(lo + 1, (noDripVals?.length || 1) - 1);
+          const frac = fractionalSimIdx - lo;
+          interpNoDrip = Math.round((noDripVals?.[lo] || portfolioValue) + ((noDripVals?.[hi] || portfolioValue) - (noDripVals?.[lo] || portfolioValue)) * frac);
+          const dripArr = contribVals || dripVals;
+          interpDrip = Math.round((dripArr?.[lo] || portfolioValue) + ((dripArr?.[hi] || portfolioValue) - (dripArr?.[lo] || portfolioValue)) * frac);
         } else {
-          // Deterministic (or yearly Real World): interpolate between yearly values
+          // Deterministic: arrays are yearly (simPPY=1), interpolate to display resolution
           const noDripVal = noDripVals?.[yr] || portfolioValue;
           const dripVal = contribVals ? (contribVals[yr] || portfolioValue) : (dripVals?.[yr] || portfolioValue);
           const prevNoDrip = noDripVals?.[yr - 1] || portfolioValue;
           const prevDrip = contribVals ? (contribVals[yr - 1] || portfolioValue) : (dripVals?.[yr - 1] || portfolioValue);
-          const t = (p + 1) / periodsPerYear;
+          const t = (p + 1) / displayPPY;
           interpNoDrip = Math.round(prevNoDrip + (noDripVal - prevNoDrip) * t);
           interpDrip = Math.round(prevDrip + (dripVal - prevDrip) * t);
         }
@@ -200,7 +207,7 @@ export default function HistoricalProjectedChart({
     }
 
     return { bars: result, nowBarIndex };
-  }, [portfolioValue, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears, useVolatility]);
+  }, [portfolioValue, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears, useVolatility, simPeriodsPerYear]);
 
   const { bars: barData, nowBarIndex } = bars;
 
@@ -246,21 +253,26 @@ export default function HistoricalProjectedChart({
         const key = getPeriodKey(bar.date);
         divIncome = (realDivByPeriod[key] || 0) * divScale;
       } else {
-        // Projected / current: estimate from fundamentals with growth
-        const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
-        if (granularity === 'yearly') {
-          divIncome = expectedAnnual;
-        } else if (granularity === 'monthly') {
-          divIncome = monthlyData[bar.periodIndex || 0] || 0;
+        // Projected / current: use simulation dividend data when available
+        const displayPeriodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
+        const yearIdx = (bar.yearsFromNow || 1) - 1;
+        if (bar.isCurrent || bar.yearsFromNow === 0) {
+          // "Now" bar: use current expected annual, spread across display period
+          divIncome = expectedAnnual / displayPeriodsPerYear;
+        } else if (divIncomePerYear && yearIdx >= 0 && yearIdx < divIncomePerYear.length) {
+          // Use simulation dividends (reflects MC volatility + dividend stress)
+          const annualDiv = divIncomePerYear[yearIdx];
+          divIncome = annualDiv / displayPeriodsPerYear;
         } else {
-          divIncome = expectedAnnual / 52;
+          // Fallback: static growth estimate
+          const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
+          divIncome = (expectedAnnual / displayPeriodsPerYear) * growthFactor;
         }
-        divIncome = divIncome * growthFactor;
       }
 
       return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear]);
+  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear]);
 
   // Chart layout
   const padL = isMobile ? 35 : 55;

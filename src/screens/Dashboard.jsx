@@ -26,17 +26,13 @@ export default function Dashboard({
   const avgYield = weightedYield ?? 0;
   const growth = weightedGrowth;
 
-  // Map granularity to sub-annual periods: Real World simulates at chart resolution
-  const periodsPerYear = useVolatility
-    ? (granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1)
-    : 1;
-
   // Per-stock projection: each holding compounds with its own yield, g5, and expected return
+  // Simulation always runs at fixed resolution (monthly for Real World) — decoupled from display granularity
   const projections = useMemo(() =>
-    projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng, periodsPerYear),
-  [horizon, holdings, liveData, contrib, useVolatility, periodsPerYear]);
+    projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng),
+  [horizon, holdings, liveData, contrib, useVolatility]);
 
-  const { noDripVals, dripVals, contribVals } = projections;
+  const { noDripVals, dripVals, contribVals, divIncomePerYear, simPeriodsPerYear } = projections;
 
   // Monthly income data — uses live dividend rates via liveData
   const monthlyData = useMemo(() => calcMonthlyIncome(holdings, liveData), [holdings, liveData]);
@@ -107,6 +103,8 @@ export default function Dashboard({
             noDripVals={noDripVals}
             dripVals={dripVals}
             contribVals={contribVals}
+            divIncomePerYear={divIncomePerYear}
+            simPeriodsPerYear={simPeriodsPerYear}
             totalIncome={totalIncome}
             monthlyData={monthlyData}
             holdings={holdings}
