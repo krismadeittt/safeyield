@@ -1,5 +1,5 @@
 const QUOTE_TTL = 5 * 60000;        // 5 minutes
-const FUNDAMENTALS_TTL = 60 * 60000; // 60 minutes
+const FUNDAMENTALS_TTL = 6 * 60 * 60000; // 6 hours
 
 const quoteCache = {};
 const fundamentalsCache = {};

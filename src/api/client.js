@@ -35,3 +35,29 @@ export async function apiFetch(path, timeout = 10000) {
   }
   throw lastError;
 }
+
+/**
+ * Authenticated fetch wrapper — attaches Bearer token from Clerk.
+ * @param {Function} getToken - Clerk's getToken() from useAuth()
+ * @param {string} path - API path (e.g. "/user/holdings")
+ * @param {object} options - fetch options (method, body, etc.)
+ */
+export async function authFetch(getToken, path, options = {}) {
+  const token = await getToken();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers,
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers,
+    signal: AbortSignal.timeout(options.timeout || 15000),
+  });
+  if (!response.ok) {
+    throw new Error(`API ${response.status}`);
+  }
+  return response.json();
+}

@@ -97,8 +97,11 @@ export default function StockDetail({ stock, live, loading, onBack }) {
   const price = data.price || 0;
   const yld = data.divYield ?? stock.yld ?? 0;
   const annualDiv = data.annualDiv ?? stock.div ?? 0;
-  const payout = data.payout ?? stock.payout ?? null;
-  const g5 = stock.g5 ?? 5;
+  const rawPayout = data.payout ?? fd?.payout ?? stock.payout ?? null;
+  const fcfPayout = fd?.fcfPayout ?? null;
+  const payout = (rawPayout != null && rawPayout <= 100) ? rawPayout
+    : (fcfPayout != null) ? fcfPayout : rawPayout;
+  const g5 = live?.g5 ?? fd?.g5 ?? stock.g5 ?? 0;
   const taxClass = getTaxClass(stock.ticker);
 
   // Fetch fundamentals + real history in parallel

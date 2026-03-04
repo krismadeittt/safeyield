@@ -1,32 +1,55 @@
 import React, { useRef } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import usePortfolio from './hooks/usePortfolio';
 import useIsMobile from './hooks/useIsMobile';
 import Onboarding from './screens/Onboarding';
 import Dashboard from './screens/Dashboard';
 import StockDetail from './screens/StockDetail';
 import MarketBrowser from './screens/MarketBrowser';
+import WatchlistScreen from './screens/WatchlistScreen';
 import HoldingsTable from './components/HoldingsTable';
+import UserMenu from './components/UserMenu';
 import { formatCurrency } from './utils/format';
 
 export default function App() {
+  const { getToken } = useAuth();
   const {
-    isOnboarding, activeTab, setActiveTab,
-    holdings, prePrices, pricesLoading, detailView, setDetailView,
+    isOnboarding, isLoadingSaved, activeTab, setActiveTab,
+    holdings, prePrices, pricesLoading, preloadStrategyPrices, detailView, setDetailView,
     liveData, loadingStates, searchQuery, setSearchQuery,
     showAddModal, setShowAddModal,
     addTicker, setAddTicker, addResults, addShares, setAddShares,
     addYield, setAddYield, isAdding,
     handleLoad, addStock, removeStock, editShares, selectStock,
     pickTicker,
-    summary,
-  } = usePortfolio();
+    summary, resetPortfolio,
+    watchlist, addWatch, removeWatch, isWatched,
+  } = usePortfolio(getToken);
 
   const sharesInputRef = useRef(null);
   const isMobile = useIsMobile();
 
+  // Loading saved data
+  if (isLoadingSaved) {
+    return (
+      <div style={{
+        fontFamily: "Georgia, serif", background: "#020817", minHeight: "100vh",
+        color: "#c8dff0", display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{
+            width: 9, height: 9, background: "#005EB8",
+            boxShadow: "0 0 8px #10b981", margin: "0 auto 16px",
+          }} />
+          <div style={{ color: "#2a4a6a", fontSize: "0.9rem" }}>Loading your portfolio...</div>
+        </div>
+      </div>
+    );
+  }
+
   // Onboarding screen
   if (isOnboarding) {
-    return <Onboarding onLoad={handleLoad} prePrices={prePrices} preLoading={pricesLoading} />;
+    return <Onboarding onLoad={handleLoad} prePrices={prePrices} preLoading={pricesLoading} preloadPrices={preloadStrategyPrices} />;
   }
 
   // Stock detail view
@@ -48,9 +71,26 @@ export default function App() {
               ← Back
             </button>
           </div>
-          <span style={{ color: "#5a8ab0", fontSize: "0.82rem" }}>
-            {formatCurrency(summary.portfolioValue)}
-          </span>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            {/* Watch button in detail nav */}
+            <button
+              onClick={() => isWatched(detailView.ticker)
+                ? removeWatch(detailView.ticker)
+                : addWatch(detailView.ticker, detailView.name || detailView.ticker)
+              }
+              style={{
+                background: "none", border: "1px solid #1a3a5c",
+                color: isWatched(detailView.ticker) ? "#005EB8" : "#5a8ab0",
+                padding: "4px 10px", cursor: "pointer", fontSize: "0.7rem",
+                fontFamily: "'EB Garamond', Georgia, serif",
+              }}
+            >
+              {isWatched(detailView.ticker) ? "Watching" : "Watch"}
+            </button>
+            <span style={{ color: "#5a8ab0", fontSize: "0.82rem" }}>
+              {formatCurrency(summary.portfolioValue)}
+            </span>
+          </div>
         </nav>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: isMobile ? "1rem 0.75rem" : "2rem 1.5rem" }}>
           <StockDetail
@@ -58,6 +98,11 @@ export default function App() {
             live={liveData[detailView.ticker]}
             loading={loadingStates[detailView.ticker]}
             onBack={() => setDetailView(null)}
+            isWatched={isWatched(detailView.ticker)}
+            onToggleWatch={() => isWatched(detailView.ticker)
+              ? removeWatch(detailView.ticker)
+              : addWatch(detailView.ticker, detailView.name || detailView.ticker)
+            }
           />
         </div>
       </div>
@@ -73,9 +118,9 @@ export default function App() {
         padding: isMobile ? "0 0.75rem" : "0 1.5rem", display: "flex", alignItems: "center",
         justifyContent: "space-between", height: 56, position: "sticky", top: 0, zIndex: 100,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.75rem" : "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? "0.5rem" : "1.5rem" }}>
           <Logo />
-          {["dashboard", "market"].map(tab => (
+          {["dashboard", "market", "watchlist"].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               background: "none", border: "none", cursor: "pointer",
               color: activeTab === tab ? "#005EB8" : "#2a4a6a",
@@ -86,9 +131,18 @@ export default function App() {
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
+          <button onClick={() => {
+            if (window.confirm("Reset portfolio and return to strategy selection?")) resetPortfolio();
+          }} style={{
+            background: "none", border: "none", cursor: "pointer",
+            color: "#2a4a6a", fontSize: "0.75rem",
+            fontFamily: "'EB Garamond', Georgia, serif",
+          }}>
+            Reset
+          </button>
         </div>
 
-        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: isMobile ? 8 : 16, alignItems: "center" }}>
           <span style={{ color: "#5a8ab0", fontSize: "0.82rem" }}>
             {formatCurrency(summary.portfolioValue)}
           </span>
@@ -100,6 +154,7 @@ export default function App() {
           }} className="live-sweep">
             Live Data
           </span>
+          <UserMenu getToken={getToken} />
         </div>
       </nav>
 
@@ -139,6 +194,25 @@ export default function App() {
               setShowAddModal(true);
             }}
             holdings={holdings}
+            onWatch={addWatch}
+            onUnwatch={removeWatch}
+            isWatched={isWatched}
+          />
+        )}
+
+        {/* Watchlist tab */}
+        {activeTab === "watchlist" && (
+          <WatchlistScreen
+            watchlist={watchlist}
+            liveData={liveData}
+            onSelect={selectStock}
+            onRemove={removeWatch}
+            onAdd={stock => {
+              setAddTicker(stock.ticker);
+              setShowAddModal(true);
+            }}
+            onWatch={addWatch}
+            isWatched={isWatched}
           />
         )}
       </div>

@@ -11,6 +11,13 @@ export async function fetchQuote(ticker) {
 }
 
 /**
+ * Fetch price-only data (no fundamentals) for a single ticker.
+ */
+export async function fetchPriceOnly(ticker) {
+  return (await apiFetch(`/price?symbol=${ticker}`))?.result || null;
+}
+
+/**
  * Batch fetch real-time prices for multiple tickers.
  */
 export async function fetchBatchPrices(tickers) {

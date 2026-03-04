@@ -15,7 +15,7 @@ const SECTORS = [
 
 const PAGE_SIZE = 50;
 
-export default function MarketBrowser({ onSelect, liveData, onAdd, holdings }) {
+export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onWatch, onUnwatch, isWatched }) {
   const isMobile = useIsMobile();
   const [search, setSearch] = useState("");
   const [sector, setSector] = useState("All");
@@ -177,17 +177,32 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings }) {
                       <span style={{ fontWeight: 700, color: "#5aaff8", fontSize: "0.95rem" }}>{stock.ticker}</span>
                       <span style={{ color: "#7a9ab8", fontSize: "0.7rem", marginLeft: 8 }}>${stock.cap}B</span>
                     </div>
-                    {inPortfolio ? (
-                      <span style={{ color: "#00cc66", fontSize: "0.7rem" }}>In Portfolio</span>
-                    ) : (
-                      <button onClick={e => { e.stopPropagation(); onAdd(stock); }} style={{
-                        background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
-                        padding: "6px 14px", cursor: "pointer", fontSize: "0.75rem",
-                        minHeight: 44,
-                      }}>
-                        + Add
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {inPortfolio ? (
+                        <span style={{ color: "#00cc66", fontSize: "0.7rem" }}>In Portfolio</span>
+                      ) : (
+                        <button onClick={e => { e.stopPropagation(); onAdd(stock); }} style={{
+                          background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
+                          padding: "6px 14px", cursor: "pointer", fontSize: "0.75rem",
+                          minHeight: 44,
+                        }}>
+                          + Add
+                        </button>
+                      )}
+                      {isWatched && (
+                        <button onClick={e => {
+                          e.stopPropagation();
+                          isWatched(stock.ticker) ? onUnwatch?.(stock.ticker) : onWatch?.(stock.ticker, stock.name);
+                        }} style={{
+                          background: "none", border: "1px solid #0a1e30",
+                          color: isWatched(stock.ticker) ? "#005EB8" : "#2a4a6a",
+                          padding: "6px 10px", cursor: "pointer", fontSize: "0.7rem",
+                          minHeight: 44,
+                        }}>
+                          {isWatched(stock.ticker) ? "Watching" : "Watch"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {/* Company name */}
                   <div style={{ fontSize: "0.7rem", color: "#7a9ab8", marginBottom: 8 }}>{stock.name}</div>
@@ -255,16 +270,30 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings }) {
                       <td>{stock.streak > 0 ? `${stock.streak}yr` : "—"}</td>
                       <td style={{ fontSize: "0.75rem", color: "#7a9ab8" }}>{stock.sector}</td>
                       <td>
-                        {inPortfolio ? (
-                          <span style={{ color: "#00cc66", fontSize: "0.7rem" }}>In Portfolio</span>
-                        ) : (
-                          <button onClick={e => { e.stopPropagation(); onAdd(stock); }} style={{
-                            background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
-                            padding: "3px 10px", cursor: "pointer", fontSize: "0.7rem",
-                          }}>
-                            + Add
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {inPortfolio ? (
+                            <span style={{ color: "#00cc66", fontSize: "0.7rem" }}>In Portfolio</span>
+                          ) : (
+                            <button onClick={e => { e.stopPropagation(); onAdd(stock); }} style={{
+                              background: "none", border: "1px solid #0a1e30", color: "#5aaff8",
+                              padding: "3px 10px", cursor: "pointer", fontSize: "0.7rem",
+                            }}>
+                              + Add
+                            </button>
+                          )}
+                          {isWatched && (
+                            <button onClick={e => {
+                              e.stopPropagation();
+                              isWatched(stock.ticker) ? onUnwatch?.(stock.ticker) : onWatch?.(stock.ticker, stock.name);
+                            }} style={{
+                              background: "none", border: "1px solid #0a1e30",
+                              color: isWatched(stock.ticker) ? "#005EB8" : "#2a4a6a",
+                              padding: "3px 8px", cursor: "pointer", fontSize: "0.65rem",
+                            }}>
+                              {isWatched(stock.ticker) ? "Watching" : "Watch"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

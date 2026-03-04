@@ -1,14 +1,39 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { fetchBatchUpdate, fetchEnrichedQuote } from '../api/quotes';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { fetchBatchUpdate, fetchEnrichedQuote, fetchPriceOnly } from '../api/quotes';
 import { fetchBatchFundamentals } from '../api/fundamentals';
+import { getCachedFundamentals } from '../api/cache';
 import { searchTickers } from '../api/search';
 import { REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE } from '../data/portfolioTemplates';
-import { getAllTemplateTickers } from '../utils/portfolio';
+import { NOBL_HOLDINGS } from '../data/aristocrats';
+import { getUserHoldings, saveUserHoldings, getUserProfile, updateUserProfile, getUserWatchlist, addToUserWatchlist, removeFromUserWatchlist } from '../api/user';
 
 const POLL_INTERVAL = 5 * 60000; // 5 minutes
+const SAVE_DEBOUNCE = 2000; // 2 seconds
 
-export default function usePortfolio() {
+/** Check if US stock market is currently open (Mon-Fri 9:30am-4:00pm ET) */
+function isMarketOpen() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+  const day = et.getDay();
+  if (day === 0 || day === 6) return false; // weekend
+  const mins = et.getHours() * 60 + et.getMinutes();
+  return mins >= 570 && mins < 960; // 9:30am = 570, 4:00pm = 960
+}
+
+/** Get tickers for a specific strategy */
+function getStrategyTickers(strategyId) {
+  switch (strategyId) {
+    case 'nobl': return NOBL_HOLDINGS.map(s => s.ticker);
+    case 'vig':  return VIG_TEMPLATE.map(s => s.ticker);
+    case 'reit': return REIT_TEMPLATE.map(s => s.ticker);
+    case 'voo':  return HIGH_YIELD_TEMPLATE.map(s => s.ticker);
+    default:     return [];
+  }
+}
+
+export default function usePortfolio(getToken) {
   const [isOnboarding, setIsOnboarding] = useState(true);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [holdings, setHoldings] = useState([]);
   const [prePrices, setPrePrices] = useState({});
@@ -21,6 +46,9 @@ export default function usePortfolio() {
   const [loadingStates, setLoadingStates] = useState({});
   const [targetBalance, setTargetBalance] = useState(0);
 
+  // Watchlist state
+  const [watchlist, setWatchlist] = useState([]);
+
   // Add stock modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [addTicker, setAddTicker] = useState("");
@@ -29,28 +57,155 @@ export default function usePortfolio() {
   const [addYield, setAddYield] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
-  // Pre-load prices for all template tickers on mount (sequential to avoid rate limits)
-  useEffect(() => {
-    async function loadPrices() {
-      const allTickers = getAllTemplateTickers([REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE]);
-      const chunks = [];
-      for (let i = 0; i < allTickers.length; i += 50) chunks.push(allTickers.slice(i, i + 50));
+  // Ref for debounced save
+  const holdingsRef = useRef(holdings);
+  holdingsRef.current = holdings;
+  const saveTimerRef = useRef(null);
+  const hasLoadedRef = useRef(false);
 
-      const merged = {};
-      for (let i = 0; i < chunks.length; i++) {
-        if (i > 0) await new Promise(r => setTimeout(r, 500));
-        try {
-          const data = await fetchBatchUpdate(chunks[i]);
-          Object.assign(merged, data);
-        } catch (err) {
-          console.warn("Pre-price chunk failed:", err.message);
-        }
-      }
-      setPrePrices(merged);
-      setPricesLoading(false);
+  // Load saved holdings on mount
+  useEffect(() => {
+    if (!getToken) {
+      setIsLoadingSaved(false);
+      return;
     }
-    loadPrices();
+    let cancelled = false;
+    (async () => {
+      try {
+        const [saved, wl, profile] = await Promise.all([
+          getUserHoldings(getToken).catch(() => []),
+          getUserWatchlist(getToken).catch(() => []),
+          getUserProfile(getToken).catch(() => null),
+        ]);
+        if (cancelled) return;
+        setWatchlist(wl || []);
+        if (profile?.target_balance > 0) {
+          setTargetBalance(profile.target_balance);
+        }
+        if (saved && saved.length > 0) {
+          // Convert D1 format to app format
+          const restored = saved.map(h => ({
+            ticker: h.ticker,
+            name: h.name || h.ticker,
+            sector: h.sector || null,
+            shares: h.shares || 0,
+            price: 0,
+            yld: h.yield_override || 0,
+            div: 0,
+            g5: 0,
+            streak: 0,
+            score: 50,
+          }));
+
+          // Fetch live prices + fundamentals before showing dashboard
+          const tickers = restored.map(h => h.ticker);
+          const [priceData, fdMap] = await Promise.all([
+            fetchBatchUpdate(tickers).catch(() => ({})),
+            fetchBatchFundamentals(tickers).catch(() => ({})),
+          ]);
+          if (cancelled) return;
+
+          // Merge live data into liveData state
+          const merged = { ...priceData };
+          if (fdMap) {
+            for (const [ticker, fd] of Object.entries(fdMap)) {
+              if (!fd || fd.error) continue;
+              const rawPayout = fd.payout ?? null;
+              const fcfPayout = fd.fcfPayout ?? null;
+              const payout = (rawPayout != null && rawPayout <= 100) ? rawPayout
+                : (fcfPayout != null) ? fcfPayout : rawPayout;
+              merged[ticker] = {
+                ...merged[ticker],
+                divYield: fd.divYield ?? merged[ticker]?.divYield ?? null,
+                annualDiv: fd.annualDiv ?? merged[ticker]?.annualDiv ?? null,
+                payout,
+                fcfPayout,
+                g5: fd.g5 ?? merged[ticker]?.g5 ?? null,
+                streak: fd.streak ?? merged[ticker]?.streak ?? null,
+              };
+            }
+          }
+          setLiveData(merged);
+
+          // Update holdings with fetched data so h.div, h.price, h.g5 etc. are populated
+          const hydrated = restored.map(h => {
+            const live = merged[h.ticker];
+            if (!live) return h;
+            return {
+              ...h,
+              name: live.name || h.name,
+              sector: live.sector || h.sector,
+              price: live.price || h.price,
+              yld: live.divYield ?? h.yld,
+              div: live.annualDiv ?? h.div,
+              g5: live.g5 ?? h.g5,
+              streak: live.streak ?? h.streak,
+              payout: live.payout ?? h.payout,
+            };
+          });
+
+          setHoldings(hydrated);
+          setIsOnboarding(false);
+          hasLoadedRef.current = true;
+        }
+      } catch (e) {
+        console.warn('Failed to load saved data:', e.message);
+      } finally {
+        if (!cancelled) setIsLoadingSaved(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [getToken]);
+
+  // Debounced save to D1 when holdings change
+  const targetBalanceRef = useRef(targetBalance);
+  targetBalanceRef.current = targetBalance;
+  useEffect(() => {
+    if (!getToken || !hasLoadedRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const toSave = holdingsRef.current.map(h => ({
+        ticker: h.ticker,
+        name: h.name || '',
+        sector: h.sector || '',
+        shares: h.shares || 0,
+        cost_basis: 0,
+        yield_override: h.yld || null,
+      }));
+      saveUserHoldings(getToken, toSave).catch(e =>
+        console.warn('Auto-save failed:', e.message)
+      );
+      // Also sync targetBalance to profile (0 means user manually changed portfolio)
+      updateUserProfile(getToken, undefined, undefined, targetBalanceRef.current).catch(() => {});
+    }, SAVE_DEBOUNCE);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [holdings, getToken]);
+
+  // Lazy pre-load: only fetch prices for the chosen strategy (not all templates)
+  const preloadStrategyPrices = useCallback(async (strategyId) => {
+    setPricesLoading(true);
+    const tickers = getStrategyTickers(strategyId);
+    if (!tickers.length) { setPricesLoading(false); return; }
+
+    const chunks = [];
+    for (let i = 0; i < tickers.length; i += 50) chunks.push(tickers.slice(i, i + 50));
+
+    const merged = {};
+    for (let i = 0; i < chunks.length; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, 500));
+      try {
+        const data = await fetchBatchUpdate(chunks[i]);
+        Object.assign(merged, data);
+      } catch (err) {
+        console.warn("Pre-price chunk failed:", err.message);
+      }
+    }
+    setPrePrices(merged);
+    setPricesLoading(false);
   }, []);
+
+  // Track previous ticker set for incremental fundamentals fetching
+  const prevTickersRef = useRef([]);
 
   // Refresh prices + fundamentals when holdings change
   useEffect(() => {
@@ -61,18 +216,31 @@ export default function usePortfolio() {
     if (missing.length > 0) {
       fetchBatchUpdate(missing).then(data => setLiveData(prev => ({ ...prev, ...data })));
     }
-    // Fetch fundamentals and merge live dividend metrics into liveData
-    fetchBatchFundamentals(tickers).then(fdMap => {
+    // Only fetch fundamentals for newly added tickers (not already fetched)
+    const prevSet = new Set(prevTickersRef.current);
+    const newTickers = tickers.filter(t => !prevSet.has(t) && !getCachedFundamentals(t));
+    const tickersToFetch = newTickers.length > 0 ? newTickers : (prevTickersRef.current.length === 0 ? tickers : []);
+    prevTickersRef.current = tickers;
+
+    if (tickersToFetch.length === 0) return;
+
+    fetchBatchFundamentals(tickersToFetch).then(fdMap => {
       if (!fdMap || !Object.keys(fdMap).length) return;
       setLiveData(prev => {
         const merged = { ...prev };
         for (const [ticker, fd] of Object.entries(fdMap)) {
           if (!fd || fd.error) continue;
+          // Prefer FCF payout when GAAP payout is extreme (>100%)
+          const rawPayout = fd.payout ?? merged[ticker]?.payout ?? null;
+          const fcfPayout = fd.fcfPayout ?? merged[ticker]?.fcfPayout ?? null;
+          const payout = (rawPayout != null && rawPayout <= 100) ? rawPayout
+            : (fcfPayout != null) ? fcfPayout : rawPayout;
           merged[ticker] = {
             ...merged[ticker],
             divYield: fd.divYield ?? merged[ticker]?.divYield ?? null,
             annualDiv: fd.annualDiv ?? merged[ticker]?.annualDiv ?? null,
-            payout: fd.payout ?? merged[ticker]?.payout ?? null,
+            payout,
+            fcfPayout,
             g5: fd.g5 ?? merged[ticker]?.g5 ?? null,
             streak: fd.streak ?? merged[ticker]?.streak ?? null,
           };
@@ -82,15 +250,17 @@ export default function usePortfolio() {
     });
   }, [holdings.length]);
 
-  // Poll prices every 5 minutes
+  // Poll prices every 5 minutes (skip outside market hours)
   useEffect(() => {
     if (!holdings.length) return;
     const id = setInterval(() => {
-      fetchBatchUpdate(holdings.map(h => h.ticker))
+      if (!isMarketOpen()) return; // prices can't change when market is closed
+      const tickers = holdingsRef.current.map(h => h.ticker);
+      fetchBatchUpdate(tickers)
         .then(data => setLiveData(prev => ({ ...prev, ...data })));
     }, POLL_INTERVAL);
     return () => clearInterval(id);
-  }, [holdings]);
+  }, [holdings.length > 0]);
 
   // Track when user picks a result so we don't re-search that exact ticker
   const pickedTickerRef = useRef("");
@@ -109,25 +279,39 @@ export default function usePortfolio() {
     return () => clearTimeout(timer);
   }, [addTicker]);
 
-  // Refresh single stock
+  // Refresh single stock — use price-only when fundamentals are already cached
   async function refreshStock(ticker) {
     setLoadingStates(prev => ({ ...prev, [ticker]: true }));
     try {
-      const data = await fetchEnrichedQuote(ticker);
-      if (data) {
-        setLiveData(prev => ({ ...prev, [ticker]: { ...prev[ticker], ...data } }));
-        // Update holding data if it has enriched info
-        setHoldings(prev => prev.map(h => {
-          if (h.ticker !== ticker) return h;
-          return {
-            ...h,
-            name: data.name || h.name,
-            sector: data.sector || h.sector,
-            price: data.price || h.price,
-            g5: data.g5 ?? h.g5,
-            streak: data.streak ?? h.streak,
-          };
-        }));
+      const hasFundamentals = !!getCachedFundamentals(ticker);
+      if (hasFundamentals) {
+        // Price-only fetch — saves 1 EODHD call
+        const priceData = await fetchPriceOnly(ticker);
+        if (priceData) {
+          setLiveData(prev => ({
+            ...prev,
+            [ticker]: { ...prev[ticker], price: priceData.price, change: priceData.change },
+          }));
+          setHoldings(prev => prev.map(h =>
+            h.ticker === ticker ? { ...h, price: priceData.price || h.price } : h
+          ));
+        }
+      } else {
+        const data = await fetchEnrichedQuote(ticker);
+        if (data) {
+          setLiveData(prev => ({ ...prev, [ticker]: { ...prev[ticker], ...data } }));
+          setHoldings(prev => prev.map(h => {
+            if (h.ticker !== ticker) return h;
+            return {
+              ...h,
+              name: data.name || h.name,
+              sector: data.sector || h.sector,
+              price: data.price || h.price,
+              g5: data.g5 ?? h.g5,
+              streak: data.streak ?? h.streak,
+            };
+          }));
+        }
       }
     } finally {
       setLoadingStates(prev => ({ ...prev, [ticker]: false }));
@@ -141,9 +325,28 @@ export default function usePortfolio() {
     setIsOnboarding(false);
     setIsSample(strategyId !== "custom");
     setTargetBalance(balance || 0);
+    hasLoadedRef.current = true;
     // Seed liveData with pre-loaded prices so portfolio has values immediately
     if (Object.keys(prePrices).length > 0) {
       setLiveData(prev => ({ ...prev, ...prePrices }));
+    }
+    // Save to D1
+    if (getToken) {
+      const toSave = newHoldings.map(h => ({
+        ticker: h.ticker,
+        name: h.name || '',
+        sector: h.sector || '',
+        shares: h.shares || 0,
+        cost_basis: 0,
+        yield_override: h.yld || null,
+      }));
+      saveUserHoldings(getToken, toSave).catch(e =>
+        console.warn('Save on load failed:', e.message)
+      );
+      // Save strategy + target balance to profile
+      if (strategyId || balance) {
+        updateUserProfile(getToken, '', strategyId || '', balance || 0).catch(() => {});
+      }
     }
   }
 
@@ -203,6 +406,50 @@ export default function usePortfolio() {
     window.scrollTo(0, 0);
   }
 
+  // Reset portfolio — clear holdings and return to onboarding
+  function resetPortfolio() {
+    setHoldings([]);
+    setLiveData({});
+    setIsOnboarding(true);
+    setStrategy(null);
+    setIsSample(false);
+    setTargetBalance(0);
+    setDetailView(null);
+    setActiveTab("dashboard");
+    hasLoadedRef.current = false;
+    if (getToken) {
+      saveUserHoldings(getToken, []).catch(e =>
+        console.warn('Reset save failed:', e.message)
+      );
+    }
+  }
+
+  // Watchlist functions
+  async function addWatch(ticker, name) {
+    setWatchlist(prev => {
+      if (prev.some(w => w.ticker === ticker)) return prev;
+      return [{ ticker, name: name || ticker, added_at: new Date().toISOString() }, ...prev];
+    });
+    if (getToken) {
+      addToUserWatchlist(getToken, ticker, name).catch(e =>
+        console.warn('Watch add failed:', e.message)
+      );
+    }
+  }
+
+  async function removeWatch(ticker) {
+    setWatchlist(prev => prev.filter(w => w.ticker !== ticker));
+    if (getToken) {
+      removeFromUserWatchlist(getToken, ticker).catch(e =>
+        console.warn('Watch remove failed:', e.message)
+      );
+    }
+  }
+
+  function isWatched(ticker) {
+    return watchlist.some(w => w.ticker === ticker);
+  }
+
   // Portfolio summary — uses best available price for each holding
   const summary = useMemo(() => {
     let pv = 0, annualIncome = 0, yieldSum = 0, growthSum = 0;
@@ -213,7 +460,7 @@ export default function usePortfolio() {
       const value = price * (h.shares || 0);
       const yld = live?.divYield ?? h.yld ?? 0;
       const div = live?.annualDiv ?? h.div ?? 0;
-      const g5 = live?.g5 ?? h.g5 ?? 5;
+      const g5 = live?.g5 ?? h.g5 ?? 0;
       pv += value;
       annualIncome += div * (h.shares || 0);
       if (yld > 0) { yieldSum += yld * value; growthSum += g5 * value; }
@@ -246,7 +493,7 @@ export default function usePortfolio() {
   }
 
   return {
-    isOnboarding, activeTab, setActiveTab,
+    isOnboarding, isLoadingSaved, activeTab, setActiveTab,
     holdings, prePrices, pricesLoading, isSample, strategy,
     searchQuery, setSearchQuery,
     detailView, setDetailView,
@@ -255,7 +502,9 @@ export default function usePortfolio() {
     addTicker, setAddTicker, addResults, addShares, setAddShares,
     addYield, setAddYield, isAdding,
     handleLoad, addStock, removeStock, editShares, selectStock, refreshStock,
-    pickTicker,
-    summary,
+    pickTicker, preloadStrategyPrices,
+    summary, resetPortfolio,
+    // Watchlist
+    watchlist, addWatch, removeWatch, isWatched,
   };
 }

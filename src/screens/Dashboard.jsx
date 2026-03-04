@@ -18,7 +18,7 @@ export default function Dashboard({
   const rng = useMemo(() => seededPRNG(42), []);
 
   const avgYield = weightedYield || 2.5;
-  const growth = weightedGrowth || 5;
+  const growth = weightedGrowth;
 
   // Per-stock projection: each holding compounds with its own yield, g5, and expected return
   const projections = useMemo(() =>

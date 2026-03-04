@@ -1,10 +1,50 @@
 /**
  * SafeYield API Worker
- * Routes: /health  /quote  /batch  /fundamentals  /search
+ * Routes: /health  /quote  /batch  /fundamentals  /search  /user/*
  * Set secret: EODHD_KEY in Cloudflare Workers → Settings → Variables
  */
 
+import { verifyClerkToken } from './auth.js';
+import {
+  getOrCreateUser, updateUserProfile,
+  getHoldings, saveHoldings, upsertHolding, deleteHolding,
+  getWatchlist, addToWatchlist, removeFromWatchlist,
+} from './db.js';
+
 const EODHD_BASE = "https://eodhd.com/api";
+
+// ── In-flight dedup map for fundamentals requests ──
+var inflight = new Map();
+
+function dedupedFetchFundamentals(ticker, key) {
+  if (inflight.has(ticker)) return inflight.get(ticker);
+  var p = cachedFetchFundamentals(ticker, key).finally(function() {
+    inflight.delete(ticker);
+  });
+  inflight.set(ticker, p);
+  return p;
+}
+
+async function cachedFetchFundamentals(ticker, key) {
+  var cacheKey = "https://safeyield-cache/fundamentals/" + ticker;
+  var cache = caches.default;
+
+  // Check cache
+  var cached = await cache.match(cacheKey);
+  if (cached) return cached.json();
+
+  // Miss — fetch from EODHD and parse
+  var raw = await fetchFundamentals(ticker, key);
+  var parsed = parseFundamentals(raw);
+  parsed.ticker = ticker;
+
+  // Store in cache with 12hr TTL
+  var cacheResp = new Response(JSON.stringify(parsed), {
+    headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=43200" },
+  });
+  await cache.put(cacheKey, cacheResp);
+  return parsed;
+}
 
 function cors(origin) {
   const allowed = [
@@ -16,8 +56,8 @@ function cors(origin) {
   return {
     "Access-Control-Allow-Origin":  allowed.includes(origin) ? origin : "",
     "Vary": "Origin",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age":       "86400",
   };
 }
@@ -121,17 +161,18 @@ function parseFundamentals(raw) {
 
   var isETF = G.Type === "ETF";
 
+  // Try all dividend yield sources (ETF first, then stock-style fallbacks)
   var divYield = null;
-  if (isETF) {
-    var y = parseFloat(ET.Yield);
-    if (!isNaN(y) && y > 0) divYield = y;
-  } else {
+  var etfY = parseFloat(ET.Yield);
+  if (!isNaN(etfY) && etfY > 0) divYield = etfY;
+  if (divYield == null) {
     var sy = parseFloat(SD.ForwardAnnualDividendYield);
     var hy = parseFloat(H.DividendYield);
     var y2 = (!isNaN(sy) && sy > 0) ? sy : ((!isNaN(hy) && hy > 0) ? hy : null);
     if (y2 !== null) divYield = y2 * 100;
   }
 
+  // Try all annual dividend sources
   var fwd      = parseFloat(SD.ForwardAnnualDividendRate);
   var hlDiv    = parseFloat(H.DividendShare);
   var annualDiv = (!isNaN(fwd) && fwd > 0) ? fwd : ((!isNaN(hlDiv) && hlDiv > 0) ? hlDiv : null);
@@ -211,6 +252,22 @@ function parseFundamentals(raw) {
   var lastEbit         = ebitHistory.length ? ebitHistory[ebitHistory.length - 1] : null;
   var latestCoverage   = lastEbit ? lastEbit.coverage : null;
   var annHist          = buildAnnualHistory(incY, balY, cfY);
+
+  // Fallback: compute annualDiv from DPS history if still missing
+  if (annualDiv == null && annHist.dps && annHist.dps.length > 0) {
+    var lastDps = annHist.dps[annHist.dps.length - 1].value;
+    if (lastDps > 0) annualDiv = lastDps;
+  }
+
+  // Fallback: compute divYield from annualDiv and price estimate (52-week midpoint)
+  if (divYield == null && annualDiv > 0) {
+    var h52 = sf(H["52WeekHigh"]);
+    var l52 = sf(H["52WeekLow"]);
+    if (h52 && l52) {
+      var midPrice = (h52 + l52) / 2;
+      divYield = (annualDiv / midPrice) * 100;
+    }
+  }
 
   return {
     name:    G.Name   || null,
@@ -411,10 +468,6 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: cors(origin) });
     }
-    if (request.method !== "GET") {
-      return err("Method not allowed", origin, 405);
-    }
-
     var KEY = env.EODHD_KEY;
     if (!KEY) {
       return err("API key not configured", origin, 500);
@@ -424,7 +477,7 @@ export default {
     var path   = reqUrl.pathname.replace(/\/$/, "");
 
     if (path === "/health" || path === "") {
-      return json({ ok: true, ts: Date.now(), routes: ["/quote","/batch","/batch-fundamentals","/fundamentals","/search","/history","/history-batch"] }, origin, 200, 0);
+      return json({ ok: true, ts: Date.now(), routes: ["/quote","/price","/batch","/batch-fundamentals","/fundamentals","/search","/history","/history-batch"] }, origin, 200, 0);
     }
 
     if (path === "/quote") {
@@ -434,12 +487,11 @@ export default {
       try {
         var results = await Promise.all([
           fetchPrices([symbol], KEY),
-          fetchFundamentals(symbol, KEY).catch(function() { return null; }),
+          dedupedFetchFundamentals(symbol, KEY).catch(function() { return {}; }),
         ]);
         var rows   = results[0];
-        var fundRaw = results[1];
         var p = rows[0] ? normPrice(rows[0]) : null;
-        var f = parseFundamentals(fundRaw);
+        var f = results[1];
         var divYield  = f.divYield;
         var annualDiv = f.annualDiv;
         var price = p ? p.price : 0;
@@ -453,7 +505,7 @@ export default {
           change:     p ? p.change : 0,
           divYield:   divYield  != null ? parseFloat(divYield.toFixed(3))  : null,
           annualDiv:  annualDiv != null ? parseFloat(annualDiv.toFixed(4)) : null,
-          payout:     f.payout     || null,
+          payout:     f.payout     != null ? f.payout : null,
           g5:         f.g5         != null ? f.g5 : null,
           streak:     f.streak     != null ? f.streak : null,
           marketCap:  f.marketCap  || null,
@@ -462,6 +514,20 @@ export default {
         }}, origin);
       } catch (e) {
         return err("Quote failed: " + e.message, origin, 502);
+      }
+    }
+
+    // ── /price — price-only fetch (no fundamentals) ──
+    if (path === "/price") {
+      var pSym = (reqUrl.searchParams.get("symbol") || "").toUpperCase().trim();
+      if (!pSym) return err("symbol required", origin);
+      if (!validTicker(pSym)) return err("invalid ticker format", origin);
+      try {
+        var pRows = await fetchPrices([pSym], KEY);
+        var pData = pRows[0] ? normPrice(pRows[0]) : null;
+        return json({ result: pData }, origin, 200, 60);
+      } catch (e) {
+        return err("Price failed: " + e.message, origin, 502);
       }
     }
 
@@ -487,9 +553,8 @@ export default {
       if (!sym) return err("symbol required", origin);
       if (!validTicker(sym)) return err("invalid ticker format", origin);
       try {
-        var fundRaw2 = await fetchFundamentals(sym, KEY);
-        var data     = parseFundamentals(fundRaw2);
-        return json({ result: Object.assign({ ticker: sym }, data) }, origin, 200, 3600);
+        var data     = await dedupedFetchFundamentals(sym, KEY);
+        return json({ result: Object.assign({ ticker: sym }, data) }, origin, 200, 21600);
       } catch (e) {
         return err("Fundamentals failed: " + e.message, origin, 502);
       }
@@ -522,9 +587,8 @@ export default {
       try {
         var bfResults = {};
         var bfPromises = bfSyms.map(function(bfSym) {
-          return fetchFundamentals(bfSym, KEY)
-            .then(function(bfRaw) {
-              var bfParsed = parseFundamentals(bfRaw);
+          return dedupedFetchFundamentals(bfSym, KEY)
+            .then(function(bfParsed) {
               bfResults[bfSym] = Object.assign({ ticker: bfSym }, bfParsed);
             })
             .catch(function(bfErr) {
@@ -613,7 +677,81 @@ export default {
       return json({ results: dbResults }, origin, 200, 86400);
     }
 
-    return err("Valid routes: /health /quote /batch /batch-fundamentals /fundamentals /search /history /history-batch /div-history-batch", origin, 404);
+    // ── Protected /user/* routes ───────────────────────────────────────────
+    if (path.startsWith("/user/")) {
+      var auth = await verifyClerkToken(request, env);
+      if (!auth) return err("Unauthorized", origin, 401);
+
+      var db = env.DB;
+      var method = request.method;
+
+      // Ensure user record exists for all /user/* routes
+      await getOrCreateUser(db, auth.userId, auth.email);
+
+      // GET /user/profile
+      if (path === "/user/profile" && method === "GET") {
+        var user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(auth.userId).first();
+        return json({ result: user }, origin, 200, 0);
+      }
+
+      // PUT /user/profile
+      if (path === "/user/profile" && method === "PUT") {
+        var body = await request.json();
+        var updated = await updateUserProfile(db, auth.userId, body.display_name, body.default_strategy, body.target_balance);
+        return json({ result: updated }, origin, 200, 0);
+      }
+
+      // GET /user/holdings
+      if (path === "/user/holdings" && method === "GET") {
+        var h = await getHoldings(db, auth.userId);
+        return json({ result: h }, origin, 200, 0);
+      }
+
+      // PUT /user/holdings (full sync)
+      if (path === "/user/holdings" && method === "PUT") {
+        var hBody = await request.json();
+        await saveHoldings(db, auth.userId, hBody.holdings || []);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      // POST /user/holdings (upsert single)
+      if (path === "/user/holdings" && method === "POST") {
+        var uBody = await request.json();
+        await upsertHolding(db, auth.userId, uBody);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      // DELETE /user/holdings/:ticker
+      if (path.startsWith("/user/holdings/") && method === "DELETE") {
+        var delTicker = path.split("/user/holdings/")[1].toUpperCase();
+        await deleteHolding(db, auth.userId, delTicker);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      // GET /user/watchlist
+      if (path === "/user/watchlist" && method === "GET") {
+        var wl = await getWatchlist(db, auth.userId);
+        return json({ result: wl }, origin, 200, 0);
+      }
+
+      // POST /user/watchlist
+      if (path === "/user/watchlist" && method === "POST") {
+        var wlBody = await request.json();
+        await addToWatchlist(db, auth.userId, wlBody.ticker, wlBody.name);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      // DELETE /user/watchlist/:ticker
+      if (path.startsWith("/user/watchlist/") && method === "DELETE") {
+        var wlTicker = path.split("/user/watchlist/")[1].toUpperCase();
+        await removeFromWatchlist(db, auth.userId, wlTicker);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      return err("Not found", origin, 404);
+    }
+
+    return err("Valid routes: /health /quote /batch /batch-fundamentals /fundamentals /search /history /history-batch /div-history-batch /user/*", origin, 404);
 
     } catch (uncaught) {
       return err("Internal error", origin, 500);

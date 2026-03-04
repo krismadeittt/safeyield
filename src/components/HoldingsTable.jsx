@@ -286,7 +286,7 @@ function getSortVal(stock, key, liveData, totalValue) {
     case "yld": return live?.divYield ?? stock.yld ?? 0;
     case "div": return live?.annualDiv ?? stock.div ?? 0;
     case "payout": return live?.payout ?? stock.payout ?? 0;
-    case "g5": return stock.g5 ?? 0;
+    case "g5": return live?.g5 ?? stock.g5 ?? 0;
     case "streak": return stock.streak ?? 0;
     case "weight": return totalValue > 0 ? value / totalValue : 0;
     default: return 0;
