@@ -18,6 +18,7 @@ export default function Dashboard({
   const [customContrib, setCustomContrib] = useState("");
   const [vizExpanded, setVizExpanded] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
+  const [granularity, setGranularity] = useState("monthly");
 
   const contrib = customContrib ? parseFloat(customContrib) || 0 : extraContrib;
   const rng = useMemo(() => seededPRNG(42), []);
@@ -25,10 +26,15 @@ export default function Dashboard({
   const avgYield = weightedYield ?? 0;
   const growth = weightedGrowth;
 
+  // Map granularity to sub-annual periods: Real World simulates at chart resolution
+  const periodsPerYear = useVolatility
+    ? (granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1)
+    : 1;
+
   // Per-stock projection: each holding compounds with its own yield, g5, and expected return
   const projections = useMemo(() =>
-    projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng),
-  [horizon, holdings, liveData, contrib, useVolatility]);
+    projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng, periodsPerYear),
+  [horizon, holdings, liveData, contrib, useVolatility, periodsPerYear]);
 
   const { noDripVals, dripVals, contribVals } = projections;
 
@@ -106,6 +112,8 @@ export default function Dashboard({
             holdings={holdings}
             expanded={chartExpanded}
             setExpanded={setChartExpanded}
+            granularity={granularity}
+            setGranularity={setGranularity}
           />
           </div>
         )}

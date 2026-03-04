@@ -15,6 +15,7 @@ export default function HistoricalProjectedChart({
   totalIncome,
   monthlyData, holdings,
   expanded, setExpanded,
+  granularity, setGranularity,
 }) {
   const isMobile = useIsMobile();
   const containerRef = useRef(null);
@@ -23,7 +24,6 @@ export default function HistoricalProjectedChart({
   const [divHovered, setDivHovered] = useState(null);
   const [historyMap, setHistoryMap] = useState({});
   const [histLoading, setHistLoading] = useState(false);
-  const [granularity, setGranularity] = useState("monthly");
   const [showDivReturn, setShowDivReturn] = useState(true);
   const [histRange, setHistRange] = useState(10); // 0=Off, 5, 10, 15, 20
 
@@ -75,10 +75,10 @@ export default function HistoricalProjectedChart({
     return calcDividendsByPeriod(historyMap, holdings, granularity);
   }, [historyMap, holdings, granularity]);
 
-  // Stat card values
-  const finalNoDrip = noDripVals?.[horizon] || noDripVals?.[noDripVals.length - 1] || 0;
-  const finalDrip = contribVals ? (contribVals[horizon] || contribVals[contribVals.length - 1] || 0)
-    : (dripVals?.[horizon] || dripVals?.[dripVals.length - 1] || 0);
+  // Stat card values — always use last element (arrays may be sub-annual length in Real World)
+  const finalNoDrip = noDripVals?.[noDripVals.length - 1] || 0;
+  const finalDrip = contribVals ? (contribVals[contribVals.length - 1] || 0)
+    : (dripVals?.[dripVals.length - 1] || 0);
   const dripAdvantage = finalDrip - finalNoDrip;
   // Step 10: Use projected portfolio value × yield to reflect DRIP share accumulation
   const incomeAtHorizon = Math.round(finalDrip * (avgYield / 100));
@@ -155,16 +155,26 @@ export default function HistoricalProjectedChart({
 
     const nowBarIndex = result.length - 1;
 
-    // --- PROJECTED --- (interpolate yearly projections at chosen granularity)
+    // --- PROJECTED --- (Real World: direct index; Deterministic: interpolate)
     for (let yr = 1; yr <= projYears; yr++) {
       for (let p = 0; p < periodsPerYear; p++) {
-        const noDripVal = noDripVals?.[yr] || portfolioValue;
-        const dripVal = contribVals ? (contribVals[yr] || portfolioValue) : (dripVals?.[yr] || portfolioValue);
-        const prevNoDrip = noDripVals?.[yr - 1] || portfolioValue;
-        const prevDrip = contribVals ? (contribVals[yr - 1] || portfolioValue) : (dripVals?.[yr - 1] || portfolioValue);
-        const t = (p + 1) / periodsPerYear;
-        const interpNoDrip = Math.round(prevNoDrip + (noDripVal - prevNoDrip) * t);
-        const interpDrip = Math.round(prevDrip + (dripVal - prevDrip) * t);
+        let interpNoDrip, interpDrip;
+
+        if (useVolatility && periodsPerYear > 1) {
+          // Real World: arrays are already at sub-annual granularity — index directly
+          const idx = (yr - 1) * periodsPerYear + p + 1;
+          interpNoDrip = noDripVals?.[idx] || portfolioValue;
+          interpDrip = contribVals ? (contribVals[idx] || portfolioValue) : (dripVals?.[idx] || portfolioValue);
+        } else {
+          // Deterministic (or yearly Real World): interpolate between yearly values
+          const noDripVal = noDripVals?.[yr] || portfolioValue;
+          const dripVal = contribVals ? (contribVals[yr] || portfolioValue) : (dripVals?.[yr] || portfolioValue);
+          const prevNoDrip = noDripVals?.[yr - 1] || portfolioValue;
+          const prevDrip = contribVals ? (contribVals[yr - 1] || portfolioValue) : (dripVals?.[yr - 1] || portfolioValue);
+          const t = (p + 1) / periodsPerYear;
+          interpNoDrip = Math.round(prevNoDrip + (noDripVal - prevNoDrip) * t);
+          interpDrip = Math.round(prevDrip + (dripVal - prevDrip) * t);
+        }
 
         const projYear = currentYear + yr;
         const shortYr = "'" + String(projYear).slice(2);
@@ -190,7 +200,7 @@ export default function HistoricalProjectedChart({
     }
 
     return { bars: result, nowBarIndex };
-  }, [portfolioValue, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears]);
+  }, [portfolioValue, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears, useVolatility]);
 
   const { bars: barData, nowBarIndex } = bars;
 

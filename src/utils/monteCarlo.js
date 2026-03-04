@@ -39,15 +39,17 @@ export function boxMuller(rng) {
  * @param {number} extraContrib - Annual extra contribution ($)
  * @param {boolean} useVolatility - Enable Monte Carlo noise
  * @param {Function|null} rng - PRNG function (required if useVolatility)
+ * @param {number} periodsPerYear - Sub-annual resolution (1=yearly, 12=monthly, 52=weekly)
  * @returns {{ noDripVals: number[], dripVals: number[], contribVals: number[]|null }}
  */
-export function projectPortfolioPerStock(horizon, holdings, liveData, extraContrib, useVolatility, rng) {
+export function projectPortfolioPerStock(horizon, holdings, liveData, extraContrib, useVolatility, rng, periodsPerYear = 1) {
   if (!holdings?.length) {
-    const zeros = new Array(horizon + 1).fill(0);
+    const len = useVolatility ? horizon * periodsPerYear + 1 : horizon + 1;
+    const zeros = new Array(len).fill(0);
     return { noDripVals: zeros, dripVals: zeros, contribVals: null };
   }
 
-  const marketVol = 0.16;
+  const marketVol = 0.20;
 
   // Build initial per-stock state
   function initStocks() {
@@ -56,16 +58,19 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
       const price = (live?.price > 0 ? live.price : null) || h.price || 0;
       const yld = (live?.divYield ?? h.yld ?? 0) / 100;
       const divPerShare = live?.annualDiv ?? h.div ?? 0;
-      // Step 2: Cap g5 at 10% (few companies sustain >10% div growth long-term)
+      // Cap g5 at 10% (few companies sustain >10% div growth long-term)
       const g5 = Math.max(0, Math.min((h.g5 ?? 5), 10)) / 100;
       const beta = live?.beta ?? 1.0;
-      const sigma = Math.max(0.12, Math.abs(beta) * marketVol);
+      const sigma = Math.max(0.18, Math.abs(beta) * marketVol);
 
       // Gordon model: expected total return ≈ yield + dividend growth
-      // Step 2: Cap at 15% (still generous but not fantasy)
+      // Cap at 15% (still generous but not fantasy)
       const expectedReturn = Math.max(0.02, Math.min(yld + g5, 0.15));
       // Price appreciation = total return minus what's paid out as dividends
       const priceGrowthRate = Math.max(0, expectedReturn - yld);
+
+      // Idiosyncratic volatility: total^2 - systematic^2
+      const idioSigma = Math.sqrt(Math.max(0, sigma * sigma - beta * beta * marketVol * marketVol));
 
       return {
         shares: h.shares || 0,
@@ -74,6 +79,8 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
         g5,
         priceGrowthRate,
         sigma,
+        beta,
+        idioSigma,
       };
     });
   }
@@ -83,15 +90,25 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
   }
 
   // Run a single simulation path for a given scenario with pre-generated returns
-  function runPath(priceReturnsMatrix, scenario) {
+  // divStress: if true, cut dividends during bad years (Real World mode only)
+  function runPath(priceReturnsMatrix, scenario, divStress = false, ppy = 1) {
     const stocks = initStocks();
     let cashDividends = 0;
     const vals = [totalValue(stocks, 0)];
+    const totalPeriods = priceReturnsMatrix.length;
 
-    for (let year = 1; year <= horizon; year++) {
-      const priceReturns = priceReturnsMatrix[year - 1];
+    // Dividend payment schedule: up to 4 times per year (quarterly)
+    const divEventsPerYear = Math.min(4, ppy);
+    const periodsPerDivEvent = Math.max(1, Math.round(ppy / divEventsPerYear));
+    const quartersPerEvent = 4 / divEventsPerYear;
 
-      if (scenario === 'contrib') {
+    let yearStartPrices = stocks.map(st => st.price);
+
+    for (let t = 0; t < totalPeriods; t++) {
+      const periodInYear = t % ppy;
+
+      // Start of year: contributions
+      if (periodInYear === 0 && scenario === 'contrib') {
         const totalV = stocks.reduce((s, st) => s + st.shares * st.price, 0);
         stocks.forEach(st => {
           const weight = totalV > 0 ? (st.shares * st.price) / totalV : 1 / stocks.length;
@@ -99,50 +116,82 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
         });
       }
 
+      // Track start-of-year prices for dividend stress
+      if (periodInYear === 0) {
+        yearStartPrices = stocks.map(st => st.price);
+      }
+
+      // Price update
+      const priceReturns = priceReturnsMatrix[t];
       stocks.forEach((st, i) => {
-        // Price update BEFORE dividend reinvestment
         st.price = Math.max(0, st.price * (1 + priceReturns[i]));
-
-        // Cap effective yield at 15%
-        if (st.price > 0 && st.divPerShare > st.price * 0.15) {
-          st.divPerShare = st.price * 0.15;
-        }
-
-        if (scenario === 'drip' || scenario === 'contrib') {
-          for (let q = 0; q < 4; q++) {
-            const qDiv = st.shares * st.divPerShare / 4;
-            if (st.price > 0) st.shares += qDiv / st.price;
-          }
-        } else {
-          for (let q = 0; q < 4; q++) {
-            const qDiv = st.shares * st.divPerShare / 4;
-            cashDividends += qDiv;
-          }
-        }
-
-        // Grow dividend AFTER reinvestment (end of year)
-        st.divPerShare *= (1 + st.g5);
       });
 
-      const yearVal = totalValue(stocks, scenario === 'nodrip' ? cashDividends : 0);
-      vals.push(Math.min(yearVal, 1e11));
+      // Pay dividends at quarter boundaries
+      const isDivEvent = (periodInYear + 1) % periodsPerDivEvent === 0;
+      if (isDivEvent) {
+        stocks.forEach(st => {
+          // Cap effective yield at 15%
+          if (st.price > 0 && st.divPerShare > st.price * 0.15) {
+            st.divPerShare = st.price * 0.15;
+          }
+          const qDiv = st.shares * st.divPerShare / 4 * quartersPerEvent;
+          if (scenario === 'drip' || scenario === 'contrib') {
+            if (st.price > 0) st.shares += qDiv / st.price;
+          } else {
+            cashDividends += qDiv;
+          }
+        });
+      }
+
+      // End of year: dividend stress + dividend growth
+      if (periodInYear === ppy - 1) {
+        stocks.forEach((st, i) => {
+          if (divStress) {
+            const yearReturn = yearStartPrices[i] > 0 ? (st.price / yearStartPrices[i] - 1) : 0;
+            if (yearReturn < -0.15) {
+              const drop = -yearReturn;
+              const cutPct = Math.min((drop - 0.15) * 0.8, 0.50);
+              st.divPerShare *= (1 - cutPct);
+            }
+          }
+          st.divPerShare *= (1 + st.g5);
+        });
+      }
+
+      const periodVal = totalValue(stocks, scenario === 'nodrip' ? cashDividends : 0);
+      vals.push(Math.min(periodVal, 1e11));
     }
     return vals;
   }
 
-  // Generate one set of annual GBM price returns for all stocks
-  // Uses proper log-normal: ln(S(t+1)/S(t)) ~ N(drift, sigma^2)
-  function generatePriceReturns(simRng) {
+  // Generate correlated GBM price returns for all stocks at sub-annual frequency.
+  // Uses market factor model: each stock's shock = beta * market + idiosyncratic.
+  // This preserves per-stock total vol while creating portfolio-level drawdowns.
+  function generatePriceReturns(simRng, ppy) {
     const template = initStocks();
+    const totalPeriods = horizon * ppy;
+    const periodMarketVol = marketVol / Math.sqrt(ppy);
     const matrix = [];
-    for (let year = 0; year < horizon; year++) {
-      const yearReturns = template.map(st => {
+
+    for (let t = 0; t < totalPeriods; t++) {
+      // ONE shared market draw per time step — all stocks see the same market shock
+      const marketZ = boxMuller(simRng);
+
+      const periodReturns = template.map(st => {
         // GBM drift-corrected: E[exp(drift + sigma*Z)] = exp(priceGrowthRate)
-        const drift = Math.log(1 + st.priceGrowthRate) - 0.5 * st.sigma * st.sigma;
-        const z = boxMuller(simRng);
-        return Math.max(Math.exp(drift + st.sigma * z) - 1, -0.50);
+        const annualDrift = Math.log(1 + st.priceGrowthRate) - 0.5 * st.sigma * st.sigma;
+        const periodDrift = annualDrift / ppy;
+
+        // Correlated shock: systematic (shared) + idiosyncratic (independent)
+        const periodBetaVol = st.beta * periodMarketVol;
+        const periodIdioVol = st.idioSigma / Math.sqrt(ppy);
+        const idioZ = boxMuller(simRng);
+        const totalShock = periodBetaVol * marketZ + periodIdioVol * idioZ;
+
+        return Math.max(Math.exp(periodDrift + totalShock) - 1, -0.70);
       });
-      matrix.push(yearReturns);
+      matrix.push(periodReturns);
     }
     return matrix;
   }
@@ -154,50 +203,23 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     for (let year = 0; year < horizon; year++) {
       detReturns.push(template.map(st => st.priceGrowthRate));
     }
-    const noDripVals = runPath(detReturns, 'nodrip');
-    const dripVals = runPath(detReturns, 'drip');
-    const contribVals = extraContrib > 0 ? runPath(detReturns, 'contrib') : null;
+    const noDripVals = runPath(detReturns, 'nodrip', false, 1);
+    const dripVals = runPath(detReturns, 'drip', false, 1);
+    const contribVals = extraContrib > 0 ? runPath(detReturns, 'contrib', false, 1) : null;
     return { noDripVals, dripVals, contribVals };
   }
 
-  // --- Real World mode: proper Monte Carlo ---
-  // Run NUM_SIMS independent simulations, take median (P50) per year.
-  // All 3 scenarios share the SAME random returns per sim (same market, different strategy).
-  const NUM_SIMS = 500;
-  const VALUE_CAP = 1e11;
+  // --- Real World mode: single realistic path (fixed seed) ---
+  // A single simulation shows actual period-to-period volatility: drawdowns,
+  // recoveries, choppy returns.  The fixed seed keeps the chart stable
+  // across re-renders while still looking "bumpy" and realistic.
+  const simRng = seededPRNG(42);
+  const priceReturnsMatrix = generatePriceReturns(simRng, periodsPerYear);
 
-  // Collect per-year values across all sims: [year] = [val_sim1, val_sim2, ...]
-  const noDripBySim = Array.from({ length: horizon + 1 }, () => []);
-  const dripBySim = Array.from({ length: horizon + 1 }, () => []);
-  const contribBySim = extraContrib > 0 ? Array.from({ length: horizon + 1 }, () => []) : null;
-
-  for (let sim = 0; sim < NUM_SIMS; sim++) {
-    // Each sim gets a unique deterministic seed
-    const simRng = seededPRNG(42 + sim * 7919);
-    const priceReturnsMatrix = generatePriceReturns(simRng);
-
-    // Run all scenarios with identical market returns
-    const nd = runPath(priceReturnsMatrix, 'nodrip');
-    const dr = runPath(priceReturnsMatrix, 'drip');
-    const ct = contribBySim ? runPath(priceReturnsMatrix, 'contrib') : null;
-
-    for (let y = 0; y <= horizon; y++) {
-      noDripBySim[y].push(Math.min(nd[y], VALUE_CAP));
-      dripBySim[y].push(Math.min(dr[y], VALUE_CAP));
-      if (contribBySim && ct) contribBySim[y].push(Math.min(ct[y], VALUE_CAP));
-    }
-  }
-
-  // Extract median (P50) for each year
-  function median(arr) {
-    const sorted = arr.slice().sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
-  }
-
-  const noDripVals = noDripBySim.map(arr => Math.round(median(arr)));
-  const dripVals = dripBySim.map(arr => Math.round(median(arr)));
-  const contribVals = contribBySim ? contribBySim.map(arr => Math.round(median(arr))) : null;
+  // divStress=true enables dividend cuts during bad years
+  const noDripVals = runPath(priceReturnsMatrix, 'nodrip', true, periodsPerYear);
+  const dripVals = runPath(priceReturnsMatrix, 'drip', true, periodsPerYear);
+  const contribVals = extraContrib > 0 ? runPath(priceReturnsMatrix, 'contrib', true, periodsPerYear) : null;
 
   return { noDripVals, dripVals, contribVals };
 }
