@@ -234,6 +234,10 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
 
       stocks.forEach((st, i) => {
         st.divPerShare *= (1 + st.g5);
+        // Cap effective yield at 15% — prevents unrealistic DRIP compounding on long horizons
+        if (st.price > 0 && st.divPerShare > st.price * 0.15) {
+          st.divPerShare = st.price * 0.15;
+        }
         if (scenario === 'drip' || scenario === 'contrib') {
           for (let q = 0; q < 4; q++) {
             const qDiv = st.shares * st.divPerShare / 4;
@@ -242,12 +246,13 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
         }
         st.price = Math.max(0, st.price * (1 + priceReturns[i]));
       });
-      vals.push(totalValue(stocks));
+      const yearVal = totalValue(stocks);
+      vals.push(Math.min(yearVal, 1e11));
     }
     return vals;
   }
 
-  // When volatility is off, run a single deterministic path (same as before)
+  // When volatility is off, run a single deterministic path
   if (!useVolatility) {
     const noDripVals = runPath(null, 'nodrip');
     const dripVals = runPath(null, 'drip');
@@ -255,66 +260,17 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     return { noDripVals, dripVals, contribVals };
   }
 
-  // Single seeded sim with monthly GBM steps for realistic month-to-month volatility
-  function runMonthlyPath(scenario) {
-    const simRng = seededPRNG(42);
-    const stocks = initStocks();
-    const monthly = [totalValue(stocks)];
+  // When volatility is on, use the same annual GBM runPath with a seeded PRNG
+  const simRng = seededPRNG(42);
+  const VALUE_CAP = 1e11; // $100B safety cap
 
-    for (let month = 1; month <= horizon * 12; month++) {
-      const monthInYear = ((month - 1) % 12) + 1; // 1-12
-
-      // Annual contribution at start of each year
-      if (scenario === 'contrib' && monthInYear === 1) {
-        const totalV = stocks.reduce((s, st) => s + st.shares * st.price, 0);
-        stocks.forEach(st => {
-          const weight = totalV > 0 ? (st.shares * st.price) / totalV : 1 / stocks.length;
-          if (st.price > 0) st.shares += (extraContrib * weight) / st.price;
-        });
-      }
-
-      stocks.forEach(st => {
-        // Monthly GBM price step
-        const annualDrift = Math.log(1 + st.priceGrowthRate);
-        const monthlyDrift = annualDrift / 12 - 0.5 * st.sigma * st.sigma / 12;
-        const monthlySigma = st.sigma / Math.sqrt(12);
-        const z = boxMuller(simRng);
-        st.price = Math.max(0.01, st.price * Math.exp(monthlyDrift + monthlySigma * z));
-
-        // Quarterly DRIP (end of quarter: month 3, 6, 9, 12)
-        if (monthInYear % 3 === 0 && (scenario === 'drip' || scenario === 'contrib')) {
-          const qDiv = st.shares * st.divPerShare / 4;
-          if (st.price > 0) st.shares += qDiv / st.price;
-        }
-
-        // Annual dividend growth
-        if (monthInYear === 12) {
-          st.divPerShare *= (1 + st.g5);
-        }
-      });
-
-      monthly.push(totalValue(stocks));
-    }
-    return monthly;
+  function clampVals(vals) {
+    return vals.map(v => Math.min(v, VALUE_CAP));
   }
 
-  const monthlyNoDrip = runMonthlyPath('nodrip');
-  const monthlyDrip = runMonthlyPath('drip');
-  const monthlyContrib = extraContrib > 0 ? runMonthlyPath('contrib') : null;
+  const noDripVals = clampVals(runPath(simRng, 'nodrip'));
+  const dripVals = clampVals(runPath(seededPRNG(42), 'drip'));
+  const contribVals = extraContrib > 0 ? clampVals(runPath(seededPRNG(42), 'contrib')) : null;
 
-  // Sample yearly values for stat cards
-  function sampleYearly(m) {
-    const y = [];
-    for (let i = 0; i <= horizon; i++) y.push(m[i * 12]);
-    return y;
-  }
-
-  return {
-    noDripVals: sampleYearly(monthlyNoDrip),
-    dripVals: sampleYearly(monthlyDrip),
-    contribVals: monthlyContrib ? sampleYearly(monthlyContrib) : null,
-    monthlyNoDrip,
-    monthlyDrip,
-    monthlyContrib,
-  };
+  return { noDripVals, dripVals, contribVals };
 }

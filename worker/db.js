@@ -11,13 +11,16 @@ export async function getOrCreateUser(db, userId, email) {
   return user;
 }
 
-export async function updateUserProfile(db, userId, displayName, defaultStrategy, targetBalance) {
+export async function updateUserProfile(db, userId, { displayName, defaultStrategy, targetBalance, cashBalance, dripEnabled, lastProcessedAt } = {}) {
   // Build partial update — only SET fields that were actually provided
   var sets = [];
   var vals = [];
   if (displayName !== undefined) { sets.push('display_name = ?'); vals.push(displayName || ''); }
   if (defaultStrategy !== undefined) { sets.push('default_strategy = ?'); vals.push(defaultStrategy || ''); }
   if (targetBalance !== undefined) { sets.push('target_balance = ?'); vals.push(targetBalance || 0); }
+  if (cashBalance !== undefined) { sets.push('cash_balance = ?'); vals.push(cashBalance || 0); }
+  if (dripEnabled !== undefined) { sets.push('drip_enabled = ?'); vals.push(dripEnabled ? 1 : 0); }
+  if (lastProcessedAt !== undefined) { sets.push('last_processed_at = ?'); vals.push(lastProcessedAt); }
   if (sets.length === 0) {
     return db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   }
@@ -70,6 +73,20 @@ export async function deleteHolding(db, userId, ticker) {
   await db.prepare(
     'DELETE FROM holdings WHERE user_id = ? AND ticker = ?'
   ).bind(userId, ticker).run();
+}
+
+export async function saveProcessedState(db, userId, holdings, cashBalance, lastProcessedAt) {
+  const stmts = [
+    db.prepare("UPDATE users SET cash_balance = ?, last_processed_at = ?, updated_at = datetime('now') WHERE id = ?")
+      .bind(cashBalance || 0, lastProcessedAt, userId),
+  ];
+  for (const h of holdings) {
+    stmts.push(
+      db.prepare("UPDATE holdings SET shares = ?, cost_basis = ?, updated_at = datetime('now') WHERE user_id = ? AND ticker = ?")
+        .bind(h.shares || 0, h.cost_basis || 0, userId, h.ticker)
+    );
+  }
+  await db.batch(stmts);
 }
 
 export async function getWatchlist(db, userId) {

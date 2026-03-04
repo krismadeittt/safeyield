@@ -29,6 +29,7 @@ export default function App() {
     handleLoad, addStock, removeStock, editShares, selectStock,
     pickTicker,
     summary, resetPortfolio,
+    dripEnabled, toggleDrip, cashBalance,
     watchlist, addWatch, removeWatch, isWatched,
   } = usePortfolio(getToken);
 
@@ -162,7 +163,7 @@ export default function App() {
               Live Data
             </span>
           )}
-          <UserMenu getToken={getToken} />
+          <UserMenu getToken={getToken} dripEnabled={dripEnabled} toggleDrip={toggleDrip} />
         </div>
       </nav>
 
@@ -177,6 +178,7 @@ export default function App() {
               portfolioValue={summary.portfolioValue}
               weightedYield={summary.weightedYield}
               weightedGrowth={summary.weightedGrowth}
+              cashBalance={cashBalance}
             />
             <HoldingsTable
               holdings={holdings}
@@ -188,6 +190,8 @@ export default function App() {
               loading={loadingStates}
               onRemove={removeStock}
               onEdit={editShares}
+              dripEnabled={dripEnabled}
+              toggleDrip={toggleDrip}
             />
           </div>
         )}

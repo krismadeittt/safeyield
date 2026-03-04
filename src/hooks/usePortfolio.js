@@ -5,7 +5,9 @@ import { getCachedFundamentals } from '../api/cache';
 import { searchTickers } from '../api/search';
 import { REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE } from '../data/portfolioTemplates';
 import { NOBL_HOLDINGS } from '../data/aristocrats';
-import { getUserHoldings, saveUserHoldings, getUserProfile, updateUserProfile, getUserWatchlist, addToUserWatchlist, removeFromUserWatchlist } from '../api/user';
+import { getUserHoldings, saveUserHoldings, getUserProfile, updateUserProfile, getUserWatchlist, addToUserWatchlist, removeFromUserWatchlist, saveProcessedState } from '../api/user';
+import { fetchBatchHistory } from '../api/history';
+import { processCatchUp } from '../utils/catchUp';
 
 const POLL_INTERVAL = 5 * 60000; // 5 minutes
 const SAVE_DEBOUNCE = 2000; // 2 seconds
@@ -45,6 +47,8 @@ export default function usePortfolio(getToken) {
   const [liveData, setLiveData] = useState({});
   const [loadingStates, setLoadingStates] = useState({});
   const [targetBalance, setTargetBalance] = useState(0);
+  const [cashBalance, setCashBalance] = useState(0);
+  const [dripEnabled, setDripEnabled] = useState(true);
 
   // Watchlist state
   const [watchlist, setWatchlist] = useState([]);
@@ -82,20 +86,66 @@ export default function usePortfolio(getToken) {
         if (profile?.target_balance > 0) {
           setTargetBalance(profile.target_balance);
         }
+        // Restore portfolio-level state from profile
+        const profileCash = profile?.cash_balance || 0;
+        const profileDrip = profile?.drip_enabled !== undefined ? !!profile.drip_enabled : true;
+        const profileLastProcessed = profile?.last_processed_at || null;
+        setCashBalance(profileCash);
+        setDripEnabled(profileDrip);
+
         if (saved && saved.length > 0) {
           // Convert D1 format to app format
-          const restored = saved.map(h => ({
+          let restored = saved.map(h => ({
             ticker: h.ticker,
             name: h.name || h.ticker,
             sector: h.sector || null,
             shares: h.shares || 0,
-            price: 0,
+            price: h.cost_basis || 0,
             yld: h.yield_override || 0,
             div: 0,
             g5: 0,
             streak: 0,
             score: 50,
           }));
+
+          // Catch-up processing: apply dividends/splits since last update
+          const today = new Date().toISOString().substring(0, 10);
+          let updatedCash = profileCash;
+          if (profileLastProcessed && profileLastProcessed < today) {
+            try {
+              const tickers = restored.map(h => h.ticker);
+              const historyMap = await fetchBatchHistory(tickers);
+              if (!cancelled && historyMap && Object.keys(historyMap).length > 0) {
+                const result = processCatchUp({
+                  holdings: restored,
+                  cashBalance: profileCash,
+                  dripEnabled: profileDrip,
+                  lastProcessedAt: profileLastProcessed,
+                }, historyMap);
+                restored = result.holdings;
+                updatedCash = result.cashBalance;
+                setCashBalance(updatedCash);
+                // Save processed state back to D1
+                const toSaveState = result.holdings.map(h => ({
+                  ticker: h.ticker,
+                  shares: h.shares,
+                  cost_basis: h.price || 0,
+                }));
+                saveProcessedState(getToken, toSaveState, updatedCash, result.lastProcessedAt).catch(e =>
+                  console.warn('Failed to save processed state:', e.message)
+                );
+                if (result.events.length > 0) {
+                  console.log('Catch-up events:', result.events);
+                }
+              }
+            } catch (e) {
+              console.warn('Catch-up processing failed:', e.message);
+            }
+          } else if (!profileLastProcessed) {
+            // First time — set lastProcessedAt to today (no retroactive processing)
+            updateUserProfile(getToken, undefined, undefined, undefined, undefined, undefined, today).catch(() => {});
+          }
+          if (cancelled) return;
 
           // Fetch live prices + fundamentals before showing dashboard
           const tickers = restored.map(h => h.ticker);
@@ -161,16 +211,19 @@ export default function usePortfolio(getToken) {
   // Debounced save to D1 when holdings change
   const targetBalanceRef = useRef(targetBalance);
   targetBalanceRef.current = targetBalance;
+  const liveDataRef = useRef(liveData);
+  liveDataRef.current = liveData;
   useEffect(() => {
     if (!getToken || !hasLoadedRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
+      const currentLive = liveDataRef.current;
       const toSave = holdingsRef.current.map(h => ({
         ticker: h.ticker,
         name: h.name || '',
         sector: h.sector || '',
         shares: h.shares || 0,
-        cost_basis: 0,
+        cost_basis: currentLive[h.ticker]?.price || h.price || 0,
         yield_override: h.yld || null,
       }));
       saveUserHoldings(getToken, toSave).catch(e =>
@@ -332,6 +385,10 @@ export default function usePortfolio(getToken) {
     if (Object.keys(prePrices).length > 0) {
       setLiveData(prev => ({ ...prev, ...prePrices }));
     }
+    // Reset DRIP state for new portfolio
+    setCashBalance(0);
+    setDripEnabled(true);
+    const today = new Date().toISOString().substring(0, 10);
     // Save to D1
     if (getToken) {
       const toSave = newHoldings.map(h => ({
@@ -339,16 +396,14 @@ export default function usePortfolio(getToken) {
         name: h.name || '',
         sector: h.sector || '',
         shares: h.shares || 0,
-        cost_basis: 0,
+        cost_basis: h.price || 0,
         yield_override: h.yld || null,
       }));
       saveUserHoldings(getToken, toSave).catch(e =>
         console.warn('Save on load failed:', e.message)
       );
-      // Save strategy + target balance to profile
-      if (strategyId || balance) {
-        updateUserProfile(getToken, '', strategyId || '', balance || 0).catch(() => {});
-      }
+      // Save strategy + target balance + lastProcessedAt to profile
+      updateUserProfile(getToken, '', strategyId || '', balance || 0, true, 0, today).catch(() => {});
     }
   }
 
@@ -468,6 +523,9 @@ export default function usePortfolio(getToken) {
       if (yld > 0) { yieldSum += yld * value; growthSum += g5 * value; }
     });
 
+    // Add cash balance to portfolio value
+    pv += cashBalance;
+
     // If we have a target balance from onboarding and the calculated value is
     // within 2% (meaning same prices, just floating-point drift), anchor to target
     let portfolioValue = pv;
@@ -480,12 +538,22 @@ export default function usePortfolio(getToken) {
 
     return {
       portfolioValue,
+      cashBalance,
       annualIncome: Math.round(annualIncome),
       weightedYield: pv > 0 ? yieldSum / pv : 0,
       weightedGrowth: pv > 0 ? growthSum / pv : 0,
       monthlyAvg: Math.round(annualIncome / 12),
     };
-  }, [holdings, liveData, targetBalance]);
+  }, [holdings, liveData, targetBalance, cashBalance]);
+
+  // Toggle DRIP setting
+  function toggleDrip() {
+    const newVal = !dripEnabled;
+    setDripEnabled(newVal);
+    if (getToken) {
+      updateUserProfile(getToken, undefined, undefined, undefined, newVal).catch(() => {});
+    }
+  }
 
   // Select a ticker from search results — clears dropdown, won't re-search
   function pickTicker(ticker) {
@@ -506,6 +574,8 @@ export default function usePortfolio(getToken) {
     handleLoad, addStock, removeStock, editShares, selectStock, refreshStock,
     pickTicker, preloadStrategyPrices,
     summary, resetPortfolio,
+    // DRIP & cash
+    dripEnabled, toggleDrip, cashBalance,
     // Watchlist
     watchlist, addWatch, removeWatch, isWatched,
   };

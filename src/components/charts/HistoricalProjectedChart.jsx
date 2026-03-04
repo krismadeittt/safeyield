@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { formatCurrency } from '../../utils/format';
-import { fetchBatchHistory, calcHistoricalPortfolioValues, calcHistoricalDividendsByYear } from '../../api/history';
+import { fetchBatchHistory, calcHistoricalPortfolioValues, calcHistoricalDividendsByYear, calcDividendsByPeriod } from '../../api/history';
 import useIsMobile from '../../hooks/useIsMobile';
 
 const FALLBACK_HIST = 10; // synthetic fallback when no KV data
@@ -13,21 +13,12 @@ function shortMoney(val) {
   return `$${Math.round(val)}`;
 }
 
-// Compact axis label: "J'22" for Jan 2022
-function axisLabel(year, periodIndex, isQuarterly) {
-  const qMonths = ["J", "A", "J", "O"]; // Jan, Apr, Jul, Oct
-  const months = ["J","F","M","A","M","J","J","A","S","O","N","D"];
-  const shortYear = "'" + String(year).slice(2);
-  if (isQuarterly) return qMonths[periodIndex] + shortYear;
-  return months[periodIndex] + shortYear;
-}
 
 export default function HistoricalProjectedChart({
   portfolioValue, avgYield, growth, horizon, setHorizon,
   useVolatility, setUseVolatility,
   extraContrib, setExtraContrib, customContrib, setCustomContrib,
   noDripVals, dripVals, contribVals,
-  monthlyNoDrip, monthlyDrip, monthlyContrib,
   totalIncome,
   monthlyData, holdings,
 }) {
@@ -38,7 +29,7 @@ export default function HistoricalProjectedChart({
   const [divHovered, setDivHovered] = useState(null);
   const [historyMap, setHistoryMap] = useState({});
   const [histLoading, setHistLoading] = useState(false);
-  const [granularity, setGranularity] = useState("quarterly");
+  const [granularity, setGranularity] = useState("monthly");
   const [showDivReturn, setShowDivReturn] = useState(true);
   const [histRange, setHistRange] = useState(10); // 0=Off, 5, 10, 15, 20
 
@@ -65,14 +56,20 @@ export default function HistoricalProjectedChart({
 
   const realHistData = useMemo(() => {
     if (Object.keys(historyMap).length === 0 || histRange === 0) return null;
-    return calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, histRange);
-  }, [historyMap, holdings, portfolioValue, histRange]);
+    return calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, histRange, granularity);
+  }, [historyMap, holdings, portfolioValue, histRange, granularity]);
 
   // Real dividend income from KV history data (actual payments, not estimates)
   const realDivByYear = useMemo(() => {
     if (Object.keys(historyMap).length === 0) return null;
     return calcHistoricalDividendsByYear(historyMap, holdings);
   }, [historyMap, holdings]);
+
+  // Period-keyed dividend data (matches price history granularity)
+  const realDivByPeriod = useMemo(() => {
+    if (Object.keys(historyMap).length === 0) return null;
+    return calcDividendsByPeriod(historyMap, holdings, granularity);
+  }, [historyMap, holdings, granularity]);
 
   // Stat card values
   const finalNoDrip = noDripVals?.[horizon] || noDripVals?.[noDripVals.length - 1] || 0;
@@ -81,148 +78,114 @@ export default function HistoricalProjectedChart({
   const dripAdvantage = finalDrip - finalNoDrip;
   const incomeAtHorizon = Math.round(totalIncome * Math.pow(1 + (growth || 5) / 100, horizon));
 
-  // Starting value (earliest available year based on histRange)
-  const effectiveHistYears = histRange || 0;
+  // Only show historical bars when real data is loaded (no synthetic fallback)
+  const effectiveHistYears = (histRange > 0 && realHistData && realHistData.length > 1) ? histRange : 0;
   const startingValue = useMemo(() => {
     if (realHistData && realHistData.length > 1) return realHistData[0].value;
-    if (effectiveHistYears === 0) return portfolioValue;
-    return Math.round(portfolioValue / Math.pow(1.10, effectiveHistYears));
-  }, [realHistData, portfolioValue, effectiveHistYears]);
+    return portfolioValue;
+  }, [realHistData, portfolioValue]);
   const startingYear = useMemo(() => {
     if (realHistData && realHistData.length > 1) return realHistData[0].year;
-    return currentYear - effectiveHistYears;
-  }, [realHistData, currentYear, effectiveHistYears]);
+    return currentYear;
+  }, [realHistData, currentYear]);
 
   // Growth percentage from starting to current
   const growthPct = startingValue > 0 ? ((portfolioValue / startingValue - 1) * 100).toFixed(1) : "0";
 
-  // Build bar data: 10yr back + projected forward
+  // Build bar data: historical (actual data points) + projected (interpolated)
   const bars = useMemo(() => {
-    const yieldRate = (avgYield || 2.5) / 100;
-    const growthRate = (growth || 5) / 100;
-    const annualReturn = 0.08;
-    const isQuarterly = granularity === "quarterly";
-    const periodsPerYear = isQuarterly ? 4 : 12;
-
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const periodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
     const result = [];
 
-    // --- HISTORICAL ---
+    // --- HISTORICAL --- (actual data points, no interpolation)
     let nowNoDrip = portfolioValue;
 
-    if (effectiveHistYears > 0) {
-      let histYearlyValues;
-      if (realHistData && realHistData.length > 1) {
-        histYearlyValues = realHistData;
-      } else {
-        // Synthetic fallback when KV data hasn't loaded yet
-        let backVal = portfolioValue;
-        const vals = [{ year: currentYear, value: portfolioValue, noDripValue: portfolioValue }];
-        for (let i = 1; i <= effectiveHistYears; i++) {
-          const pastYield = yieldRate * Math.pow(1 + growthRate, -i);
-          const totalGrowth = 1 + annualReturn + pastYield;
-          backVal = backVal / totalGrowth;
-          vals.unshift({
-            year: currentYear - i,
-            value: Math.round(backVal),
-            noDripValue: Math.round(backVal),
-          });
-        }
-        histYearlyValues = vals;
-      }
+    if (effectiveHistYears > 0 && realHistData) {
+      for (let i = 0; i < realHistData.length; i++) {
+        const pt = realHistData[i];
+        const date = pt.date;
+        const year = pt.year;
+        const month = parseInt(date.substring(5, 7)) - 1;
+        const day = parseInt(date.substring(8, 10));
+        const shortYr = "'" + String(year).slice(2);
 
-      // Interpolate yearly into quarterly/monthly
-      for (let yi = 0; yi < histYearlyValues.length - 1; yi++) {
-        const from = histYearlyValues[yi];
-        const to = histYearlyValues[yi + 1];
-        for (let p = 0; p < periodsPerYear; p++) {
-          const t = p / periodsPerYear;
-          const value = Math.round(from.value + (to.value - from.value) * t);
-          const noDripValue = Math.round(
-            (from.noDripValue || from.value) + ((to.noDripValue || to.value) - (from.noDripValue || from.value)) * t
-          );
-          result.push({
-            label: isQuarterly
-              ? `Q${p+1} ${from.year}`
-              : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${from.year}`,
-            axisLabel: p === 0 ? axisLabel(from.year, p, isQuarterly) : "",
-            fullLabel: isQuarterly
-              ? `Q${p+1} ${from.year} (actual)`
-              : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${from.year} (actual)`,
-            total: value,
-            noDrip: noDripValue,
-            dripBonus: Math.max(0, value - noDripValue),
-            isHistorical: true,
-            isCurrent: false,
-            year: from.year,
-            periodIndex: p,
-            yearsFromNow: from.year - currentYear,
-          });
+        let label, fullLabel, axLabel;
+        if (granularity === 'yearly') {
+          label = String(year);
+          fullLabel = `${year} (actual)`;
+          axLabel = shortYr;
+        } else if (granularity === 'monthly') {
+          label = `${months[month]} ${year}`;
+          fullLabel = `${months[month]} ${year} (actual)`;
+          axLabel = month === 0 ? `J${shortYr}` : "";
+        } else {
+          label = `${months[month]} ${day}, ${year}`;
+          fullLabel = `${date} (actual)`;
+          axLabel = (i === 0 || realHistData[i - 1]?.year !== year) ? shortYr : "";
         }
-      }
 
-      const lastHist = histYearlyValues[histYearlyValues.length - 1];
+        result.push({
+          label, axisLabel: axLabel, fullLabel,
+          total: pt.value,
+          noDrip: pt.noDripValue,
+          dripBonus: Math.max(0, pt.value - pt.noDripValue),
+          isHistorical: true, isCurrent: false,
+          date, year, periodIndex: granularity === 'monthly' ? month : 0,
+          yearsFromNow: year - currentYear,
+        });
+      }
+      const lastHist = realHistData[realHistData.length - 1];
       nowNoDrip = lastHist?.noDripValue || portfolioValue;
     }
+
     result.push({
-      label: "Now",
-      axisLabel: "Now",
+      label: "Now", axisLabel: "Now",
       fullLabel: `${currentYear} (current)`,
-      total: portfolioValue,
-      noDrip: nowNoDrip,
+      total: portfolioValue, noDrip: nowNoDrip,
       dripBonus: Math.max(0, portfolioValue - nowNoDrip),
-      isHistorical: true,
-      isCurrent: true,
-      year: currentYear,
-      periodIndex: 0,
-      yearsFromNow: 0,
+      isHistorical: true, isCurrent: true,
+      year: currentYear, periodIndex: 0, yearsFromNow: 0,
     });
 
     const nowBarIndex = result.length - 1;
 
-    // --- PROJECTED ---
-    const hasMonthly = !!monthlyNoDrip;
-    const activeDripMonthly = monthlyContrib || monthlyDrip;
-
+    // --- PROJECTED --- (interpolate yearly projections at chosen granularity)
     for (let yr = 1; yr <= projYears; yr++) {
       for (let p = 0; p < periodsPerYear; p++) {
-        let interpNoDrip, interpDrip;
+        const noDripVal = noDripVals?.[yr] || portfolioValue;
+        const dripVal = contribVals ? (contribVals[yr] || portfolioValue) : (dripVals?.[yr] || portfolioValue);
+        const prevNoDrip = noDripVals?.[yr - 1] || portfolioValue;
+        const prevDrip = contribVals ? (contribVals[yr - 1] || portfolioValue) : (dripVals?.[yr - 1] || portfolioValue);
+        const t = (p + 1) / periodsPerYear;
+        const interpNoDrip = Math.round(prevNoDrip + (noDripVal - prevNoDrip) * t);
+        const interpDrip = Math.round(prevDrip + (dripVal - prevDrip) * t);
 
-        if (hasMonthly) {
-          // Use actual monthly simulation values for realistic volatility
-          const monthIdx = isQuarterly
-            ? (yr - 1) * 12 + (p + 1) * 3
-            : (yr - 1) * 12 + (p + 1);
-          interpNoDrip = monthlyNoDrip[monthIdx] || portfolioValue;
-          interpDrip = activeDripMonthly[monthIdx] || portfolioValue;
+        const projYear = currentYear + yr;
+        const shortYr = "'" + String(projYear).slice(2);
+        let label, fullLabel, axLabel;
+        if (granularity === 'yearly') {
+          label = String(projYear); fullLabel = `${projYear} (projected)`; axLabel = shortYr;
+        } else if (granularity === 'monthly') {
+          label = `${months[p]} ${projYear}`; fullLabel = `${months[p]} ${projYear} (projected)`;
+          axLabel = p === 0 ? `J${shortYr}` : "";
         } else {
-          // Linear interpolation from yearly values (deterministic mode)
-          const noDripVal = noDripVals?.[yr] || portfolioValue;
-          const dripVal = contribVals ? (contribVals[yr] || portfolioValue) : (dripVals?.[yr] || portfolioValue);
-          const prevNoDrip = noDripVals?.[yr - 1] || portfolioValue;
-          const prevDrip = contribVals ? (contribVals[yr - 1] || portfolioValue) : (dripVals?.[yr - 1] || portfolioValue);
-          const t = (p + 1) / periodsPerYear;
-          interpNoDrip = Math.round(prevNoDrip + (noDripVal - prevNoDrip) * t);
-          interpDrip = Math.round(prevDrip + (dripVal - prevDrip) * t);
+          label = `W${p + 1} ${projYear}`; fullLabel = `Week ${p + 1}, ${projYear} (projected)`;
+          axLabel = p === 0 ? shortYr : "";
         }
 
         result.push({
-          label: isQuarterly ? `Q${p+1} ${currentYear + yr}` : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${currentYear + yr}`,
-          axisLabel: p === 0 ? axisLabel(currentYear + yr, p, isQuarterly) : "",
-          fullLabel: isQuarterly ? `Q${p+1} ${currentYear + yr} (projected)` : `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][p]} ${currentYear + yr} (projected)`,
-          total: interpDrip,
-          noDrip: interpNoDrip,
+          label, axisLabel: axLabel, fullLabel,
+          total: interpDrip, noDrip: interpNoDrip,
           dripBonus: Math.max(0, interpDrip - interpNoDrip),
-          isHistorical: false,
-          isCurrent: false,
-          year: currentYear + yr,
-          periodIndex: p,
-          yearsFromNow: yr,
+          isHistorical: false, isCurrent: false,
+          year: projYear, periodIndex: p, yearsFromNow: yr,
         });
       }
     }
 
     return { bars: result, nowBarIndex };
-  }, [portfolioValue, avgYield, growth, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, monthlyNoDrip, monthlyDrip, monthlyContrib, effectiveHistYears]);
+  }, [portfolioValue, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears]);
 
   const { bars: barData, nowBarIndex } = bars;
 
@@ -232,19 +195,14 @@ export default function HistoricalProjectedChart({
   const divBars = useMemo(() => {
     if (!monthlyData?.length) return [];
     const growthRate = (growth || 5) / 100;
-    const isQuarterly = granularity === "quarterly";
-
-    // Compute expected annual income from fundamentals (complete picture)
     const expectedAnnual = monthlyData.reduce((s, v) => s + v, 0);
 
-    // Find the most recent full year with KV data and compute a scaling factor
+    // Scaling factor: normalize historical KV dividends to match fundamentals estimate
     let divScale = 1;
     if (realDivByYear && expectedAnnual > 0) {
-      // Check last year first (most likely to be complete), then year before
       for (const checkYear of [currentYear - 1, currentYear - 2]) {
         const yd = realDivByYear[checkYear];
         if (yd && yd.annual > 0) {
-          // What the projected formula would show for that year
           const yearsBack = currentYear - checkYear;
           const expectedForYear = expectedAnnual / Math.pow(1 + growthRate, yearsBack);
           divScale = expectedForYear / yd.annual;
@@ -253,33 +211,41 @@ export default function HistoricalProjectedChart({
       }
     }
 
+    // Helper: compute period key from a date string (matches history.js periodKey)
+    function getPeriodKey(dateStr) {
+      if (granularity === 'yearly') return dateStr.substring(0, 4);
+      if (granularity === 'monthly') return dateStr.substring(0, 7);
+      const parts = dateStr.split('-').map(Number);
+      const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+      const day = d.getUTCDay();
+      const mondayOffset = day === 0 ? -6 : 1 - day;
+      d.setUTCDate(d.getUTCDate() + mondayOffset);
+      return d.toISOString().substring(0, 10);
+    }
+
     return barData.map(bar => {
       let divIncome;
 
-      // For historical bars: use actual dividend payments from KV worker data, scaled
-      if (bar.isHistorical && !bar.isCurrent && realDivByYear && realDivByYear[bar.year]) {
-        const yearData = realDivByYear[bar.year];
-        if (isQuarterly) {
-          divIncome = (yearData.quarters[bar.periodIndex] || 0) * divScale;
-        } else {
-          divIncome = (yearData.months[bar.periodIndex] || 0) * divScale;
-        }
+      // Historical: use actual dividend payment data grouped by period
+      if (bar.isHistorical && !bar.isCurrent && bar.date && realDivByPeriod) {
+        const key = getPeriodKey(bar.date);
+        divIncome = (realDivByPeriod[key] || 0) * divScale;
       } else {
-        // Projected, current year, or no real data: estimate from current monthlyData with growth
+        // Projected / current: estimate from fundamentals with growth
         const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
-        if (isQuarterly) {
-          const qStart = (bar.periodIndex || 0) * 3;
-          divIncome = 0;
-          for (let m = qStart; m < qStart + 3 && m < 12; m++) divIncome += (monthlyData[m] || 0);
-        } else {
+        if (granularity === 'yearly') {
+          divIncome = expectedAnnual;
+        } else if (granularity === 'monthly') {
           divIncome = monthlyData[bar.periodIndex || 0] || 0;
+        } else {
+          divIncome = expectedAnnual / 52;
         }
         divIncome = divIncome * growthFactor;
       }
 
       return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity, realDivByYear, currentYear]);
+  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear]);
 
   // Chart layout
   const padL = isMobile ? 35 : 55;
@@ -367,7 +333,7 @@ export default function HistoricalProjectedChart({
           </button>
           <div style={{ flex: 1 }} />
           <div style={{ display: "flex", gap: 0, border: "1px solid #1a3a5c" }}>
-            {["quarterly", "monthly"].map(m => (
+            {["weekly", "monthly", "yearly"].map(m => (
               <button key={m} onClick={() => setGranularity(m)} style={{
                 padding: "5px 12px", border: "none", fontSize: "0.72rem", fontWeight: 600,
                 cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase",
@@ -541,10 +507,8 @@ export default function HistoricalProjectedChart({
           {barData.map((bar, i) => {
             if (!bar.axisLabel) return null;
             // Thin labels when too many bars
-            if (barCount > 400 && bar.periodIndex !== 0) return null;
-            if (barCount > 400 && bar.year % 5 !== 0 && !bar.isCurrent) return null;
-            if (barCount > 150 && bar.periodIndex !== 0) return null;
-            if (barCount > 150 && bar.year % 2 !== 0 && !bar.isCurrent) return null;
+            if (barCount > 800 && bar.year % 5 !== 0 && !bar.isCurrent) return null;
+            if (barCount > 300 && bar.year % 2 !== 0 && !bar.isCurrent) return null;
             const x = padL + i * stepW + stepW / 2;
             return (
               <text key={i} x={x} y={13}

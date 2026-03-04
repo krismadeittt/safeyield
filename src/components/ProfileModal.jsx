@@ -10,7 +10,7 @@ const STRATEGIES = [
   { id: 'voo', label: 'High Yield Mix' },
 ];
 
-export default function ProfileModal({ getToken, onClose }) {
+export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDrip }) {
   const isMobile = useIsMobile();
   const [displayName, setDisplayName] = useState('');
   const [defaultStrategy, setDefaultStrategy] = useState('');
@@ -90,6 +90,32 @@ export default function ProfileModal({ getToken, onClose }) {
                 <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </select>
+
+            <label style={{ fontSize: '0.7rem', color: '#5a8ab0', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+              Dividend Reinvestment (DRIP)
+            </label>
+            <div
+              onClick={toggleDrip}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20,
+                cursor: 'pointer', userSelect: 'none',
+              }}
+            >
+              <div style={{
+                width: 36, height: 20, borderRadius: 10,
+                background: dripEnabled ? '#005EB8' : 'rgba(255,255,255,0.08)',
+                position: 'relative', transition: 'background 0.2s',
+              }}>
+                <div style={{
+                  width: 16, height: 16, borderRadius: 8,
+                  background: '#c8dff0', position: 'absolute', top: 2,
+                  left: dripEnabled ? 18 : 2, transition: 'left 0.2s',
+                }} />
+              </div>
+              <span style={{ color: '#c8dff0', fontSize: '0.85rem', fontFamily: "'EB Garamond', Georgia, serif" }}>
+                {dripEnabled ? 'ON — Reinvest dividends as shares' : 'OFF — Accumulate as cash'}
+              </span>
+            </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleSave} disabled={saving} style={{

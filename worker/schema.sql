@@ -3,6 +3,9 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT,
   display_name TEXT DEFAULT '',
   default_strategy TEXT DEFAULT '',
+  cash_balance REAL DEFAULT 0,
+  drip_enabled INTEGER DEFAULT 1,
+  last_processed_at TEXT DEFAULT NULL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

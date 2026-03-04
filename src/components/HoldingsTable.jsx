@@ -18,7 +18,7 @@ const SORT_FIELDS = [
 
 export default function HoldingsTable({
   holdings, search, setSearch, onAdd, onSelect, liveData, loading,
-  onRemove, onEdit, title,
+  onRemove, onEdit, title, dripEnabled, toggleDrip,
 }) {
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState("value");
@@ -62,13 +62,45 @@ export default function HoldingsTable({
         display: "flex", justifyContent: "space-between", alignItems: "center",
         background: "#071020", flexWrap: isMobile ? "wrap" : "nowrap", gap: isMobile ? 8 : 0,
       }}>
-        <span style={{
-          fontWeight: 600, letterSpacing: "0.12em", fontSize: "0.72rem",
-          textTransform: "uppercase", color: "#7a9ab8",
-          fontFamily: "'EB Garamond', Georgia, serif",
-        }}>
-          {title || "My Holdings"} ({holdings.length})
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 16 }}>
+          <span style={{
+            fontWeight: 600, letterSpacing: "0.12em", fontSize: "0.72rem",
+            textTransform: "uppercase", color: "#7a9ab8",
+            fontFamily: "'EB Garamond', Georgia, serif",
+          }}>
+            {title || "My Holdings"} ({holdings.length})
+          </span>
+          {toggleDrip && (
+            <div
+              onClick={toggleDrip}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                cursor: "pointer", userSelect: "none",
+              }}
+            >
+              <div style={{
+                width: 28, height: 14, borderRadius: 7,
+                background: dripEnabled ? "#005EB8" : "rgba(255,255,255,0.1)",
+                position: "relative", transition: "background 0.2s",
+              }}>
+                <div style={{
+                  width: 10, height: 10, borderRadius: 5,
+                  background: "#c8dff0",
+                  position: "absolute", top: 2,
+                  left: dripEnabled ? 16 : 2,
+                  transition: "left 0.2s",
+                }} />
+              </div>
+              <span style={{
+                fontSize: "0.65rem", color: dripEnabled ? "#5a8ab0" : "#2a4a6a",
+                fontFamily: "'EB Garamond', Georgia, serif",
+                letterSpacing: "0.05em",
+              }}>
+                DRIP {dripEnabled ? "On" : "Off"}
+              </span>
+            </div>
+          )}
+        </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", width: isMobile ? "100%" : "auto" }}>
           <input
             placeholder="Search..."

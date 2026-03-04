@@ -6,7 +6,7 @@ import HistoricalProjectedChart from '../components/charts/HistoricalProjectedCh
 import useIsMobile from '../hooks/useIsMobile';
 
 export default function Dashboard({
-  totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth,
+  totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth, cashBalance = 0,
 }) {
   const isMobile = useIsMobile();
   const [horizon, setHorizon] = useState(10);
@@ -25,7 +25,7 @@ export default function Dashboard({
     projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng),
   [horizon, holdings, liveData, contrib, useVolatility]);
 
-  const { noDripVals, dripVals, contribVals, monthlyNoDrip, monthlyDrip, monthlyContrib } = projections;
+  const { noDripVals, dripVals, contribVals } = projections;
 
   // Monthly income data
   const monthlyData = useMemo(() => calcMonthlyIncome(holdings), [holdings]);
@@ -47,7 +47,7 @@ export default function Dashboard({
         borderTop: "1px solid #0a1e30", borderBottom: "1px solid #0a1e30",
         background: "transparent",
       }}>
-        <StatCell label="Portfolio Value" value={formatCurrency(portfolioValue)} sub={`${holdings.length} holdings`} isMobile={isMobile} />
+        <StatCell label="Portfolio Value" value={formatCurrency(portfolioValue)} sub={cashBalance > 0 ? `${holdings.length} holdings + ${formatCurrency(cashBalance)} cash` : `${holdings.length} holdings`} isMobile={isMobile} />
         <StatCell label="Portfolio Yield" value={`${avgYield.toFixed(2)}%`} sub="weighted avg" isMobile={isMobile} />
         <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg)}/mo`} isMobile={isMobile} />
         <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg)} sub="estimated" isMobile={isMobile} />
@@ -70,9 +70,6 @@ export default function Dashboard({
         noDripVals={noDripVals}
         dripVals={dripVals}
         contribVals={contribVals}
-        monthlyNoDrip={monthlyNoDrip}
-        monthlyDrip={monthlyDrip}
-        monthlyContrib={monthlyContrib}
         totalIncome={totalIncome}
         monthlyData={monthlyData}
         holdings={holdings}

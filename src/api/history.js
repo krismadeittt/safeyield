@@ -102,6 +102,32 @@ export function calcHistoricalDividendsByYear(historyMap, holdings) {
 }
 
 /**
+ * Group actual dividend payments by period key (weekly/monthly/yearly).
+ * Returns Map<periodKey, totalIncome> using same period keys as calcHistoricalPortfolioValues.
+ */
+export function calcDividendsByPeriod(historyMap, holdings, granularity = 'monthly') {
+  const result = {};
+
+  holdings.forEach(h => {
+    const hist = historyMap[h.ticker];
+    if (!hist?.d?.length || !h.shares) return;
+
+    hist.d.forEach(div => {
+      const key = periodKey(div.d, granularity);
+      const income = div.v * h.shares;
+      result[key] = (result[key] || 0) + income;
+    });
+  });
+
+  // Round
+  for (const key of Object.keys(result)) {
+    result[key] = Math.round(result[key]);
+  }
+
+  return result;
+}
+
+/**
  * Compute split-adjusted close prices from raw KV price data.
  *
  * KV stores raw `c` (unadjusted close) which has discontinuities at stock
@@ -157,20 +183,36 @@ function computeSplitAdjustedClose(prices) {
 }
 
 /**
- * Get yearly portfolio values from real historical price data.
+ * Compute period key for a date string based on granularity.
+ * yearly: "2024", monthly: "2024-01", weekly: Monday date "2024-01-01"
+ */
+function periodKey(dateStr, granularity) {
+  if (granularity === 'yearly') return dateStr.substring(0, 4);
+  if (granularity === 'monthly') return dateStr.substring(0, 7);
+  // Weekly: key = ISO Monday of that week
+  const parts = dateStr.split('-').map(Number);
+  const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  const day = d.getUTCDay(); // 0=Sun..6=Sat
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + mondayOffset);
+  return d.toISOString().substring(0, 10);
+}
+
+/**
+ * Get portfolio values from real historical price data at the requested granularity.
  *
- * Uses growth-ratio approach: for each ticker, compute total return
- * (adjusted close) and price-only return (split-adjusted close) ratios
- * from the starting year forward. Split-adjusted close accounts for
- * stock splits but NOT dividend reinvestment, so DRIP value >= noDrip.
+ * Uses growth-ratio approach: for each ticker, group daily prices by period
+ * (weekly/monthly/yearly), take the last closing price per period, then compute
+ * weighted total return (adjusted close) and price-only return (split-adjusted close).
  *
  * @param {Object} historyMap - { ticker: { p: [...], d: [...] }, ... }
  * @param {Array} holdings - [{ ticker, shares, ... }, ...]
  * @param {number} portfolioValue - Current portfolio value (for anchoring)
  * @param {number} [maxYearsBack=20] - How many years of history to compute
- * @returns {Array} - [{ year, value, noDripValue }, ...]
+ * @param {string} [granularity='monthly'] - 'weekly', 'monthly', or 'yearly'
+ * @returns {Array} - [{ date, year, value, noDripValue }, ...]
  */
-export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, maxYearsBack = 20) {
+export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, maxYearsBack = 20, granularity = 'monthly') {
   const currentYear = new Date().getFullYear();
 
   // Pre-compute split-adjusted close prices for each ticker
@@ -181,67 +223,75 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
     }
   });
 
-  // Helper: last trading day's price in a given year
-  // Returns { ac: adjusted_close, c: split_adjusted_close }
-  function getYearPrice(ticker, year) {
-    const hist = historyMap[ticker];
-    if (!hist?.p) return null;
-    const yearStr = String(year);
+  // Group each ticker's daily prices into periods, keeping last entry per period
+  const tickerGroups = {}; // { TICKER: { periodKey: { date, ac, c } } }
+  const cutoffYear = currentYear - maxYearsBack;
 
-    // Find the last price entry for this year
-    const prices = hist.p;
-    let lastIdx = -1;
-    for (let i = prices.length - 1; i >= 0; i--) {
-      if (prices[i].d.startsWith(yearStr)) { lastIdx = i; break; }
-    }
-    if (lastIdx === -1) return null;
-
-    const last = prices[lastIdx];
-    const sc = splitAdjusted[ticker]?.[lastIdx] ?? last.c;
-    return { ac: last.ac || last.c, c: sc };
-  }
-
-  // Find earliest year with data, capped by maxYearsBack
-  let minDataYear = currentYear;
   holdings.forEach(h => {
     const hist = historyMap[h.ticker];
-    if (hist?.p?.length) {
-      const firstYear = parseInt(hist.p[0].d.substring(0, 4));
-      if (firstYear < minDataYear) minDataYear = firstYear;
-    }
-  });
-  const startYear = Math.max(minDataYear, currentYear - maxYearsBack);
+    if (!hist?.p?.length) return;
+    const prices = hist.p;
+    const adj = splitAdjusted[h.ticker] || [];
+    const groups = {};
 
-  // Only use tickers that have price data at the start year
+    for (let i = 0; i < prices.length; i++) {
+      const date = prices[i].d;
+      if (parseInt(date.substring(0, 4)) < cutoffYear) continue;
+      const key = periodKey(date, granularity);
+      // Always overwrite — last entry in period wins (latest closing price)
+      groups[key] = {
+        date,
+        ac: prices[i].ac || prices[i].c,
+        c: adj[i] ?? prices[i].c,
+      };
+    }
+    tickerGroups[h.ticker] = groups;
+  });
+
+  // Collect all unique period keys, sorted
+  const allPeriods = new Set();
+  Object.values(tickerGroups).forEach(groups => {
+    Object.keys(groups).forEach(k => allPeriods.add(k));
+  });
+  const sortedPeriods = [...allPeriods].sort();
+  if (sortedPeriods.length < 2) return [];
+
+  const startPeriod = sortedPeriods[0];
+
+  // Only use tickers that have data at the start period
   const basePrices = {};
   const validHoldings = holdings.filter(h => {
-    const p = getYearPrice(h.ticker, startYear);
+    const p = tickerGroups[h.ticker]?.[startPeriod];
     if (p && p.ac > 0 && p.c > 0) { basePrices[h.ticker] = p; return true; }
     return false;
   });
   if (validHoldings.length === 0) return [];
 
-  // Year by year: compute weighted growth ratios from startYear
+  // For each period, compute weighted growth ratios
   const results = [];
-  for (let year = startYear; year <= currentYear; year++) {
+  for (const period of sortedPeriods) {
     let weightedTotal = 0;
     let weightedPrice = 0;
     let totalWeight = 0;
+    let latestDate = '';
 
     validHoldings.forEach(h => {
       const base = basePrices[h.ticker];
-      const yearP = getYearPrice(h.ticker, year);
-      if (!yearP) return;
+      const periodP = tickerGroups[h.ticker]?.[period];
+      if (!periodP) return;
 
-      const weight = (h.shares || 0) * base.c; // weight by starting dollar value
-      weightedTotal += weight * (yearP.ac / base.ac); // total return (includes divs)
-      weightedPrice += weight * (yearP.c / base.c);   // price-only return (split-adjusted)
+      const weight = (h.shares || 0) * base.c;
+      weightedTotal += weight * (periodP.ac / base.ac);
+      weightedPrice += weight * (periodP.c / base.c);
       totalWeight += weight;
+      if (periodP.date > latestDate) latestDate = periodP.date;
     });
 
     if (totalWeight > 0) {
       results.push({
-        year,
+        period,
+        date: latestDate,
+        year: parseInt(latestDate.substring(0, 4)),
         totalGrowth: weightedTotal / totalWeight,
         priceGrowth: weightedPrice / totalWeight,
       });
@@ -250,13 +300,14 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
 
   if (results.length === 0) return [];
 
-  // Anchor: last year's DRIP value = portfolioValue
+  // Anchor: last period's DRIP value = portfolioValue
   const last = results[results.length - 1];
   const startValue = last.totalGrowth > 0 ? portfolioValue / last.totalGrowth : portfolioValue;
 
   return results.map(r => ({
+    date: r.date,
     year: r.year,
-    value: Math.round(startValue * r.totalGrowth),       // with DRIP (always >= noDripValue)
-    noDripValue: Math.round(startValue * r.priceGrowth), // price only (split-adjusted)
+    value: Math.round(startValue * r.totalGrowth),
+    noDripValue: Math.round(startValue * r.priceGrowth),
   }));
 }

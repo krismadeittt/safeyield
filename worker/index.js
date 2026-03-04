@@ -9,6 +9,7 @@ import {
   getOrCreateUser, updateUserProfile,
   getHoldings, saveHoldings, upsertHolding, deleteHolding,
   getWatchlist, addToWatchlist, removeFromWatchlist,
+  saveProcessedState,
 } from './db.js';
 
 const EODHD_BASE = "https://eodhd.com/api";
@@ -738,7 +739,14 @@ export default {
       // PUT /user/profile
       if (path === "/user/profile" && method === "PUT") {
         var body = await request.json();
-        var updated = await updateUserProfile(db, auth.userId, body.display_name, body.default_strategy, body.target_balance);
+        var updated = await updateUserProfile(db, auth.userId, {
+          displayName: body.display_name,
+          defaultStrategy: body.default_strategy,
+          targetBalance: body.target_balance,
+          cashBalance: body.cash_balance,
+          dripEnabled: body.drip_enabled,
+          lastProcessedAt: body.last_processed_at,
+        });
         return json({ result: updated }, origin, 200, 0);
       }
 
@@ -766,6 +774,18 @@ export default {
       if (path.startsWith("/user/holdings/") && method === "DELETE") {
         var delTicker = path.split("/user/holdings/")[1].toUpperCase();
         await deleteHolding(db, auth.userId, delTicker);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      // POST /user/processed-state — save catch-up results atomically
+      if (path === "/user/processed-state" && method === "POST") {
+        var psBody = await request.json();
+        await saveProcessedState(
+          db, auth.userId,
+          psBody.holdings || [],
+          psBody.cashBalance || 0,
+          psBody.lastProcessedAt || new Date().toISOString().substring(0, 10)
+        );
         return json({ ok: true }, origin, 200, 0);
       }
 
