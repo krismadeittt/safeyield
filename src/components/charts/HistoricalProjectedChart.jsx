@@ -76,33 +76,52 @@ export default function HistoricalProjectedChart({
     return calcDividendsByPeriod(historyMap, holdings, granularity);
   }, [historyMap, holdings, granularity]);
 
-  // Derive per-month payment pattern from SAME historyMap used for historical bars.
-  // This ensures projected bars mirror the exact same scattered pattern.
-  const projMonthlyPattern = useMemo(() => {
-    const pattern = new Array(12).fill(0);
-    if (!holdings?.length || Object.keys(historyMap).length === 0) return pattern;
+  // Derive payment patterns from SAME historyMap used for historical bars.
+  // Monthly pattern (12 elements): income per calendar month.
+  // Weekly pattern (52 elements): income in the specific week each stock pays.
+  const { projMonthlyPattern, projWeeklyPattern } = useMemo(() => {
+    const monthly = new Array(12).fill(0);
+    const weekly = new Array(52).fill(0);
+    if (!holdings?.length || Object.keys(historyMap).length === 0) {
+      return { projMonthlyPattern: monthly, projWeeklyPattern: weekly };
+    }
 
     holdings.forEach(h => {
       const hist = historyMap[h.ticker];
       if (!hist?.d?.length || !h.shares) return;
 
-      // Use last 8 dividend payments to determine payment months and typical amounts
       const recent = [...hist.d].sort((a, b) => a.d.localeCompare(b.d)).slice(-8);
+
+      // Monthly: average income per payment month
       const monthAmounts = new Map();
       recent.forEach(div => {
         const month = parseInt(div.d.substring(5, 7)) - 1;
         if (!monthAmounts.has(month)) monthAmounts.set(month, []);
         monthAmounts.get(month).push(div.v * h.shares);
       });
-
-      // Average per-month income for this stock
       monthAmounts.forEach((amounts, month) => {
-        const avg = amounts.reduce((s, v) => s + v, 0) / amounts.length;
-        pattern[month] += avg;
+        monthly[month] += amounts.reduce((s, v) => s + v, 0) / amounts.length;
+      });
+
+      // Weekly: for each payment month, use the most recent payment's week-of-year.
+      // This places the full payment in one specific week, not spread across the month.
+      const monthToWeekEntry = new Map();
+      recent.forEach(div => {
+        const parts = div.d.split('-').map(Number);
+        const month = parts[1] - 1;
+        const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+        const jan1 = new Date(Date.UTC(parts[0], 0, 1));
+        const dayOfYear = Math.floor((date - jan1) / 86400000);
+        const weekIdx = Math.min(51, Math.floor(dayOfYear / 7));
+        // Keep the most recent (last in sorted order) for each payment month
+        monthToWeekEntry.set(month, { week: weekIdx, amount: div.v * h.shares });
+      });
+      monthToWeekEntry.forEach(({ week, amount }) => {
+        weekly[week] += amount;
       });
     });
 
-    return pattern;
+    return { projMonthlyPattern: monthly, projWeeklyPattern: weekly };
   }, [holdings, historyMap]);
 
   // Stat card values — always use last element (arrays may be sub-annual length in Real World)
@@ -269,24 +288,17 @@ export default function HistoricalProjectedChart({
       return d.toISOString().substring(0, 10);
     }
 
-    // Proper weeks-per-month counts so weekly bars sum to the annual total
-    const weeklyMonthCounts = granularity === 'weekly'
-      ? Array.from({ length: 52 }, (_, w) => Math.min(11, Math.floor((w * 12) / 52)))
-          .reduce((acc, m) => { acc[m] += 1; return acc; }, Array(12).fill(0))
-      : null;
-
-    const patternTotal = projMonthlyPattern.reduce((s, v) => s + v, 0);
+    const monthlyTotal = projMonthlyPattern.reduce((s, v) => s + v, 0);
+    const weeklyTotal = projWeeklyPattern.reduce((s, v) => s + v, 0);
     const displayPeriodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
 
-    // Distribute an annual total by the history-derived monthly pattern
-    const distributeByMonth = (annual, periodIndex) => {
-      if (patternTotal > 0 && granularity === 'monthly') {
-        return annual * (projMonthlyPattern[periodIndex] / patternTotal);
-      } else if (patternTotal > 0 && granularity === 'weekly') {
-        const monthForWeek = Math.min(11, Math.floor(periodIndex * 12 / 52));
-        const monthWeight = (projMonthlyPattern[monthForWeek] || 0) / patternTotal;
-        const weekSlots = weeklyMonthCounts?.[monthForWeek] || 1;
-        return annual * monthWeight / weekSlots;
+    // Distribute an annual total by the history-derived payment pattern.
+    // Monthly: spreads by payment month. Weekly: places income in the exact payment week.
+    const distributeByPeriod = (annual, periodIndex) => {
+      if (granularity === 'monthly' && monthlyTotal > 0) {
+        return annual * (projMonthlyPattern[periodIndex] / monthlyTotal);
+      } else if (granularity === 'weekly' && weeklyTotal > 0) {
+        return annual * (projWeeklyPattern[periodIndex] / weeklyTotal);
       }
       return annual / displayPeriodsPerYear;
     };
@@ -307,11 +319,11 @@ export default function HistoricalProjectedChart({
           divIncome = expectedAnnual / displayPeriodsPerYear;
         } else if (divIncomePerYear && yearIdx >= 0 && yearIdx < divIncomePerYear.length) {
           // Use simulation dividends (reflects MC volatility + dividend stress)
-          divIncome = distributeByMonth(divIncomePerYear[yearIdx], bar.periodIndex);
+          divIncome = distributeByPeriod(divIncomePerYear[yearIdx], bar.periodIndex);
         } else {
           // Fallback: static growth estimate
           const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
-          divIncome = distributeByMonth(expectedAnnual * growthFactor, bar.periodIndex);
+          divIncome = distributeByPeriod(expectedAnnual * growthFactor, bar.periodIndex);
         }
       }
 
