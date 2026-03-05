@@ -15,7 +15,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: worker
-          wranglerVersion: '4'
+          wranglerVersion: '4.70.0'
 
   deploy-history:
     runs-on: ubuntu-latest
@@ -26,4 +26,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           workingDirectory: worker/history-kv
-          wranglerVersion: '4'
+          wranglerVersion: '4.70.0'
