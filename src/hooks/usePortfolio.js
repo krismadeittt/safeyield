@@ -620,7 +620,8 @@ export default function usePortfolio(getToken) {
       cashBalance,
       annualIncome,
       weightedYield: pv > 0 ? yieldSum / pv : 0,
-      weightedGrowth: pv > 0 ? growthSum / pv : 0,
+      // Dividend growth is a stock-only metric — don't dilute by cash (cash has no div growth)
+      weightedGrowth: holdingsValue > 0 ? growthSum / holdingsValue : 0,
       monthlyAvg: Math.round(annualIncome / 12),
     };
   }, [holdings, liveData, cashBalance, cashApy, cashCompounding, cashYield]);
