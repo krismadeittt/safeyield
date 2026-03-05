@@ -44,13 +44,13 @@ export default function HoldingsTable({
       list = list.filter(h => h.ticker.includes(q) || (h.name || "").toUpperCase().includes(q));
     }
     list.sort((a, b) => {
-      const av = getSortVal(a, sortKey, liveData, totalValue);
-      const bv = getSortVal(b, sortKey, liveData, totalValue);
+      const av = getSortVal(a, sortKey, liveData, portfolioValue);
+      const bv = getSortVal(b, sortKey, liveData, portfolioValue);
       if (typeof av === "string") return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
       return sortDir === "asc" ? av - bv : bv - av;
     });
     return list;
-  }, [holdings, search, sortKey, sortDir, liveData, totalValue]);
+  }, [holdings, search, sortKey, sortDir, liveData, portfolioValue]);
 
   function handleSort(key) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -233,7 +233,7 @@ export default function HoldingsTable({
               const live = liveData?.[h.ticker];
               const price = (live?.price > 0 ? live.price : null) || h.price || 0;
               const value = price * (h.shares || 0);
-              const weightPct = totalValue > 0 ? (value / totalValue) * 100 : 0;
+              const weightPct = portfolioValue > 0 ? (value / portfolioValue) * 100 : 0;
               const yld = (live?.divYield > 0 ? live.divYield : null) ?? h.yld ?? 0;
               const annualDiv = (live?.annualDiv > 0 ? live.annualDiv : null) ?? h.div ?? 0;
               const g5 = live?.g5 ?? h.g5 ?? 0;
@@ -395,7 +395,7 @@ export default function HoldingsTable({
                 {filtered.map((h, idx) => {
                   const price = liveData?.[h.ticker]?.price || h.price || 0;
                   const value = price * (h.shares || 0);
-                  const weightPct = totalValue > 0 ? (value / totalValue) * 100 : 0;
+                  const weightPct = portfolioValue > 0 ? (value / portfolioValue) * 100 : 0;
                   return (
                     <HoldingRow
                       key={h.ticker}
@@ -443,7 +443,7 @@ function MobileMetric({ label, value, color }) {
   );
 }
 
-function getSortVal(stock, key, liveData, totalValue) {
+function getSortVal(stock, key, liveData, portfolioValue) {
   const live = liveData?.[stock.ticker];
   const price = (live?.price > 0 ? live.price : null) || stock.price || 0;
   const value = price * (stock.shares || 0);
@@ -457,7 +457,7 @@ function getSortVal(stock, key, liveData, totalValue) {
     case "payout": return live?.payout ?? stock.payout ?? 0;
     case "g5": return live?.g5 ?? stock.g5 ?? 0;
     case "streak": return stock.streak ?? 0;
-    case "weight": return totalValue > 0 ? value / totalValue : 0;
+    case "weight": return portfolioValue > 0 ? value / portfolioValue : 0;
     default: return 0;
   }
 }
