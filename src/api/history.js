@@ -226,6 +226,7 @@ function computeSplitAdjustedClose(prices) {
  * yearly: "2024", monthly: "2024-01", weekly: Monday date "2024-01-01"
  */
 function periodKey(dateStr, granularity) {
+  if (granularity === 'daily') return dateStr;
   if (granularity === 'yearly') return dateStr.substring(0, 4);
   if (granularity === 'monthly') return dateStr.substring(0, 7);
   // Weekly: key = ISO Monday of that week

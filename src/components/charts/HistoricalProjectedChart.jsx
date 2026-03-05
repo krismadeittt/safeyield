@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { formatCurrency, shortMoney } from '../../utils/format';
 import { fetchBatchHistory, calcHistoricalPortfolioValues, calcHistoricalDividendsByYear, calcDividendsByPeriod } from '../../api/history';
 import useIsMobile from '../../hooks/useIsMobile';
-import ChartLine from './chart/ChartLine';
 import ChartBars from './chart/ChartBars';
 import useChartZoom from './chart/useChartZoom';
 
@@ -31,9 +30,7 @@ export default function HistoricalProjectedChart({
   const [showDivReturn, setShowDivReturn] = useState(true);
   const [histRange, setHistRange] = useState(10);
   const [dataSource, setDataSource] = useState('backtest'); // 'tracked' | 'backtest'
-
-  // Use line charts for daily/weekly, bars for monthly/yearly
-  const useLineChart = granularity === 'daily' || granularity === 'weekly';
+  const [manualGranularity, setManualGranularity] = useState(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -66,11 +63,14 @@ export default function HistoricalProjectedChart({
   }
   const stableAnchor = anchorValueRef.current || portfolioValue;
 
+  // Effective granularity: manual override or parent-provided (auto-switching happens below)
+  const effectiveGranularity = manualGranularity || granularity;
+
   const realHistData = useMemo(() => {
     if (dataSource === 'tracked') return null; // Don't compute backtest when in tracked mode
     if (Object.keys(historyMap).length === 0 || histRange === 0) return null;
-    return calcHistoricalPortfolioValues(historyMap, holdings, stableAnchor, histRange, granularity);
-  }, [historyMap, holdings, stableAnchor, histRange, granularity, dataSource]);
+    return calcHistoricalPortfolioValues(historyMap, holdings, stableAnchor, histRange, effectiveGranularity);
+  }, [historyMap, holdings, stableAnchor, histRange, effectiveGranularity, dataSource]);
 
   // Convert snapshot data to chart-compatible format
   const snapshotChartData = useMemo(() => {
@@ -96,8 +96,8 @@ export default function HistoricalProjectedChart({
   // Period-keyed dividend data
   const realDivByPeriod = useMemo(() => {
     if (Object.keys(historyMap).length === 0) return null;
-    return calcDividendsByPeriod(historyMap, holdings, granularity);
-  }, [historyMap, holdings, granularity]);
+    return calcDividendsByPeriod(historyMap, holdings, effectiveGranularity);
+  }, [historyMap, holdings, effectiveGranularity]);
 
   // Derive payment patterns for projections
   const { projMonthlyPattern, projWeeklyPattern } = useMemo(() => {
@@ -168,7 +168,7 @@ export default function HistoricalProjectedChart({
   // Build bar data: historical + projected
   const bars = useMemo(() => {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const periodsPerYear = granularity === 'daily' ? 252 : granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
+    const periodsPerYear = effectiveGranularity === 'daily' ? 252 : effectiveGranularity === 'weekly' ? 52 : effectiveGranularity === 'monthly' ? 12 : 1;
     const result = [];
 
     let nowNoDrip = portfolioValue;
@@ -183,15 +183,15 @@ export default function HistoricalProjectedChart({
         const shortYr = "'" + String(year).slice(2);
 
         let label, fullLabel, axLabel;
-        if (granularity === 'yearly') {
+        if (effectiveGranularity === 'yearly') {
           label = String(year);
           fullLabel = `${year} (${dataSource === 'tracked' ? 'tracked' : 'actual'})`;
           axLabel = shortYr;
-        } else if (granularity === 'monthly') {
+        } else if (effectiveGranularity === 'monthly') {
           label = `${months[month]} ${year}`;
           fullLabel = `${months[month]} ${year} (${dataSource === 'tracked' ? 'tracked' : 'actual'})`;
           axLabel = month === 0 ? `J${shortYr}` : "";
-        } else if (granularity === 'daily') {
+        } else if (effectiveGranularity === 'daily') {
           label = `${months[month]} ${day}, ${year}`;
           fullLabel = `${date} (${dataSource === 'tracked' ? 'tracked' : 'actual'})`;
           axLabel = (i === 0 || effectiveHistData[i - 1]?.year !== year) ? shortYr : "";
@@ -208,7 +208,7 @@ export default function HistoricalProjectedChart({
           noDrip: pt.noDripValue,
           dripBonus: Math.max(0, pt.value - pt.noDripValue),
           isHistorical: true, isCurrent: false,
-          date, year, periodIndex: granularity === 'monthly' ? month : 0,
+          date, year, periodIndex: effectiveGranularity === 'monthly' ? month : 0,
           yearsFromNow: year - currentYear,
         });
       }
@@ -247,12 +247,12 @@ export default function HistoricalProjectedChart({
         const projYear = currentYear + yr;
         const shortYr = "'" + String(projYear).slice(2);
         let label, fullLabel, axLabel;
-        if (granularity === 'yearly') {
+        if (effectiveGranularity === 'yearly') {
           label = String(projYear); fullLabel = `${projYear} (projected)`; axLabel = shortYr;
-        } else if (granularity === 'monthly') {
+        } else if (effectiveGranularity === 'monthly') {
           label = `${months[p]} ${projYear}`; fullLabel = `${months[p]} ${projYear} (projected)`;
           axLabel = p === 0 ? `J${shortYr}` : "";
-        } else if (granularity === 'daily') {
+        } else if (effectiveGranularity === 'daily') {
           // For daily projected, show as day-of-year
           const dayLabel = Math.round((p / 252) * 365);
           const approxMonth = Math.floor(dayLabel / 30.5);
@@ -275,12 +275,48 @@ export default function HistoricalProjectedChart({
     }
 
     return { bars: result, nowBarIndex };
-  }, [portfolioValue, projYears, currentYear, effectiveHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears, simPeriodsPerYear, dataSource]);
+  }, [portfolioValue, projYears, currentYear, effectiveHistData, effectiveGranularity, noDripVals, dripVals, contribVals, effectiveHistYears, simPeriodsPerYear, dataSource]);
 
   const { bars: barData, nowBarIndex } = bars;
 
+  // Total time span for zoom
+  const totalYearsSpan = useMemo(() => {
+    if (barData.length < 2) return 1;
+    const first = barData[0];
+    const last = barData[barData.length - 1];
+    return Math.max(1, last.year - first.year + 1);
+  }, [barData]);
+
   // Zoom hook — shared between portfolio value and dividend income charts
-  const zoom = useChartZoom(barData.length);
+  const zoom = useChartZoom(barData.length, totalYearsSpan);
+
+  // Smart auto-granularity: when zoom SPAN changes (zoom in/out, not pan), auto-switch granularity
+  const prevSpanRef = useRef(null);
+  useEffect(() => {
+    const currentSpan = zoom.viewRange[1] - zoom.viewRange[0];
+    if (prevSpanRef.current === currentSpan) return; // Pan only — span unchanged, skip
+    prevSpanRef.current = currentSpan;
+
+    // Only auto-switch when zooming (not on initial render)
+    if (!zoom.isZoomed && !manualGranularity) return;
+
+    // Clear manual override only when span changes (user zoomed in/out)
+    if (manualGranularity) {
+      setManualGranularity(null);
+    }
+
+    // Determine auto-granularity from visible years
+    const vy = zoom.visibleYears;
+    let autoGran;
+    if (vy >= 10) autoGran = 'yearly';
+    else if (vy >= 2) autoGran = 'monthly';
+    else if (vy >= 0.25) autoGran = 'weekly'; // ~3 months
+    else autoGran = 'daily';
+
+    if (autoGran !== granularity) {
+      setGranularity(autoGran);
+    }
+  }, [zoom.viewRange, zoom.isZoomed, zoom.visibleYears]);
 
   // Dividend income data
   const divBars = useMemo(() => {
@@ -302,9 +338,9 @@ export default function HistoricalProjectedChart({
     }
 
     function getPeriodKey(dateStr) {
-      if (granularity === 'yearly') return dateStr.substring(0, 4);
-      if (granularity === 'monthly') return dateStr.substring(0, 7);
-      if (granularity === 'daily') return dateStr; // exact date for daily
+      if (effectiveGranularity === 'yearly') return dateStr.substring(0, 4);
+      if (effectiveGranularity === 'monthly') return dateStr.substring(0, 7);
+      if (effectiveGranularity === 'daily') return dateStr; // exact date for daily
       const parts = dateStr.split('-').map(Number);
       const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
       const day = d.getUTCDay();
@@ -315,16 +351,16 @@ export default function HistoricalProjectedChart({
 
     const monthlyTotal = projMonthlyPattern.reduce((s, v) => s + v, 0);
     const weeklyTotal = projWeeklyPattern.reduce((s, v) => s + v, 0);
-    const displayPeriodsPerYear = granularity === 'daily' ? 252 : granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
+    const displayPeriodsPerYear = effectiveGranularity === 'daily' ? 252 : effectiveGranularity === 'weekly' ? 52 : effectiveGranularity === 'monthly' ? 12 : 1;
 
     const distributeByPeriod = (annual, periodIndex) => {
-      if (granularity === 'monthly' && monthlyTotal > 0) {
+      if (effectiveGranularity === 'monthly' && monthlyTotal > 0) {
         return annual * (projMonthlyPattern[periodIndex] / monthlyTotal);
-      } else if ((granularity === 'weekly' || granularity === 'daily') && weeklyTotal > 0) {
+      } else if ((effectiveGranularity === 'weekly' || effectiveGranularity === 'daily') && weeklyTotal > 0) {
         // For daily: map to week, then distribute within that week
-        const weekIdx = granularity === 'daily' ? Math.min(51, Math.floor(periodIndex / (252 / 52))) : periodIndex;
+        const weekIdx = effectiveGranularity === 'daily' ? Math.min(51, Math.floor(periodIndex / (252 / 52))) : periodIndex;
         const weeklyShare = projWeeklyPattern[weekIdx] / weeklyTotal;
-        if (granularity === 'daily') {
+        if (effectiveGranularity === 'daily') {
           // Only place income on one day per week (the first day of that week)
           const weekStart = Math.floor(weekIdx * (252 / 52));
           return periodIndex === weekStart ? annual * weeklyShare : 0;
@@ -362,13 +398,18 @@ export default function HistoricalProjectedChart({
 
       return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern, projWeeklyPattern, dataSource, snapshots]);
+  }, [barData, monthlyData, growth, effectiveGranularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern, projWeeklyPattern, dataSource, snapshots]);
 
   // Chart layout
   const padL = isMobile ? 35 : 55;
   const padR = 10;
   const svgW = Math.max(100, width - 48);
   const chartW = svgW - padL - padR;
+
+  // Store chart width for accurate pan calculations
+  useEffect(() => {
+    zoom.setChartWidth(chartW);
+  }, [chartW, zoom.setChartWidth]);
 
   // Visible data range (respecting zoom)
   const visibleBars = zoom.isZoomed
@@ -451,21 +492,10 @@ export default function HistoricalProjectedChart({
 
         {/* Legend */}
         <div style={{ display: "flex", gap: isMobile ? 10 : 16, alignItems: "center", margin: "0.8rem 0 0.6rem", flexWrap: "wrap" }}>
-          {useLineChart ? (
-            <>
-              <LegendItem color="var(--chart-hist-bright)" label="Total" type="line" />
-              <LegendItem color="var(--chart-hist)" label="No DRIP" type="dashed" />
-              <LegendItem color="var(--chart-proj-bright)" label="Proj Total" type="line" />
-              <LegendItem color="var(--chart-proj)" label="Proj Base" type="dashed" />
-            </>
-          ) : (
-            <>
-              <LegendItem color="var(--chart-hist-bright)" label="Div Return" />
-              <LegendItem color="var(--chart-hist)" label="Price" />
-              <LegendItem color="var(--chart-proj-bright)" label="Proj DRIP" />
-              <LegendItem color="var(--chart-proj)" label="Proj Base" />
-            </>
-          )}
+          <LegendItem color="var(--chart-hist-bright)" label="Div Return" />
+          <LegendItem color="var(--chart-hist)" label="Price" />
+          <LegendItem color="var(--chart-proj-bright)" label="Proj DRIP" />
+          <LegendItem color="var(--chart-proj)" label="Proj Base" />
         </div>
 
         {/* Stat cards */}
@@ -505,14 +535,14 @@ export default function HistoricalProjectedChart({
           <div style={{ flex: 1 }} />
           <div style={{ display: "inline-flex", background: "var(--bg-pill)", borderRadius: 8, padding: 2 }}>
             {["daily", "weekly", "monthly", "yearly"].map(m => (
-              <button key={m} onClick={() => setGranularity(m)} style={{
+              <button key={m} onClick={() => { setManualGranularity(m); setGranularity(m); }} style={{
                 padding: isMobile ? "4px 8px" : "5px 12px", border: "none", fontSize: "0.72rem", fontWeight: 600,
                 cursor: "pointer", textTransform: "uppercase",
                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                background: granularity === m ? "var(--bg-card)" : "transparent",
-                color: granularity === m ? "var(--text-primary)" : "var(--text-muted)",
+                background: effectiveGranularity === m ? "var(--bg-card)" : "transparent",
+                color: effectiveGranularity === m ? "var(--text-primary)" : "var(--text-muted)",
                 borderRadius: 6, transition: "all 0.15s",
-                boxShadow: granularity === m ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                boxShadow: effectiveGranularity === m ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
               }}>
                 {m}
               </button>
@@ -594,8 +624,13 @@ export default function HistoricalProjectedChart({
       </div>
 
       {/* ==================== PORTFOLIO VALUE CHART ==================== */}
-      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)" }}
+      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)", userSelect: zoom.isZoomed ? 'none' : undefined }}
         onWheel={handleChartWheel}
+        onMouseDown={zoom.handleMouseDown}
+        onMouseMove={zoom.handleMouseMove}
+        onMouseUp={zoom.handleMouseUp}
+        onMouseLeave={zoom.handleMouseUp}
+        onDoubleClick={zoom.handleDoubleClick}
         onTouchStart={zoom.handleTouchStart}
         onTouchMove={zoom.handleTouchMove}
         onTouchEnd={zoom.handleTouchEnd}
@@ -646,24 +681,14 @@ export default function HistoricalProjectedChart({
             );
           })}
 
-          {/* Chart content — line or bars */}
-          {useLineChart ? (
-            <ChartLine
-              data={barData}
-              chartW={chartW} chartH={mainChartH}
-              padL={padL} padTop={mainPadTop} maxVal={maxVal}
-              hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)}
-              mode="portfolio" nowIndex={nowBarIndex} zoom={zoom}
-            />
-          ) : (
-            <ChartBars
-              data={barData}
-              chartW={chartW} chartH={mainChartH}
-              padL={padL} padTop={mainPadTop} maxVal={maxVal}
-              hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)}
-              showDivReturn={showDivReturn} mode="portfolio" zoom={zoom}
-            />
-          )}
+          {/* Chart content — bars */}
+          <ChartBars
+            data={barData}
+            chartW={chartW} chartH={mainChartH}
+            padL={padL} padTop={mainPadTop} maxVal={maxVal}
+            hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)}
+            showDivReturn={showDivReturn} mode="portfolio" zoom={zoom}
+          />
 
           {/* NOW divider */}
           {nowVisible && (
@@ -676,8 +701,8 @@ export default function HistoricalProjectedChart({
             </>
           )}
 
-          {/* Hovered bar line (for bar mode) */}
-          {!useLineChart && hovBar && (() => {
+          {/* Hovered bar line */}
+          {hovBar && (() => {
             const hovVi = hovered - (zoom.isZoomed ? zoom.viewRange[0] : 0);
             if (hovVi < 0 || hovVi >= barCount) return null;
             const totalH = maxVal > 0 ? (hovBar.total / maxVal) * mainChartH : 0;
@@ -712,8 +737,13 @@ export default function HistoricalProjectedChart({
       </div>
 
       {/* ==================== DIVIDEND INCOME ==================== */}
-      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)", marginTop: 8 }}
+      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)", marginTop: 8, userSelect: zoom.isZoomed ? 'none' : undefined }}
         onWheel={handleChartWheel}
+        onMouseDown={zoom.handleMouseDown}
+        onMouseMove={zoom.handleMouseMove}
+        onMouseUp={zoom.handleMouseUp}
+        onMouseLeave={zoom.handleMouseUp}
+        onDoubleClick={zoom.handleDoubleClick}
         onTouchStart={zoom.handleTouchStart}
         onTouchMove={zoom.handleTouchMove}
         onTouchEnd={zoom.handleTouchEnd}
@@ -745,24 +775,14 @@ export default function HistoricalProjectedChart({
             );
           })}
 
-          {/* Dividend chart — line spikes for daily/weekly, bars for monthly/yearly */}
-          {useLineChart ? (
-            <ChartLine
-              data={divBars}
-              chartW={chartW} chartH={divChartH}
-              padL={padL} padTop={divPadTop} maxVal={maxDiv}
-              hovered={divHovered} onHover={setDivHovered} onLeave={() => setDivHovered(null)}
-              mode="dividend" nowIndex={nowBarIndex} zoom={zoom}
-            />
-          ) : (
-            <ChartBars
-              data={divBars}
-              chartW={chartW} chartH={divChartH}
-              padL={padL} padTop={divPadTop} maxVal={maxDiv}
-              hovered={divHovered} onHover={setDivHovered} onLeave={() => setDivHovered(null)}
-              mode="dividend" zoom={zoom}
-            />
-          )}
+          {/* Dividend chart — bars */}
+          <ChartBars
+            data={divBars}
+            chartW={chartW} chartH={divChartH}
+            padL={padL} padTop={divPadTop} maxVal={maxDiv}
+            hovered={divHovered} onHover={setDivHovered} onLeave={() => setDivHovered(null)}
+            mode="dividend" zoom={zoom}
+          />
 
           {nowVisible && (
             <line x1={nowX} y1={0} x2={nowX} y2={divPadTop + divChartH + 4}
@@ -797,7 +817,7 @@ export default function HistoricalProjectedChart({
             ? 'Real portfolio snapshots · Gordon model (yield + growth) · divs reinvested at each payment'
             : 'Backtest assumes current holdings held for entire period · Gordon model (yield + growth) · divs reinvested at each payment'
           }
-          {zoom.isZoomed && ' · scroll to zoom, drag to select range'}
+          {zoom.isZoomed && ' · scroll to zoom, drag to pan, double-click to reset'}
         </span>
       </div>
     </div>
@@ -826,16 +846,10 @@ function StatCard({ label, value, sub, color, last, compact, borderColor }) {
   );
 }
 
-function LegendItem({ color, label, type }) {
+function LegendItem({ color, label }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      {type === 'line' ? (
-        <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke={color} strokeWidth={2} /></svg>
-      ) : type === 'dashed' ? (
-        <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke={color} strokeWidth={1.5} strokeDasharray="3,2" /></svg>
-      ) : (
-        <div style={{ width: 12, height: 8, background: color, borderRadius: 2 }} />
-      )}
+      <div style={{ width: 12, height: 8, background: color, borderRadius: 2 }} />
       <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{label}</span>
     </div>
   );

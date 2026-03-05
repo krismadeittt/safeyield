@@ -1,22 +1,10 @@
 import React from 'react';
 
 /**
- * SVG bar chart renderer for monthly/yearly granularity.
+ * SVG bar chart renderer for all granularities (daily, weekly, monthly, yearly).
  * Renders stacked bars: bottom = noDrip/price, top = DRIP bonus/div return.
  *
- * @param {Object} props
- * @param {Array} props.data - Bar data [{total, noDrip, dripBonus, isHistorical, isCurrent, ...}]
- * @param {number} props.chartW - Available chart width (after padding)
- * @param {number} props.chartH - Available chart height
- * @param {number} props.padL - Left padding
- * @param {number} props.padTop - Top padding
- * @param {number} props.maxVal - Maximum value for Y scaling
- * @param {number|null} props.hovered - Hovered bar index
- * @param {Function} props.onHover - (index) => void
- * @param {Function} props.onLeave - () => void
- * @param {boolean} props.showDivReturn - Whether to show stacked DRIP bonus
- * @param {string} props.mode - "portfolio" or "dividend"
- * @param {Object} [props.zoom] - Zoom state from useChartZoom
+ * Supports drag-to-pan when zoomed via zoom.handleMouseDown/Move/Up.
  */
 export default function ChartBars({
   data, chartW, chartH, padL, padTop, maxVal,
@@ -52,8 +40,7 @@ export default function ChartBars({
         <g key={i}
           onMouseEnter={() => onHover(i)}
           onMouseLeave={onLeave}
-          onClick={() => onHover(hovered === i ? null : i)}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: zoom?.isZoomed ? 'grab' : 'pointer' }}
         >
           <rect x={x} y={y} width={barW} height={barH}
             fill={fill}
@@ -61,7 +48,7 @@ export default function ChartBars({
             opacity={isHov ? 1 : (hovered != null && i > hovered) ? 0.4 : 0.85}
             rx={1}
           />
-          {/* Invisible hit area for thin bars */}
+          {/* Invisible hit area */}
           <rect x={padL + vi * stepW} y={padTop} width={stepW} height={chartH}
             fill="transparent" />
         </g>
@@ -97,8 +84,7 @@ export default function ChartBars({
       <g key={i}
         onMouseEnter={() => onHover(i)}
         onMouseLeave={onLeave}
-        onClick={() => onHover(hovered === i ? null : i)}
-        style={{ cursor: 'pointer' }}
+        style={{ cursor: zoom?.isZoomed ? 'grab' : 'pointer' }}
       >
         {/* Bottom (noDrip / price) */}
         <rect x={x} y={padTop + chartH - bottomBarH} width={barW} height={bottomBarH}
