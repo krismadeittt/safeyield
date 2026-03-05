@@ -82,6 +82,7 @@ export default function Dashboard({
             annualIncome={totalIncome}
             expanded={vizExpanded}
             setExpanded={setVizExpanded}
+            cashBalance={cashBalance}
           />
         )}
 

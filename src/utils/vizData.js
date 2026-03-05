@@ -64,7 +64,7 @@ function enrichHolding(h, live, portfolioValue) {
   };
 }
 
-export function buildSunburstData(holdings, liveData, portfolioValue) {
+export function buildSunburstData(holdings, liveData, portfolioValue, cashBalance = 0) {
   const tree = { name: 'Portfolio', children: [] };
   const classMap = {};
 
@@ -97,14 +97,46 @@ export function buildSunburstData(holdings, liveData, portfolioValue) {
     });
   });
 
+  // Inject synthetic cash holding into the sunburst tree
+  if (cashBalance > 0) {
+    if (!classMap['Cash']) {
+      classMap['Cash'] = { name: 'Cash', children: [], _sectors: {} };
+      tree.children.push(classMap['Cash']);
+    }
+    const ac = classMap['Cash'];
+    if (!ac._sectors['Money Market']) {
+      ac._sectors['Money Market'] = { name: 'Money Market', children: [] };
+      ac.children.push(ac._sectors['Money Market']);
+    }
+    ac._sectors['Money Market'].children.push({
+      name: 'CASH',
+      full: 'Cash Position',
+      val: Math.round(cashBalance),
+      yield: 0, daily: 0, payout: 0, growth5y: 0, streak: 0,
+      price: 1, div: 0, yieldTier: 'Minimal',
+    });
+  }
+
   return tree;
 }
 
-export function buildMountainData(holdings, liveData, portfolioValue) {
-  return holdings.map(h => {
+export function buildMountainData(holdings, liveData, portfolioValue, cashBalance = 0) {
+  const result = holdings.map(h => {
     const live = liveData[h.ticker];
     const enriched = enrichHolding(h, live, portfolioValue);
     const { sector } = classifyHolding(h, live);
     return { ...enriched, sector };
   });
+
+  // Inject synthetic cash entry
+  if (cashBalance > 0) {
+    result.push({
+      ticker: 'CASH', full: 'Cash Position', sector: 'Money Market',
+      price: 1, daily: 0, yield: 0, div: 0, payout: 0, growth5y: 0, streak: 0,
+      value: Math.round(cashBalance), weight: portfolioValue > 0 ? (cashBalance / portfolioValue) * 100 : 0,
+      yieldTier: 'Minimal',
+    });
+  }
+
+  return result;
 }
