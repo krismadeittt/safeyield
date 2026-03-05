@@ -14,7 +14,7 @@ const SECTOR_COLORS = {
 const ASSET_COLORS = { Stocks: "#5B8DEF", ETFs: "#8B7AE8", Cash: "#929AB0" };
 const YIELD_TIER_COLORS = { Minimal: "#C5CAD6", "Low Yield": "#8B7AE8", "Mid Yield": "#5B8DEF", "High Yield": "#E09145" };
 
-export default function PortfolioSunburst({ holdings, liveData, portfolioValue, weightedYield, annualIncome, expanded, cashBalance = 0 }) {
+export default function PortfolioSunburst({ holdings, liveData, portfolioValue, weightedYield, annualIncome, expanded, cashBalance = 0, cashApy = 0, cashCompounding = 'none' }) {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
   const [hovered, setHovered] = useState(null);
@@ -27,8 +27,8 @@ export default function PortfolioSunburst({ holdings, liveData, portfolioValue, 
   const H = W;
 
   const sunburstData = useMemo(
-    () => buildSunburstData(holdings, liveData, portfolioValue, cashBalance),
-    [holdings, liveData, portfolioValue, cashBalance]
+    () => buildSunburstData(holdings, liveData, portfolioValue, cashBalance, cashApy, cashCompounding),
+    [holdings, liveData, portfolioValue, cashBalance, cashApy, cashCompounding]
   );
 
   useEffect(() => {

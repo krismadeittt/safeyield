@@ -999,6 +999,8 @@ export default {
           dripEnabled: body.drip_enabled,
           lastProcessedAt: body.last_processed_at,
           vizType: body.viz_type,
+          cashApy: body.cash_apy,
+          cashCompounding: body.cash_compounding,
         });
         return json({ result: updated }, origin, 200, 0);
       }

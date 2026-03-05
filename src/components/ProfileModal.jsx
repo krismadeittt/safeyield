@@ -28,7 +28,7 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
   async function handleSave() {
     setSaving(true);
     try {
-      await updateUserProfile(getToken, displayName, defaultStrategy);
+      await updateUserProfile(getToken, { displayName, defaultStrategy });
       onClose();
     } catch (e) {
       console.warn('Profile save failed:', e.message);

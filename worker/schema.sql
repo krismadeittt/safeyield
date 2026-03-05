@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS users (
   display_name TEXT DEFAULT '',
   default_strategy TEXT DEFAULT '',
   cash_balance REAL DEFAULT 0,
+  cash_apy REAL DEFAULT 0,
+  cash_compounding TEXT DEFAULT 'none',
   drip_enabled INTEGER DEFAULT 1,
   last_processed_at TEXT DEFAULT NULL,
   created_at TEXT DEFAULT (datetime('now')),

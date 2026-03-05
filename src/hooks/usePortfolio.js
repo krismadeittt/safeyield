@@ -49,6 +49,8 @@ export default function usePortfolio(getToken) {
   const [loadingStates, setLoadingStates] = useState({});
   const [targetBalance, setTargetBalance] = useState(0);
   const [cashBalance, setCashBalance] = useState(0);
+  const [cashApy, setCashApy] = useState(0);
+  const [cashCompounding, setCashCompounding] = useState('none');
   const [dripEnabled, setDripEnabled] = useState(true);
 
   // Visualizer type state
@@ -104,6 +106,8 @@ export default function usePortfolio(getToken) {
         const profileDrip = profile?.drip_enabled !== undefined ? !!profile.drip_enabled : true;
         const profileLastProcessed = profile?.last_processed_at || null;
         setCashBalance(profileCash);
+        setCashApy(profile?.cash_apy || 0);
+        setCashCompounding(profile?.cash_compounding || 'none');
         setDripEnabled(profileDrip);
 
         if (saved && saved.length > 0) {
@@ -157,7 +161,7 @@ export default function usePortfolio(getToken) {
             }
           } else if (!profileLastProcessed) {
             // First time — set lastProcessedAt to today (no retroactive processing)
-            updateUserProfile(getToken, undefined, undefined, undefined, undefined, undefined, today).catch(() => {});
+            updateUserProfile(getToken, { lastProcessedAt: today }).catch(() => {});
           }
           if (cancelled) return;
 
@@ -245,7 +249,7 @@ export default function usePortfolio(getToken) {
         console.warn('Auto-save failed:', e.message)
       );
       // Also sync targetBalance to profile (0 means user manually changed portfolio)
-      updateUserProfile(getToken, undefined, undefined, targetBalanceRef.current).catch(() => {});
+      updateUserProfile(getToken, { targetBalance: targetBalanceRef.current }).catch(() => {});
     }, SAVE_DEBOUNCE);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [holdings, getToken]);
@@ -437,8 +441,10 @@ export default function usePortfolio(getToken) {
     if (Object.keys(prePrices).length > 0) {
       setLiveData(prev => ({ ...prev, ...prePrices }));
     }
-    // Reset DRIP state for new portfolio
+    // Reset DRIP and cash state for new portfolio
     setCashBalance(0);
+    setCashApy(0);
+    setCashCompounding('none');
     setDripEnabled(true);
     const today = new Date().toISOString().substring(0, 10);
     // Save to D1
@@ -455,7 +461,7 @@ export default function usePortfolio(getToken) {
         console.warn('Save on load failed:', e.message)
       );
       // Save strategy + target balance + lastProcessedAt to profile
-      updateUserProfile(getToken, '', strategyId || '', balance || 0, true, 0, today).catch(() => {});
+      updateUserProfile(getToken, { displayName: '', defaultStrategy: strategyId || '', targetBalance: balance || 0, dripEnabled: true, cashBalance: 0, lastProcessedAt: today, cashApy: 0, cashCompounding: 'none' }).catch(() => {});
     }
   }
 
@@ -531,6 +537,9 @@ export default function usePortfolio(getToken) {
     setTargetBalance(0);
     setDetailView(null);
     setActiveTab("dashboard");
+    setCashBalance(0);
+    setCashApy(0);
+    setCashCompounding('none');
     hasLoadedRef.current = false;
     if (getToken) {
       saveUserHoldings(getToken, []).catch(e =>
@@ -565,12 +574,21 @@ export default function usePortfolio(getToken) {
     return watchlist.some(w => w.ticker === ticker);
   }
 
+  // Derived cash yield from APY and compounding settings
+  const cashYield = useMemo(() => {
+    if (cashCompounding === 'none' || cashApy <= 0 || cashBalance <= 0) {
+      return { annualRate: 0, annualIncome: 0, monthlyIncome: 0 };
+    }
+    const rate = cashApy / 100;
+    const annualIncome = cashBalance * rate;
+    return { annualRate: rate, annualIncome, monthlyIncome: annualIncome / 12 };
+  }, [cashBalance, cashApy, cashCompounding]);
+
   // Portfolio summary — uses best available price for each holding
   const summary = useMemo(() => {
     let pv = 0, yieldSum = 0, growthSum = 0;
     holdings.forEach(h => {
       const live = liveData[h.ticker];
-      // Use live price if available and > 0, otherwise fall back to holding's stored price
       const price = (live?.price > 0 ? live.price : null) || h.price || 0;
       const value = price * (h.shares || 0);
       const yld = live?.divYield ?? h.yld ?? 0;
@@ -580,13 +598,17 @@ export default function usePortfolio(getToken) {
       if (g5 > 0) { growthSum += g5 * value; }
     });
 
-    // Derive income from the single calcMonthlyIncome source of truth
-    const monthlyArr = calcMonthlyIncome(holdings, liveData);
-    const annualIncome = Math.round(monthlyArr.reduce((a, b) => a + b, 0));
+    // Include cash yield in weighted average
+    const effectiveCashApy = (cashCompounding !== 'none' && cashApy > 0) ? cashApy : 0;
+    yieldSum += effectiveCashApy * cashBalance;
 
-    // holdingsValue = stock value only (no cash)
+    // Derive stock income from calcMonthlyIncome
+    const monthlyArr = calcMonthlyIncome(holdings, liveData);
+    const stockAnnualIncome = Math.round(monthlyArr.reduce((a, b) => a + b, 0));
+    // Total income includes cash interest
+    const annualIncome = stockAnnualIncome + Math.round(cashYield.annualIncome);
+
     const holdingsValue = pv;
-    // Add cash balance to portfolio value
     pv += cashBalance;
 
     return {
@@ -598,13 +620,13 @@ export default function usePortfolio(getToken) {
       weightedGrowth: pv > 0 ? growthSum / pv : 0,
       monthlyAvg: Math.round(annualIncome / 12),
     };
-  }, [holdings, liveData, cashBalance]);
+  }, [holdings, liveData, cashBalance, cashApy, cashCompounding, cashYield]);
 
   // Update visualizer type
   function updateVizType(type) {
     setVizType(type);
     if (getToken) {
-      updateUserProfile(getToken, undefined, undefined, undefined, undefined, undefined, undefined, type).catch(() => {});
+      updateUserProfile(getToken, { vizType: type }).catch(() => {});
     }
   }
 
@@ -613,7 +635,33 @@ export default function usePortfolio(getToken) {
     const val = Math.max(0, Number(amount) || 0);
     setCashBalance(val);
     if (getToken) {
-      updateUserProfile(getToken, undefined, undefined, undefined, undefined, val).catch(() => {});
+      updateUserProfile(getToken, { cashBalance: val }).catch(() => {});
+    }
+  }
+
+  // Update cash APY — persists to DB
+  function updateCashApy(apy) {
+    const val = Math.max(0, Math.min(20, Number(apy) || 0));
+    setCashApy(val);
+    if (getToken) {
+      updateUserProfile(getToken, { cashApy: val }).catch(() => {});
+    }
+  }
+
+  // Update cash compounding frequency — persists to DB
+  function updateCashCompounding(freq) {
+    const valid = ['none', 'daily', 'monthly', 'quarterly'];
+    const val = valid.includes(freq) ? freq : 'none';
+    setCashCompounding(val);
+    if (val === 'none') {
+      setCashApy(0);
+      if (getToken) {
+        updateUserProfile(getToken, { cashCompounding: val, cashApy: 0 }).catch(() => {});
+      }
+    } else {
+      if (getToken) {
+        updateUserProfile(getToken, { cashCompounding: val }).catch(() => {});
+      }
     }
   }
 
@@ -622,7 +670,7 @@ export default function usePortfolio(getToken) {
     const newVal = !dripEnabled;
     setDripEnabled(newVal);
     if (getToken) {
-      updateUserProfile(getToken, undefined, undefined, undefined, newVal).catch(() => {});
+      updateUserProfile(getToken, { dripEnabled: newVal }).catch(() => {});
     }
   }
 
@@ -649,6 +697,7 @@ export default function usePortfolio(getToken) {
     vizType, updateVizType,
     // DRIP & cash
     dripEnabled, toggleDrip, cashBalance, updateCashBalance,
+    cashApy, updateCashApy, cashCompounding, updateCashCompounding, cashYield,
     // Watchlist
     watchlist, addWatch, removeWatch, isWatched,
     // Timestamp

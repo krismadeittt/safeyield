@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import HoldingRow from './HoldingRow';
-import CashRow, { CashCardMobile } from './CashRow';
 import NaValue from './NaValue';
 import { formatCurrency } from '../utils/format';
 import { exportHoldingsCSV } from '../utils/export';
@@ -23,7 +22,7 @@ export default function HoldingsTable({
   holdings, search, setSearch, onAdd, onSelect, liveData, loading,
   onRemove, onEdit, title, dripEnabled, toggleDrip,
   onRefresh, lastUpdatedAt, refreshing, holdingsValue,
-  cashBalance = 0, onEditCash,
+  cashBalance = 0,
 }) {
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = useState("value");
@@ -31,8 +30,6 @@ export default function HoldingsTable({
   const [searchFocus, setSearchFocus] = useState(false);
   const [editingTicker, setEditingTicker] = useState(null);
   const [editValue, setEditValue] = useState("");
-  const [editingCash, setEditingCash] = useState(false);
-  const [cashEditValue, setCashEditValue] = useState("");
 
   const totalValue = holdingsValue ?? 0;
   const portfolioValue = totalValue + cashBalance;
@@ -81,7 +78,7 @@ export default function HoldingsTable({
               padding: "2px 8px", fontSize: "0.68rem", color: "var(--text-muted)",
               fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
             }}>
-              {holdings.length + (onEditCash ? 1 : 0)}
+              {holdings.length}
             </span>
           </div>
           {toggleDrip && (
@@ -218,17 +215,6 @@ export default function HoldingsTable({
             </select>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {onEditCash && (
-              <CashCardMobile
-                cashBalance={cashBalance}
-                onEditCash={onEditCash}
-                portfolioValue={portfolioValue}
-                editing={editingCash}
-                setEditing={setEditingCash}
-                editValue={cashEditValue}
-                setEditValue={setCashEditValue}
-              />
-            )}
             {filtered.map((h, idx) => {
               const live = liveData?.[h.ticker];
               const price = (live?.price > 0 ? live.price : null) || h.price || 0;
@@ -384,14 +370,6 @@ export default function HoldingsTable({
                 </tr>
               </thead>
               <tbody>
-                {onEditCash && (
-                  <CashRow
-                    cashBalance={cashBalance}
-                    onEditCash={onEditCash}
-                    portfolioValue={portfolioValue}
-                    index={0}
-                  />
-                )}
                 {filtered.map((h, idx) => {
                   const price = liveData?.[h.ticker]?.price || h.price || 0;
                   const value = price * (h.shares || 0);
@@ -406,7 +384,7 @@ export default function HoldingsTable({
                       onRemove={onRemove}
                       weightPct={weightPct}
                       onEdit={onEdit}
-                      index={idx + 1}
+                      index={idx}
                     />
                   );
                 })}

@@ -11,7 +11,7 @@ export async function getOrCreateUser(db, userId, email) {
   return user;
 }
 
-export async function updateUserProfile(db, userId, { displayName, defaultStrategy, targetBalance, cashBalance, dripEnabled, lastProcessedAt, vizType } = {}) {
+export async function updateUserProfile(db, userId, { displayName, defaultStrategy, targetBalance, cashBalance, dripEnabled, lastProcessedAt, vizType, cashApy, cashCompounding } = {}) {
   // Build partial update — only SET fields that were actually provided
   var sets = [];
   var vals = [];
@@ -22,6 +22,8 @@ export async function updateUserProfile(db, userId, { displayName, defaultStrate
   if (dripEnabled !== undefined) { sets.push('drip_enabled = ?'); vals.push(dripEnabled ? 1 : 0); }
   if (lastProcessedAt !== undefined) { sets.push('last_processed_at = ?'); vals.push(lastProcessedAt); }
   if (vizType !== undefined) { sets.push('viz_type = ?'); vals.push(vizType); }
+  if (cashApy !== undefined) { sets.push('cash_apy = ?'); vals.push(cashApy || 0); }
+  if (cashCompounding !== undefined) { sets.push('cash_compounding = ?'); vals.push(cashCompounding || 'none'); }
   if (sets.length === 0) {
     return db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   }

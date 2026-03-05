@@ -3,7 +3,7 @@ import React, { lazy, Suspense } from 'react';
 const PortfolioSunburst = lazy(() => import('./PortfolioSunburst'));
 const PortfolioMountains = lazy(() => import('./PortfolioMountains'));
 
-export default function VisualizerToggle({ vizType, setVizType, holdings, liveData, portfolioValue, weightedYield, annualIncome, expanded, setExpanded, cashBalance = 0 }) {
+export default function VisualizerToggle({ vizType, setVizType, holdings, liveData, portfolioValue, weightedYield, annualIncome, expanded, setExpanded, cashBalance = 0, cashApy = 0, cashCompounding = 'none' }) {
   if (vizType === 'none') {
     return (
       <div style={{ textAlign: "center", padding: "8px 0" }}>
@@ -22,7 +22,7 @@ export default function VisualizerToggle({ vizType, setVizType, holdings, liveDa
     );
   }
 
-  const vizProps = { holdings, liveData, portfolioValue, weightedYield, annualIncome, cashBalance };
+  const vizProps = { holdings, liveData, portfolioValue, weightedYield, annualIncome, cashBalance, cashApy, cashCompounding };
 
   return (
     <div style={{

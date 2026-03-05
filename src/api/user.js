@@ -5,15 +5,24 @@ export async function getUserProfile(getToken) {
   return data.result;
 }
 
-export async function updateUserProfile(getToken, displayName, defaultStrategy, targetBalance, dripEnabled, cashBalance, lastProcessedAt, vizType) {
+export async function updateUserProfile(getToken, updates = {}) {
+  const FIELD_MAP = {
+    displayName: 'display_name',
+    defaultStrategy: 'default_strategy',
+    targetBalance: 'target_balance',
+    dripEnabled: 'drip_enabled',
+    cashBalance: 'cash_balance',
+    lastProcessedAt: 'last_processed_at',
+    vizType: 'viz_type',
+    cashApy: 'cash_apy',
+    cashCompounding: 'cash_compounding',
+  };
   const body = {};
-  if (displayName !== undefined) body.display_name = displayName;
-  if (defaultStrategy !== undefined) body.default_strategy = defaultStrategy;
-  if (targetBalance !== undefined) body.target_balance = targetBalance;
-  if (dripEnabled !== undefined) body.drip_enabled = dripEnabled ? 1 : 0;
-  if (cashBalance !== undefined) body.cash_balance = cashBalance;
-  if (lastProcessedAt !== undefined) body.last_processed_at = lastProcessedAt;
-  if (vizType !== undefined) body.viz_type = vizType;
+  for (const [jsKey, apiKey] of Object.entries(FIELD_MAP)) {
+    if (updates[jsKey] !== undefined) {
+      body[apiKey] = jsKey === 'dripEnabled' ? (updates[jsKey] ? 1 : 0) : updates[jsKey];
+    }
+  }
   const data = await authFetch(getToken, '/user/profile', {
     method: 'PUT',
     body: JSON.stringify(body),

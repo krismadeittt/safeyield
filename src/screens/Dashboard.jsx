@@ -9,6 +9,7 @@ import useIsMobile from '../hooks/useIsMobile';
 
 export default function Dashboard({
   totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth, cashBalance = 0,
+  cashApy = 0, cashCompounding = 'none',
   vizType, setVizType, monthlyAvg,
 }) {
   const isMobile = useIsMobile();
@@ -29,8 +30,8 @@ export default function Dashboard({
   // Per-stock projection: each holding compounds with its own yield, g5, and expected return
   // Simulation always runs at fixed resolution (monthly for Real World) — decoupled from display granularity
   const projections = useMemo(() =>
-    projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng),
-  [horizon, holdings, liveData, contrib, useVolatility]);
+    projectPortfolioPerStock(horizon, holdings, liveData, contrib, useVolatility, rng, cashBalance, cashApy, cashCompounding),
+  [horizon, holdings, liveData, contrib, useVolatility, cashBalance, cashApy, cashCompounding]);
 
   const { noDripVals, dripVals, contribVals, divIncomePerYear, simPeriodsPerYear } = projections;
 
@@ -83,6 +84,8 @@ export default function Dashboard({
             expanded={vizExpanded}
             setExpanded={setVizExpanded}
             cashBalance={cashBalance}
+            cashApy={cashApy}
+            cashCompounding={cashCompounding}
           />
         )}
 

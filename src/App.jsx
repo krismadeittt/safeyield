@@ -8,6 +8,7 @@ import StockDetail from './screens/StockDetail';
 import MarketBrowser from './screens/MarketBrowser';
 import WatchlistScreen from './screens/WatchlistScreen';
 import HoldingsTable from './components/HoldingsTable';
+import CashSection from './components/CashSection';
 import UserMenu from './components/UserMenu';
 import ConfirmModal from './components/ConfirmModal';
 import { ToastProvider, useToast } from './components/Toast';
@@ -51,6 +52,7 @@ function AppInner() {
     summary, resetPortfolio,
     vizType, updateVizType,
     dripEnabled, toggleDrip, cashBalance, updateCashBalance,
+    cashApy, updateCashApy, cashCompounding, updateCashCompounding, cashYield,
     watchlist, addWatch, removeWatch, isWatched,
     lastUpdatedAt,
     mergeLiveData,
@@ -248,9 +250,21 @@ function AppInner() {
               weightedYield={summary.weightedYield}
               weightedGrowth={summary.weightedGrowth}
               cashBalance={cashBalance}
+              cashApy={cashApy}
+              cashCompounding={cashCompounding}
               vizType={vizType}
               setVizType={updateVizType}
               monthlyAvg={summary.monthlyAvg}
+            />
+            <CashSection
+              cashBalance={cashBalance}
+              onEditCash={updateCashBalance}
+              cashApy={cashApy}
+              onEditApy={updateCashApy}
+              cashCompounding={cashCompounding}
+              onChangeCompounding={updateCashCompounding}
+              cashYield={cashYield}
+              portfolioValue={summary.portfolioValue}
             />
             <div data-tour="holdings">
             <HoldingsTable
@@ -270,7 +284,6 @@ function AppInner() {
               refreshing={refreshing}
               holdingsValue={summary.holdingsValue}
               cashBalance={cashBalance}
-              onEditCash={updateCashBalance}
             />
             </div>
             <MethodologyDisclosure />

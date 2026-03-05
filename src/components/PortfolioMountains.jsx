@@ -20,7 +20,7 @@ const SECTOR_COLORS = {
   Other:         { base: "#6B7394", light: "#929AB0", dark: "#4A5069", grad: ["#5A6280", "#6B7394", "#929AB0"] },
 };
 
-export default function PortfolioMountains({ holdings, liveData, portfolioValue, weightedYield, annualIncome, cashBalance = 0 }) {
+export default function PortfolioMountains({ holdings, liveData, portfolioValue, weightedYield, annualIncome, cashBalance = 0, cashApy = 0, cashCompounding = 'none' }) {
   const containerRef = useRef(null);
   const [hovered, setHovered] = useState(null);
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
@@ -43,8 +43,8 @@ export default function PortfolioMountains({ holdings, liveData, portfolioValue,
   }, []);
 
   const rawData = useMemo(
-    () => buildMountainData(holdings, liveData, portfolioValue, cashBalance),
-    [holdings, liveData, portfolioValue, cashBalance]
+    () => buildMountainData(holdings, liveData, portfolioValue, cashBalance, cashApy, cashCompounding),
+    [holdings, liveData, portfolioValue, cashBalance, cashApy, cashCompounding]
   );
 
   // Build sector order dynamically from data

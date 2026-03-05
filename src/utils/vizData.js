@@ -64,7 +64,7 @@ function enrichHolding(h, live, portfolioValue) {
   };
 }
 
-export function buildSunburstData(holdings, liveData, portfolioValue, cashBalance = 0) {
+export function buildSunburstData(holdings, liveData, portfolioValue, cashBalance = 0, cashApy = 0, cashCompounding = 'none') {
   const tree = { name: 'Portfolio', children: [] };
   const classMap = {};
 
@@ -99,6 +99,9 @@ export function buildSunburstData(holdings, liveData, portfolioValue, cashBalanc
 
   // Inject synthetic cash holding into the sunburst tree
   if (cashBalance > 0) {
+    const effectiveApy = (cashCompounding !== 'none' && cashApy > 0) ? cashApy : 0;
+    const cashAnnualDiv = cashBalance * effectiveApy / 100;
+
     if (!classMap['Cash']) {
       classMap['Cash'] = { name: 'Cash', children: [], _sectors: {} };
       tree.children.push(classMap['Cash']);
@@ -112,15 +115,15 @@ export function buildSunburstData(holdings, liveData, portfolioValue, cashBalanc
       name: 'CASH',
       full: 'Cash Position',
       val: Math.round(cashBalance),
-      yield: 0, daily: 0, payout: 0, growth5y: 0, streak: 0,
-      price: 1, div: 0, yieldTier: 'Minimal',
+      yield: effectiveApy, daily: 0, payout: 0, growth5y: 0, streak: 0,
+      price: 1, div: cashAnnualDiv, yieldTier: yieldTier(effectiveApy),
     });
   }
 
   return tree;
 }
 
-export function buildMountainData(holdings, liveData, portfolioValue, cashBalance = 0) {
+export function buildMountainData(holdings, liveData, portfolioValue, cashBalance = 0, cashApy = 0, cashCompounding = 'none') {
   const result = holdings.map(h => {
     const live = liveData[h.ticker];
     const enriched = enrichHolding(h, live, portfolioValue);
@@ -130,11 +133,13 @@ export function buildMountainData(holdings, liveData, portfolioValue, cashBalanc
 
   // Inject synthetic cash entry
   if (cashBalance > 0) {
+    const effectiveApy = (cashCompounding !== 'none' && cashApy > 0) ? cashApy : 0;
     result.push({
       ticker: 'CASH', full: 'Cash Position', sector: 'Money Market',
-      price: 1, daily: 0, yield: 0, div: 0, payout: 0, growth5y: 0, streak: 0,
+      price: 1, daily: 0, yield: effectiveApy, div: cashBalance * effectiveApy / 100,
+      payout: 0, growth5y: 0, streak: 0,
       value: Math.round(cashBalance), weight: portfolioValue > 0 ? (cashBalance / portfolioValue) * 100 : 0,
-      yieldTier: 'Minimal',
+      yieldTier: yieldTier(effectiveApy),
     });
   }
 

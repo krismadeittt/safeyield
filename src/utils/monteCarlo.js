@@ -41,10 +41,29 @@ export function boxMuller(rng) {
  * @param {Function|null} rng - PRNG function (required if useVolatility)
  * @returns {{ noDripVals: number[], dripVals: number[], contribVals: number[]|null, divIncomePerYear: number[]|null, simPeriodsPerYear: number }}
  */
-export function projectPortfolioPerStock(horizon, holdings, liveData, extraContrib, useVolatility, rng) {
+export function projectPortfolioPerStock(horizon, holdings, liveData, extraContrib, useVolatility, rng, cashBalance = 0, cashApy = 0, cashCompounding = 'none') {
+  const effectiveCashRate = (cashCompounding !== 'none' && cashApy > 0) ? cashApy / 100 : 0;
+
   if (!holdings?.length) {
     const simPPY = useVolatility ? 12 : 1;
     const len = horizon * simPPY + 1;
+    // If there's cash with a rate, project its growth
+    if (cashBalance > 0 && effectiveCashRate > 0) {
+      const vals = [Math.round(cashBalance)];
+      const divIncomePerYear = new Array(horizon).fill(0);
+      let pool = cashBalance;
+      for (let t = 0; t < horizon * simPPY; t++) {
+        const interest = pool * effectiveCashRate / simPPY;
+        pool += interest;
+        divIncomePerYear[Math.floor(t / simPPY)] += interest;
+        vals.push(Math.round(pool));
+      }
+      return { noDripVals: vals, dripVals: vals, contribVals: null, divIncomePerYear, simPeriodsPerYear: simPPY };
+    }
+    if (cashBalance > 0) {
+      const vals = new Array(len).fill(Math.round(cashBalance));
+      return { noDripVals: vals, dripVals: vals, contribVals: null, divIncomePerYear: new Array(horizon).fill(0), simPeriodsPerYear: simPPY };
+    }
     const zeros = new Array(len).fill(0);
     return { noDripVals: zeros, dripVals: zeros, contribVals: null, divIncomePerYear: new Array(horizon).fill(0), simPeriodsPerYear: simPPY };
   }
@@ -85,8 +104,8 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     });
   }
 
-  function totalValue(stocks, cashDividends) {
-    return Math.round(stocks.reduce((s, st) => s + st.shares * st.price, 0) + (cashDividends || 0));
+  function totalValue(stocks, cashDividends, cashPool) {
+    return Math.round(stocks.reduce((s, st) => s + st.shares * st.price, 0) + (cashDividends || 0) + (cashPool || 0));
   }
 
   // Run a single simulation path for a given scenario with pre-generated returns
@@ -94,7 +113,8 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
   function runPath(priceReturnsMatrix, scenario, divStress = false, ppy = 1) {
     const stocks = initStocks();
     let cashDividends = 0;
-    const vals = [totalValue(stocks, 0)];
+    let cashPool = cashBalance || 0;
+    const vals = [totalValue(stocks, 0, cashPool)];
     const totalPeriods = priceReturnsMatrix.length;
     const divIncomePerYear = new Array(Math.ceil(totalPeriods / ppy)).fill(0);
 
@@ -163,7 +183,14 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
         });
       }
 
-      const periodVal = totalValue(stocks, scenario === 'nodrip' ? cashDividends : 0);
+      // Accrue cash interest
+      if (effectiveCashRate > 0 && cashPool > 0) {
+        const interest = cashPool * effectiveCashRate / ppy;
+        cashPool += interest;
+        divIncomePerYear[Math.floor(t / ppy)] += interest;
+      }
+
+      const periodVal = totalValue(stocks, scenario === 'nodrip' ? cashDividends : 0, cashPool);
       vals.push(Math.min(periodVal, 1e11));
     }
     return { vals, divIncomePerYear };
