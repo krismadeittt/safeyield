@@ -277,7 +277,7 @@ export default function HistoricalProjectedChart({
   const { bars: barData, nowBarIndex } = bars;
 
   // Zoom hook — shared between portfolio value and dividend income charts
-  const zoom = useChartZoom(barData.length, granularity);
+  const zoom = useChartZoom(barData.length, granularity, nowBarIndex);
 
   // Dividend income data
   const divBars = useMemo(() => {
