@@ -333,4 +333,23 @@ describe('projectPortfolioPerStock', () => {
     const lateAvg = (income[8] + income[9]) / 2;
     expect(lateAvg).toBeGreaterThan(earlyAvg);
   });
+
+  it('noDrip shows pure price appreciation without dividend cash', () => {
+    // noDripVals should be LESS than dripVals by a significant margin
+    // because noDrip = price appreciation only, drip = price + reinvested dividends
+    const result = projectPortfolioPerStock(10, singleHolding, emptyLiveData, 0, false, null);
+    const finalNoDrip = result.noDripVals[result.noDripVals.length - 1];
+    const finalDrip = result.dripVals[result.dripVals.length - 1];
+    const dripBonus = finalDrip - finalNoDrip;
+    // KO: 100 shares × $60 = $6000, 3% yield, 5% g5
+    // Over 10 years, reinvested dividends should add significant value
+    expect(dripBonus).toBeGreaterThan(1000);
+  });
+
+  it('DRIP bonus works in volatile mode too', () => {
+    const result = projectPortfolioPerStock(10, singleHolding, emptyLiveData, 0, true, null);
+    const finalNoDrip = result.noDripVals[result.noDripVals.length - 1];
+    const finalDrip = result.dripVals[result.dripVals.length - 1];
+    expect(finalDrip - finalNoDrip).toBeGreaterThan(500);
+  });
 });

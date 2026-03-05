@@ -709,7 +709,7 @@ export default function HistoricalProjectedChart({
         borderTop: "1px solid var(--border)",
       }}>
         <span style={{ fontSize: "0.63rem", color: "var(--text-sub)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-          Backtest assumes current holdings held for entire period · Gordon model (yield + growth) · divs reinvested quarterly
+          Backtest assumes current holdings held for entire period · Gordon model (yield + growth) · divs reinvested at each payment
         </span>
       </div>
     </div>

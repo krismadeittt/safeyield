@@ -192,7 +192,9 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
         divIncomePerYear[Math.floor(t / ppy)] += interest;
       }
 
-      const periodVal = totalValue(stocks, scenario === 'nodrip' ? cashDividends : 0, cashPool);
+      // noDrip shows pure price appreciation (no dividend value);
+      // drip/contrib already have dividends in share count, cashDividends is 0 for them.
+      const periodVal = totalValue(stocks, 0, cashPool);
       vals.push(Math.min(periodVal, 1e11));
     }
     return { vals, divIncomePerYear };
