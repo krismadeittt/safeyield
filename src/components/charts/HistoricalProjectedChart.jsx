@@ -76,6 +76,48 @@ export default function HistoricalProjectedChart({
     return calcDividendsByPeriod(historyMap, holdings, granularity);
   }, [historyMap, holdings, granularity]);
 
+  // Derive per-month payment pattern from SAME historyMap used for historical bars.
+  // This ensures projected bars mirror the exact same scattered pattern.
+  const projMonthlyPattern = useMemo(() => {
+    const pattern = new Array(12).fill(0);
+    if (!holdings?.length || Object.keys(historyMap).length === 0) return pattern;
+
+    holdings.forEach(h => {
+      const hist = historyMap[h.ticker];
+      if (!hist?.d?.length || !h.shares) return;
+
+      // Use last 8 dividend payments to determine payment months and typical amounts
+      const recent = hist.d.slice(-8);
+      const monthAmounts = new Map();
+      recent.forEach(div => {
+        const month = parseInt(div.d.substring(5, 7)) - 1;
+        if (!monthAmounts.has(month)) monthAmounts.set(month, []);
+        monthAmounts.get(month).push(div.v * h.shares);
+      });
+
+      // Average per-month income for this stock
+      monthAmounts.forEach((amounts, month) => {
+        const avg = amounts.reduce((s, v) => s + v, 0) / amounts.length;
+        pattern[month] += avg;
+      });
+    });
+
+    // Log payment schedules for verification
+    if (holdings?.length && Object.keys(historyMap).length > 0) {
+      const logTickers = holdings.slice(0, 3);
+      logTickers.forEach(h => {
+        const hist = historyMap[h.ticker];
+        if (!hist?.d?.length) return;
+        const recent = hist.d.slice(-8);
+        const months = [...new Set(recent.map(d => parseInt(d.d.substring(5, 7))))].sort((a, b) => a - b);
+        const monthNames = months.map(m => ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1]);
+        console.log(`[DivProjection] ${h.ticker}: pays in ${monthNames.join(', ')} (from last ${recent.length} payments)`);
+      });
+    }
+
+    return pattern;
+  }, [holdings, historyMap]);
+
   // Stat card values — always use last element (arrays may be sub-annual length in Real World)
   const finalNoDrip = noDripVals?.[noDripVals.length - 1] || 0;
   const finalDrip = contribVals ? (contribVals[contribVals.length - 1] || 0)
@@ -248,24 +290,27 @@ export default function HistoricalProjectedChart({
         const key = getPeriodKey(bar.date);
         divIncome = (realDivByPeriod[key] || 0) * divScale;
       } else {
-        // Projected / current: distribute by actual payment months (monthlyData weights)
-        // so projected bars mirror the same scattered pattern as historical bars.
+        // Projected / current: distribute by actual payment months from historyMap
+        // so projected bars mirror the exact same scattered pattern as historical bars.
         const displayPeriodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
         const yearIdx = (bar.yearsFromNow || 1) - 1;
+        const patternTotal = projMonthlyPattern.reduce((s, v) => s + v, 0);
 
-        // Helper: get per-period income from an annual total using monthlyData weights
+        // Helper: distribute an annual total by the history-derived monthly pattern
         const distributeByMonth = (annual) => {
-          if (expectedAnnual > 0 && granularity === 'monthly') {
-            return annual * (monthlyData[bar.periodIndex] / expectedAnnual);
-          } else if (expectedAnnual > 0 && granularity === 'weekly') {
+          if (patternTotal > 0 && granularity === 'monthly') {
+            return annual * (projMonthlyPattern[bar.periodIndex] / patternTotal);
+          } else if (patternTotal > 0 && granularity === 'weekly') {
             const monthForWeek = Math.min(11, Math.floor(bar.periodIndex * 12 / 52));
-            return annual * (monthlyData[monthForWeek] / expectedAnnual) / (52 / 12);
+            return annual * (projMonthlyPattern[monthForWeek] / patternTotal) / (52 / 12);
           }
           return annual / displayPeriodsPerYear;
         };
 
         if (bar.isCurrent || bar.yearsFromNow === 0) {
-          divIncome = distributeByMonth(expectedAnnual);
+          // "Now" bar: show average income level (no month-specific weighting)
+          // to avoid a gap between historical and projected
+          divIncome = expectedAnnual / displayPeriodsPerYear;
         } else if (divIncomePerYear && yearIdx >= 0 && yearIdx < divIncomePerYear.length) {
           // Use simulation dividends (reflects MC volatility + dividend stress)
           divIncome = distributeByMonth(divIncomePerYear[yearIdx]);
@@ -278,7 +323,7 @@ export default function HistoricalProjectedChart({
 
       return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear]);
+  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern]);
 
   // Chart layout
   const padL = isMobile ? 35 : 55;
