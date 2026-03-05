@@ -6,9 +6,9 @@ import { searchTickers } from '../api/search';
 import { REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE } from '../data/portfolioTemplates';
 import { NOBL_HOLDINGS } from '../data/aristocrats';
 import { getUserHoldings, saveUserHoldings, getUserProfile, updateUserProfile, getUserWatchlist, addToUserWatchlist, removeFromUserWatchlist, saveProcessedState } from '../api/user';
-import { fetchBatchHistory } from '../api/history';
+import { fetchBatchHistory, fetchDivHistoryBatch } from '../api/history';
 import { processCatchUp } from '../utils/catchUp';
-import { calcMonthlyIncome } from '../utils/dividends';
+import { calcMonthlyIncome, deriveDividendSchedule } from '../utils/dividends';
 
 const POLL_INTERVAL = 5 * 60000; // 5 minutes
 const SAVE_DEBOUNCE = 2000; // 2 seconds
@@ -52,6 +52,7 @@ export default function usePortfolio(getToken) {
   const [cashApy, setCashApy] = useState(0);
   const [cashCompounding, setCashCompounding] = useState('none');
   const [dripEnabled, setDripEnabled] = useState(true);
+  const [divScheduleMap, setDivScheduleMap] = useState({});
 
   // Visualizer type state
   const [vizType, setVizType] = useState('sunburst');
@@ -165,13 +166,24 @@ export default function usePortfolio(getToken) {
           }
           if (cancelled) return;
 
-          // Fetch live prices + fundamentals before showing dashboard
+          // Fetch live prices + fundamentals + dividend history before showing dashboard
           const tickers = restored.map(h => h.ticker);
-          const [priceData, fdMap] = await Promise.all([
+          const [priceData, fdMap, divHistMap] = await Promise.all([
             fetchBatchUpdate(tickers).catch(() => ({})),
             fetchBatchFundamentals(tickers).catch(() => ({})),
+            fetchDivHistoryBatch(tickers).catch(() => ({})),
           ]);
           if (cancelled) return;
+
+          // Build dynamic dividend schedule map from actual payment history
+          if (divHistMap && Object.keys(divHistMap).length > 0) {
+            const schedules = {};
+            for (const [ticker, entries] of Object.entries(divHistMap)) {
+              const schedule = deriveDividendSchedule(entries);
+              if (schedule) schedules[ticker] = schedule;
+            }
+            setDivScheduleMap(schedules);
+          }
 
           // Merge live data into liveData state
           const merged = { ...priceData };
@@ -492,6 +504,13 @@ export default function usePortfolio(getToken) {
       };
 
       if (data) setLiveData(prev => ({ ...prev, [ticker]: data }));
+      // Fetch dividend history for new ticker to derive payment schedule
+      fetchDivHistoryBatch([ticker]).then(divHist => {
+        if (divHist?.[ticker]) {
+          const schedule = deriveDividendSchedule(divHist[ticker]);
+          if (schedule) setDivScheduleMap(prev => ({ ...prev, [ticker]: schedule }));
+        }
+      }).catch(() => {});
       setHoldings(prev => [...prev.filter(h => h.ticker !== ticker), newHolding]);
       setTargetBalance(0); // clear anchor since portfolio was manually modified
       setShowAddModal(false);
@@ -597,8 +616,8 @@ export default function usePortfolio(getToken) {
       const yld = live?.divYield ?? h.yld ?? 0;
       const g5 = live?.g5 ?? h.g5 ?? 0;
       pv += value;
-      yieldSum += yld * value;
-      if (g5 > 0) { growthSum += g5 * value; }
+      if (isFinite(yld)) yieldSum += yld * value;
+      if (isFinite(g5) && g5 > 0) { growthSum += g5 * value; }
     });
 
     // Include cash yield in weighted average
@@ -606,7 +625,7 @@ export default function usePortfolio(getToken) {
     yieldSum += effectiveCashApy * cashBalance;
 
     // Derive stock income from calcMonthlyIncome
-    const monthlyArr = calcMonthlyIncome(holdings, liveData);
+    const monthlyArr = calcMonthlyIncome(holdings, liveData, divScheduleMap);
     const stockAnnualIncome = Math.round(monthlyArr.reduce((a, b) => a + b, 0));
     // Total income includes cash interest
     const annualIncome = stockAnnualIncome + Math.round(cashYield.annualIncome);
@@ -624,7 +643,7 @@ export default function usePortfolio(getToken) {
       weightedGrowth: holdingsValue > 0 ? growthSum / holdingsValue : 0,
       monthlyAvg: Math.round(annualIncome / 12),
     };
-  }, [holdings, liveData, cashBalance, cashApy, cashCompounding, cashYield]);
+  }, [holdings, liveData, cashBalance, cashApy, cashCompounding, cashYield, divScheduleMap]);
 
   // Update visualizer type
   function updateVizType(type) {
@@ -702,6 +721,8 @@ export default function usePortfolio(getToken) {
     // DRIP & cash
     dripEnabled, toggleDrip, cashBalance, updateCashBalance,
     cashApy, updateCashApy, cashCompounding, updateCashCompounding, cashYield,
+    // Dynamic dividend schedules
+    divScheduleMap,
     // Watchlist
     watchlist, addWatch, removeWatch, isWatched,
     // Timestamp

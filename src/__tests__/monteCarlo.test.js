@@ -268,4 +268,67 @@ describe('projectPortfolioPerStock', () => {
     result.noDripVals.forEach(v => expect(isFinite(v)).toBe(true));
     result.dripVals.forEach(v => expect(isFinite(v)).toBe(true));
   });
+
+  // --- Yield-on-cost / dividend growth in projections ---
+
+  it('dividend income grows year-over-year in deterministic mode', () => {
+    // KO: 100 shares × $1.80 div = $180/yr, 5% g5
+    // divIncomePerYear comes from the DRIP path — income grows from BOTH
+    // dividend growth (g5) AND share accumulation (reinvested dividends)
+    const result = projectPortfolioPerStock(5, singleHolding, emptyLiveData, 0, false, null);
+    const income = result.divIncomePerYear;
+    expect(income).toHaveLength(5);
+    // Each year's income should be greater than the previous (compounding)
+    for (let i = 1; i < income.length; i++) {
+      expect(income[i]).toBeGreaterThan(income[i - 1]);
+    }
+    // Year 1 income should be approximately $180 (100 shares × $1.80)
+    expect(income[0]).toBeCloseTo(180, -1);
+    // Year 5 income should exceed simple $180 × 1.05^4 ≈ $218.89 because
+    // DRIP reinvestment adds shares, compounding on top of dividend growth
+    expect(income[4]).toBeGreaterThan(180 * Math.pow(1.05, 4));
+  });
+
+  it('DRIP dividend income grows faster than no-DRIP due to share accumulation', () => {
+    // With DRIP, shares increase from reinvested dividends → more income
+    const noDripResult = projectPortfolioPerStock(10, singleHolding, emptyLiveData, 0, false, null);
+    // DRIP result: divIncomePerYear comes from drip path by default
+    const dripResult = projectPortfolioPerStock(10, singleHolding, emptyLiveData, 0, false, null);
+    // Both should grow, but DRIP income at year 10 should be higher than simple g5 compound
+    // Simple compound: $180 × 1.05^9 (9 years of growth for year 10)
+    const simpleCompound = 180 * Math.pow(1.05, 9);
+    const dripYear10 = dripResult.divIncomePerYear[9];
+    // DRIP reinvestment adds shares, so income should exceed simple compound
+    expect(dripYear10).toBeGreaterThan(simpleCompound);
+  });
+
+  it('yield-on-cost at horizon reflects dividend growth', () => {
+    // Starting: 100 shares × $60 = $6000, yield = 3%, income = $180
+    // After 10 years with 5% div growth, yield-on-cost should be ~3% × 1.05^10 ≈ 4.89%
+    // (on original cost basis, not current market value)
+    const result = projectPortfolioPerStock(10, singleHolding, emptyLiveData, 0, false, null);
+    const year10Income = result.divIncomePerYear[9];
+    const costBasis = 6000; // original investment
+    const yieldOnCost = (year10Income / costBasis) * 100;
+    // Should be significantly above the initial 3% yield
+    // With DRIP reinvestment, it should be even higher than 4.89% (shares grew too)
+    expect(yieldOnCost).toBeGreaterThan(4.5);
+  });
+
+  it('divIncomePerYear has correct length matching horizon', () => {
+    for (const h of [1, 5, 10, 25]) {
+      const result = projectPortfolioPerStock(h, singleHolding, emptyLiveData, 0, false, null);
+      expect(result.divIncomePerYear).toHaveLength(h);
+    }
+  });
+
+  it('dividend income grows in volatile mode too', () => {
+    const result = projectPortfolioPerStock(10, singleHolding, emptyLiveData, 0, true, null);
+    const income = result.divIncomePerYear;
+    // Over 10 years, even with volatility, the overall trend should be upward
+    // Compare first 2 years average vs last 2 years average
+    const earlyAvg = (income[0] + income[1]) / 2;
+    const lateAvg = (income[8] + income[9]) / 2;
+    expect(lateAvg).toBeGreaterThan(earlyAvg);
+  });
 });

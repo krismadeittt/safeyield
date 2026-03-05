@@ -53,6 +53,7 @@ function AppInner() {
     vizType, updateVizType,
     dripEnabled, toggleDrip, cashBalance, updateCashBalance,
     cashApy, updateCashApy, cashCompounding, updateCashCompounding, cashYield,
+    divScheduleMap,
     watchlist, addWatch, removeWatch, isWatched,
     lastUpdatedAt,
     mergeLiveData,
@@ -255,6 +256,7 @@ function AppInner() {
               vizType={vizType}
               setVizType={updateVizType}
               monthlyAvg={summary.monthlyAvg}
+              divScheduleMap={divScheduleMap}
             />
             <CashSection
               cashBalance={cashBalance}

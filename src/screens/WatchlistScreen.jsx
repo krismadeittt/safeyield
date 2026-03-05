@@ -128,7 +128,7 @@ export default function WatchlistScreen({ watchlist, liveData, onSelect, onRemov
                   <MetricCell label="Change" value={p?.change != null ? `${p.change > 0 ? '+' : ''}${p.change.toFixed(2)}%` : '—'} color={p?.change > 0 ? 'var(--green)' : 'var(--red-muted)'} />
                   <MetricCell label="Yield" value={p?.divYield > 0 ? `${p.divYield.toFixed(2)}%` : '—'} color="var(--primary)" />
                   <MetricCell label="Div" value={p?.annualDiv > 0 ? `$${p.annualDiv.toFixed(2)}` : '—'} />
-                  <MetricCell label="Growth" value={p?.g5 != null ? `${p.g5}%` : '—'} color="var(--primary)" />
+                  <MetricCell label="Growth" value={p?.g5 > 0 ? `${p.g5}%` : '—'} color="var(--primary)" />
                 </div>
               </div>
             );
@@ -169,7 +169,7 @@ export default function WatchlistScreen({ watchlist, liveData, onSelect, onRemov
                     </td>
                     <td>{p?.annualDiv > 0 ? `$${p.annualDiv.toFixed(2)}` : '—'}</td>
                     <td style={{ color: p?.g5 > 0 ? 'var(--green)' : 'var(--text-muted)' }}>
-                      {p?.g5 != null ? `${p.g5}%` : '—'}
+                      {p?.g5 > 0 ? `${p.g5}%` : '—'}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>

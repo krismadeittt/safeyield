@@ -1,4 +1,4 @@
-import { HISTORY_WORKER_URL } from '../config';
+import { HISTORY_WORKER_URL, API_BASE_URL } from '../config';
 
 const cache = {};
 const MAX_CACHE_SIZE = 100;
@@ -41,6 +41,37 @@ export async function fetchPriceHistory(ticker) {
 export async function fetchDividendHistory(ticker) {
   const data = await fetchHistory(ticker);
   return data?.d || [];
+}
+
+/**
+ * Fetch dividend payment history for multiple tickers via /div-history-batch.
+ * Returns { TICKER: [[yearMonth, amount], ...], ... }
+ * Used to derive actual payment schedules instead of relying on hardcoded calendar.
+ */
+export async function fetchDivHistoryBatch(tickers) {
+  if (!tickers?.length) return {};
+  const results = {};
+  // Endpoint supports max 10 tickers per request
+  const chunks = [];
+  for (let i = 0; i < tickers.length; i += 10) {
+    chunks.push(tickers.slice(i, i + 10));
+  }
+  for (const chunk of chunks) {
+    try {
+      const symbols = chunk.join(',');
+      const res = await fetch(`${API_BASE_URL}/div-history-batch?symbols=${symbols}`, {
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data?.results) {
+        Object.assign(results, data.results);
+      }
+    } catch {
+      // Continue with remaining chunks
+    }
+  }
+  return results;
 }
 
 /**

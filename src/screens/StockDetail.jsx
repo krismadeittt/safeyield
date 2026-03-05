@@ -98,6 +98,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
   const isMobile = useIsMobile();
   const [fd, setFd] = useState(null);
   const [fdLoading, setFdLoading] = useState(true);
+  const [fdError, setFdError] = useState(false);
   const [histData, setHistData] = useState(null);
 
   const data = live || stock;
@@ -114,6 +115,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
   // Fetch fundamentals + real history in parallel
   useEffect(() => {
     setFdLoading(true);
+    setFdError(false);
     setHistData(null);
 
     Promise.all([
@@ -123,6 +125,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
       setFd(fdData);
       setHistData(hist);
       setFdLoading(false);
+      if (!fdData) setFdError(true);
       // Write fundamentals back to shared liveData so all views stay in sync
       if (fdData && onMergeLiveData) {
         onMergeLiveData(stock.ticker, {
@@ -238,21 +241,24 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
 
   const epsChart = useMemo(() => {
     if (!hasFinancials || !ah.eps?.length) return null;
-    const last = ah.eps[ah.eps.length - 1].value;
+    const last = ah.eps[ah.eps.length - 1]?.value;
+    if (last == null || !isFinite(last)) return null;
     const rate = fd.epsGrowth || 5;
     return { hist: ah.eps, proj: projectGrowth(last, rate, PROJ_YEARS) };
   }, [hasFinancials, ah, fd]);
 
   const fcfChart = useMemo(() => {
     if (!hasFinancials || !ah.fcf?.length) return null;
-    const last = ah.fcf[ah.fcf.length - 1].value;
+    const last = ah.fcf[ah.fcf.length - 1]?.value;
+    if (last == null || !isFinite(last)) return null;
     const rate = fd.salesGrowth || 5;
     return { hist: ah.fcf, proj: projectGrowth(last, rate, PROJ_YEARS) };
   }, [hasFinancials, ah, fd]);
 
   const debtChart = useMemo(() => {
     if (!hasFinancials || !ah.netDebt?.length) return null;
-    const last = ah.netDebt[ah.netDebt.length - 1].value;
+    const last = ah.netDebt[ah.netDebt.length - 1]?.value;
+    if (last == null || !isFinite(last)) return null;
     return { hist: ah.netDebt, proj: projectSteady(last, PROJ_YEARS) };
   }, [hasFinancials, ah]);
 
@@ -322,12 +328,12 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
           { label: "Price", value: `$${price.toFixed(2)}` },
           { label: "Yield", value: yld > 0 ? `${yld.toFixed(2)}%` : null, reason: "No yield data" },
           { label: "Annual Div/Share", value: annualDiv > 0 ? `$${annualDiv.toFixed(2)}` : null, reason: "No dividend data" },
-          { label: "Payout Ratio", value: payout != null ? `${payout}%` : null, reason: "No payout ratio data" },
+          { label: "Payout Ratio", value: payout != null ? `${payout}%` : null, reason: "No payout ratio data", color: payout > 100 ? "var(--red-muted)" : undefined, title: payout > 100 ? "Above 100% — common for REITs/MLPs" : undefined },
           { label: "5Y Growth", value: `${g5}%` },
           { label: "Streak", value: stock.streak != null && stock.streak > 0 ? `${stock.streak}yr` : null, reason: "No streak data" },
           { label: "Tax Class", value: taxClass },
         ].map(m => (
-          <div key={m.label} style={{
+          <div key={m.label} title={m.title} style={{
             background: "var(--bg-card)", border: "1px solid var(--border-dim)", padding: "0.8rem",
             textAlign: "center",
           }}>
@@ -337,7 +343,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
             }}>
               {m.label}
             </div>
-            <div style={{ fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
+            <div style={{ fontSize: "1rem", fontWeight: 600, color: m.color || "var(--text-primary)" }}>
               {m.value != null ? m.value : <NaValue reason={m.reason || "Data not available"} />}
             </div>
           </div>
@@ -348,6 +354,13 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
       {fdLoading && (
         <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-dim)" }}>
           Loading financial data...
+        </div>
+      )}
+
+      {/* Error state */}
+      {fdError && !fdLoading && (
+        <div style={{ padding: "0.6rem 1rem", background: "rgba(255,180,50,0.1)", border: "1px solid rgba(255,180,50,0.3)", borderRadius: 8, color: "var(--text-muted)", fontSize: "0.75rem", marginBottom: 12 }}>
+          Unable to load fundamentals data. Showing cached values.
         </div>
       )}
 
@@ -505,7 +518,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
               subtitle="Real historical yield"
               statCards={[
                 { label: "Current Yield", value: `${yld.toFixed(2)}%`, color: "#2a8a3a" },
-                { label: "Payout", value: payout != null ? `${payout}%` : "—", color: "var(--text-primary)" },
+                { label: "Payout", value: payout != null ? `${payout}%` : "—", color: payout > 100 ? "var(--red-muted)" : "var(--text-primary)" },
               ]}
               historicalData={yieldSeries.hist}
               projectedData={[]}
@@ -703,16 +716,22 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
                 <div style={{ flex: 1, position: "relative", height: 8, background: "var(--border-accent)", borderRadius: 4 }}>
                   {(() => {
                     const price = data.price || (fd.technicals.week52High + fd.technicals.week52Low) / 2;
-                    const pct = ((price - fd.technicals.week52Low) / (fd.technicals.week52High - fd.technicals.week52Low)) * 100;
+                    const range = fd.technicals.week52High - fd.technicals.week52Low;
+                    const pct = range > 0 ? ((price - fd.technicals.week52Low) / range) * 100 : 50;
                     return <div style={{
                       position: "absolute", top: -4, width: 16, height: 16, borderRadius: 8,
                       background: "var(--green)", border: "2px solid var(--bg-card)",
                       left: `calc(${Math.min(100, Math.max(0, pct))}% - 8px)`,
                     }} />;
                   })()}
-                  <div style={{ position: "absolute", top: 0, left: 0, height: "100%", borderRadius: 4,
-                    width: `${((data.price || (fd.technicals.week52High + fd.technicals.week52Low) / 2) - fd.technicals.week52Low) / (fd.technicals.week52High - fd.technicals.week52Low) * 100}%`,
-                    background: "var(--primary)", opacity: 0.4 }} />
+                  {(() => {
+                    const price = data.price || (fd.technicals.week52High + fd.technicals.week52Low) / 2;
+                    const range = fd.technicals.week52High - fd.technicals.week52Low;
+                    const pct = range > 0 ? ((price - fd.technicals.week52Low) / range) * 100 : 50;
+                    return <div style={{ position: "absolute", top: 0, left: 0, height: "100%", borderRadius: 4,
+                      width: `${Math.min(100, Math.max(0, pct))}%`,
+                      background: "var(--primary)", opacity: 0.4 }} />;
+                  })()}
                 </div>
                 <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", minWidth: 50, textAlign: "right" }}>${fd.technicals.week52High.toFixed(2)}</span>
               </div>

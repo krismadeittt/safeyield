@@ -14,7 +14,7 @@ vi.mock('../data/dividendCalendar', () => ({
   GROUP_C: new Set(['JNJ', 'AAPL']),
 }));
 
-import { getPaymentFrequency, getDividendMonths, calcMonthlyIncome } from '../utils/dividends';
+import { getPaymentFrequency, getDividendMonths, calcMonthlyIncome, deriveDividendSchedule } from '../utils/dividends';
 
 // =============================================================================
 // getPaymentFrequency — returns 12 for monthly payers, 4 for quarterly
@@ -173,5 +173,149 @@ describe('calcMonthlyIncome', () => {
     const result = calcMonthlyIncome(holdings, {});
     // Per payment: (4 * 10.5) / 4 = 10.5
     expect(result[1]).toBe(10.5);
+  });
+});
+
+// =============================================================================
+// deriveDividendSchedule — derives payment schedule from API dividend history
+// =============================================================================
+describe('deriveDividendSchedule', () => {
+  it('detects quarterly payer from 2 years of data', () => {
+    // KO-style: pays Feb, May, Aug, Nov
+    const entries = [
+      [202302, 0.46], [202305, 0.46], [202308, 0.46], [202311, 0.46],
+      [202402, 0.48], [202405, 0.48], [202408, 0.48], [202411, 0.48],
+    ];
+    const result = deriveDividendSchedule(entries);
+    expect(result.freq).toBe(4);
+    expect(result.months).toEqual([1, 4, 7, 10]); // 0-indexed: Feb=1, May=4, Aug=7, Nov=10
+  });
+
+  it('detects monthly payer', () => {
+    // O-style: pays every month
+    const entries = [];
+    for (let m = 1; m <= 12; m++) {
+      entries.push([202300 + m, 0.25]);
+      entries.push([202400 + m, 0.26]);
+    }
+    const result = deriveDividendSchedule(entries);
+    expect(result.freq).toBe(12);
+    expect(result.months).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  });
+
+  it('detects semi-annual payer', () => {
+    const entries = [
+      [202306, 1.50], [202312, 1.50],
+      [202406, 1.60], [202412, 1.60],
+    ];
+    const result = deriveDividendSchedule(entries);
+    expect(result.freq).toBe(2);
+    expect(result.months).toEqual([5, 11]); // Jun=5, Dec=11
+  });
+
+  it('detects annual payer', () => {
+    const entries = [
+      [202312, 2.00],
+      [202412, 2.10],
+    ];
+    const result = deriveDividendSchedule(entries);
+    expect(result.freq).toBe(1);
+    expect(result.months).toEqual([11]); // Dec=11
+  });
+
+  it('returns null for empty input', () => {
+    expect(deriveDividendSchedule(null)).toBeNull();
+    expect(deriveDividendSchedule([])).toBeNull();
+    expect(deriveDividendSchedule([[202401, 0.50]])).toBeNull(); // Only 1 entry
+  });
+
+  it('handles Group A quarterly schedule (Jan/Apr/Jul/Oct)', () => {
+    const entries = [
+      [202301, 0.50], [202304, 0.50], [202307, 0.50], [202310, 0.50],
+      [202401, 0.52], [202404, 0.52], [202407, 0.52], [202410, 0.52],
+    ];
+    const result = deriveDividendSchedule(entries);
+    expect(result.freq).toBe(4);
+    expect(result.months).toEqual([0, 3, 6, 9]); // Jan=0, Apr=3, Jul=6, Oct=9
+  });
+
+  it('handles Group C quarterly schedule (Mar/Jun/Sep/Dec)', () => {
+    const entries = [
+      [202303, 0.25], [202306, 0.25], [202309, 0.25], [202312, 0.25],
+      [202403, 0.26], [202406, 0.26], [202409, 0.26], [202412, 0.26],
+    ];
+    const result = deriveDividendSchedule(entries);
+    expect(result.freq).toBe(4);
+    expect(result.months).toEqual([2, 5, 8, 11]); // Mar=2, Jun=5, Sep=8, Dec=11
+  });
+
+  it('handles irregular dividend (special div in extra month)', () => {
+    // Quarterly payer with one special dividend in a 5th month
+    const entries = [
+      [202302, 0.46], [202305, 0.46], [202308, 0.46], [202311, 0.46],
+      [202402, 0.48], [202405, 0.48], [202407, 1.00], // special div in Jul
+      [202408, 0.48], [202411, 0.48],
+    ];
+    const result = deriveDividendSchedule(entries);
+    // 5 unique months but top 4 by frequency should win
+    expect(result.freq).toBe(4);
+    expect(result.months).toEqual([1, 4, 7, 10]); // Regular months have count=2, Jul has count=1
+  });
+});
+
+// =============================================================================
+// Dynamic scheduleMap overrides hardcoded calendar
+// =============================================================================
+describe('scheduleMap overrides', () => {
+  const scheduleMap = {
+    NEWSTOCK: { freq: 4, months: [2, 5, 8, 11] }, // Mar/Jun/Sep/Dec
+    O: { freq: 4, months: [0, 3, 6, 9] }, // Override monthly to quarterly
+  };
+
+  it('getPaymentFrequency uses scheduleMap when available', () => {
+    expect(getPaymentFrequency('NEWSTOCK', scheduleMap)).toBe(4);
+  });
+
+  it('getPaymentFrequency overrides hardcoded for known tickers', () => {
+    // O is hardcoded as monthly (12), but scheduleMap says quarterly (4)
+    expect(getPaymentFrequency('O', scheduleMap)).toBe(4);
+  });
+
+  it('getPaymentFrequency falls back to hardcoded when not in map', () => {
+    expect(getPaymentFrequency('KO', scheduleMap)).toBe(4); // hardcoded Group B
+    expect(getPaymentFrequency('O', {})).toBe(12); // hardcoded monthly
+  });
+
+  it('getDividendMonths uses scheduleMap when available', () => {
+    expect(getDividendMonths('NEWSTOCK', scheduleMap)).toEqual([2, 5, 8, 11]);
+  });
+
+  it('getDividendMonths overrides hardcoded for known tickers', () => {
+    expect(getDividendMonths('O', scheduleMap)).toEqual([0, 3, 6, 9]);
+  });
+
+  it('getDividendMonths falls back to hardcoded when not in map', () => {
+    expect(getDividendMonths('KO', scheduleMap)).toEqual([1, 4, 7, 10]);
+    expect(getDividendMonths('O', {})).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  });
+
+  it('calcMonthlyIncome uses scheduleMap for payment timing', () => {
+    // NEWSTOCK: Mar/Jun/Sep/Dec schedule from API data
+    const holdings = [{ ticker: 'NEWSTOCK', shares: 100, div: 4.00 }];
+    const result = calcMonthlyIncome(holdings, {}, scheduleMap);
+    // Per payment: (4 * 100) / 4 = $100
+    expect(result[2]).toBe(100);  // Mar
+    expect(result[5]).toBe(100);  // Jun
+    expect(result[8]).toBe(100);  // Sep
+    expect(result[11]).toBe(100); // Dec
+    // Other months zero
+    expect(result[0]).toBe(0);
+    expect(result[1]).toBe(0);
+  });
+
+  it('calcMonthlyIncome works without scheduleMap (backwards compatible)', () => {
+    const holdings = [{ ticker: 'KO', shares: 100, div: 4.00 }];
+    const result = calcMonthlyIncome(holdings, {});
+    expect(result[1]).toBe(100); // Feb (Group B hardcoded)
   });
 });

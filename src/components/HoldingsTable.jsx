@@ -3,6 +3,7 @@ import HoldingRow from './HoldingRow';
 import NaValue from './NaValue';
 import { formatCurrency } from '../utils/format';
 import { exportHoldingsCSV } from '../utils/export';
+import { extractTickerMetrics } from '../utils/tickerData';
 import useIsMobile from '../hooks/useIsMobile';
 import MiniProgressBar from './MiniProgressBar';
 
@@ -216,13 +217,9 @@ export default function HoldingsTable({
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             {filtered.map((h, idx) => {
-              const live = liveData?.[h.ticker];
-              const price = (live?.price > 0 ? live.price : null) || h.price || 0;
-              const value = price * (h.shares || 0);
+              const m = extractTickerMetrics(liveData?.[h.ticker], h);
+              const value = m.price * (h.shares || 0);
               const weightPct = portfolioValue > 0 ? (value / portfolioValue) * 100 : 0;
-              const yld = (live?.divYield > 0 ? live.divYield : null) ?? h.yld ?? 0;
-              const annualDiv = (live?.annualDiv > 0 ? live.annualDiv : null) ?? h.div ?? 0;
-              const g5 = live?.g5 ?? h.g5 ?? 0;
               return (
                 <div key={h.ticker}
                   onClick={() => onSelect?.(h)}
@@ -240,7 +237,7 @@ export default function HoldingsTable({
                       </span>
                     </div>
                     <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: "0.9rem", fontFamily: "'JetBrains Mono', monospace" }}>
-                      ${price.toFixed(2)}
+                      ${m.price.toFixed(2)}
                     </span>
                   </div>
                   {/* Company name */}
@@ -249,9 +246,9 @@ export default function HoldingsTable({
                   </div>
                   {/* 4-col metric grid */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 8 }}>
-                    <MobileMetric label="Yield" value={yld > 0 ? `${yld.toFixed(2)}%` : null} color="var(--primary)" />
-                    <MobileMetric label="Div" value={annualDiv > 0 ? `$${annualDiv.toFixed(2)}` : null} />
-                    <MobileMetric label="Growth" value={g5 > 0 ? `+${g5.toFixed(1)}%` : null} color="var(--green)" />
+                    <MobileMetric label="Yield" value={m.divYield > 0 ? `${m.divYield.toFixed(2)}%` : null} color="var(--primary)" />
+                    <MobileMetric label="Div" value={m.annualDiv > 0 ? `$${m.annualDiv.toFixed(2)}` : null} />
+                    <MobileMetric label="Growth" value={m.g5 > 0 ? `+${m.g5.toFixed(1)}%` : null} color="var(--green)" />
                     <MobileMetric label="Weight" value={`${weightPct.toFixed(1)}%`} />
                   </div>
                   {/* Bottom: shares + buttons */}
@@ -371,8 +368,8 @@ export default function HoldingsTable({
               </thead>
               <tbody>
                 {filtered.map((h, idx) => {
-                  const price = liveData?.[h.ticker]?.price || h.price || 0;
-                  const value = price * (h.shares || 0);
+                  const dm = extractTickerMetrics(liveData?.[h.ticker], h);
+                  const value = dm.price * (h.shares || 0);
                   const weightPct = portfolioValue > 0 ? (value / portfolioValue) * 100 : 0;
                   return (
                     <HoldingRow
@@ -422,19 +419,18 @@ function MobileMetric({ label, value, color }) {
 }
 
 function getSortVal(stock, key, liveData, portfolioValue) {
-  const live = liveData?.[stock.ticker];
-  const price = (live?.price > 0 ? live.price : null) || stock.price || 0;
-  const value = price * (stock.shares || 0);
+  const m = extractTickerMetrics(liveData?.[stock.ticker], stock);
+  const value = m.price * (stock.shares || 0);
   switch (key) {
     case "ticker": return stock.ticker;
     case "shares": return stock.shares || 0;
-    case "price": return price;
+    case "price": return m.price;
     case "value": return value;
-    case "yld": return (live?.divYield > 0 ? live.divYield : null) ?? stock.yld ?? 0;
-    case "div": return (live?.annualDiv > 0 ? live.annualDiv : null) ?? stock.div ?? 0;
-    case "payout": return live?.payout ?? stock.payout ?? 0;
-    case "g5": return live?.g5 ?? stock.g5 ?? 0;
-    case "streak": return stock.streak ?? 0;
+    case "yld": return m.divYield;
+    case "div": return m.annualDiv;
+    case "payout": return m.payout ?? 0;
+    case "g5": return m.g5;
+    case "streak": return m.streak;
     case "weight": return portfolioValue > 0 ? value / portfolioValue : 0;
     default: return 0;
   }

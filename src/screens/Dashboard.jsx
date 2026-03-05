@@ -10,7 +10,7 @@ import useIsMobile from '../hooks/useIsMobile';
 export default function Dashboard({
   totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth, cashBalance = 0,
   cashApy = 0, cashCompounding = 'none',
-  vizType, setVizType, monthlyAvg,
+  vizType, setVizType, monthlyAvg, divScheduleMap,
 }) {
   const isMobile = useIsMobile();
   const [horizon, setHorizon] = useState(10);
@@ -36,7 +36,7 @@ export default function Dashboard({
   const { noDripVals, dripVals, contribVals, divIncomePerYear, simPeriodsPerYear } = projections;
 
   // Monthly income data — uses live dividend rates via liveData
-  const monthlyData = useMemo(() => calcMonthlyIncome(holdings, liveData), [holdings, liveData]);
+  const monthlyData = useMemo(() => calcMonthlyIncome(holdings, liveData, divScheduleMap), [holdings, liveData, divScheduleMap]);
 
   // Expose for history widget compatibility
   if (typeof window !== "undefined") {

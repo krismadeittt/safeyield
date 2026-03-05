@@ -5,6 +5,7 @@ import { fetchBatchFundamentals } from '../api/fundamentals';
 import { searchTickers } from '../api/search';
 import MiniProgressBar from '../components/MiniProgressBar';
 import { formatCurrency } from '../utils/format';
+import { extractTickerMetrics } from '../utils/tickerData';
 import useIsMobile from '../hooks/useIsMobile';
 
 function fmtCap(b) {
@@ -57,17 +58,16 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
       return matchSearch && matchSector;
     });
     list.sort((a, b) => {
-      const aLive = liveData?.[a.ticker];
-      const bLive = liveData?.[b.ticker];
-      const getVal = (s, l) => {
-        if (sortKey === "yld") return (l?.divYield > 0 ? l.divYield : null) ?? s.yld ?? 0;
-        if (sortKey === "div") return (l?.annualDiv > 0 ? l.annualDiv : null) ?? s.div ?? 0;
-        if (sortKey === "g5") return l?.g5 ?? s.g5 ?? 0;
-        if (sortKey === "streak") return Math.max(l?.streak ?? 0, s.streak ?? 0);
+      const getVal = (s) => {
+        const em = extractTickerMetrics(liveData?.[s.ticker], s);
+        if (sortKey === "yld") return em.divYield;
+        if (sortKey === "div") return em.annualDiv;
+        if (sortKey === "g5") return em.g5;
+        if (sortKey === "streak") return em.streak;
         return s[sortKey] ?? 0;
       };
-      const av = getVal(a, aLive);
-      const bv = getVal(b, bLive);
+      const av = getVal(a);
+      const bv = getVal(b);
       return sortDir === "asc" ? av - bv : bv - av;
     });
     return list;
@@ -225,22 +225,19 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                   {/* Metrics row */}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
                     {(() => {
-                      const ld = liveData?.[stock.ticker];
-                      const displayYld = (ld?.divYield > 0 ? ld.divYield : null) ?? stock.yld ?? 0;
-                      const displayG5 = ld?.g5 ?? stock.g5 ?? 0;
-                      const displayStreak = Math.max(ld?.streak ?? 0, stock.streak ?? 0);
+                      const em = extractTickerMetrics(liveData?.[stock.ticker], stock);
                       return (<>
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Yield</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--primary)" }}>{displayYld > 0 ? `${displayYld.toFixed(2)}%` : "—"}</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--primary)" }}>{em.divYield > 0 ? `${em.divYield.toFixed(2)}%` : "—"}</div>
                     </div>
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Growth</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: displayG5 > 0 ? "var(--green)" : "var(--text-muted)" }}>{displayG5 > 0 ? `${displayG5}%` : "—"}</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: em.g5 > 0 ? "var(--green)" : "var(--text-muted)" }}>{em.g5 > 0 ? `${em.g5}%` : "—"}</div>
                     </div>
                     <div style={{ textAlign: "center" }}>
                       <div style={{ fontSize: "0.45rem", color: "var(--text-label)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Streak</div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>{displayStreak > 0 ? `${displayStreak}yr` : "—"}</div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-primary)" }}>{em.streak > 0 ? `${em.streak}yr` : "—"}</div>
                     </div>
                       </>);
                     })()}
@@ -272,11 +269,7 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
               <tbody>
                 {pageItems.map(stock => {
                   const p = prices[stock.ticker] || liveData?.[stock.ticker];
-                  const ld = liveData?.[stock.ticker];
-                  const displayYld = (ld?.divYield > 0 ? ld.divYield : null) ?? stock.yld ?? 0;
-                  const displayDiv = (ld?.annualDiv > 0 ? ld.annualDiv : null) ?? stock.div ?? 0;
-                  const displayG5 = ld?.g5 ?? stock.g5 ?? 0;
-                  const displayStreak = Math.max(ld?.streak ?? 0, stock.streak ?? 0);
+                  const em = extractTickerMetrics(liveData?.[stock.ticker], stock);
                   const inPortfolio = holdingTickers.has(stock.ticker);
                   return (
                     <tr key={stock.ticker}
@@ -289,14 +282,14 @@ export default function MarketBrowser({ onSelect, liveData, onAdd, holdings, onW
                       </td>
                       <td>{fmtCap(stock.cap)}</td>
                       <td>
-                        {displayYld > 0 ? `${displayYld.toFixed(2)}%` : "—"}
-                        {displayYld > 0 && <MiniProgressBar value={displayYld} max={8} />}
+                        {em.divYield > 0 ? `${em.divYield.toFixed(2)}%` : "—"}
+                        {em.divYield > 0 && <MiniProgressBar value={em.divYield} max={8} />}
                       </td>
-                      <td>{displayDiv > 0 ? `$${displayDiv.toFixed(2)}` : "—"}</td>
-                      <td style={{ color: displayG5 > 0 ? "var(--green)" : "var(--text-muted)" }}>
-                        {displayG5 > 0 ? `${displayG5}%` : "—"}
+                      <td>{em.annualDiv > 0 ? `$${em.annualDiv.toFixed(2)}` : "—"}</td>
+                      <td style={{ color: em.g5 > 0 ? "var(--green)" : "var(--text-muted)" }}>
+                        {em.g5 > 0 ? `${em.g5}%` : "—"}
                       </td>
-                      <td>{displayStreak > 0 ? `${displayStreak}yr` : "—"}</td>
+                      <td>{em.streak > 0 ? `${em.streak}yr` : "—"}</td>
                       <td style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{stock.sector}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>

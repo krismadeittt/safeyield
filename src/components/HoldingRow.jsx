@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import MiniProgressBar from './MiniProgressBar';
 import NaValue from './NaValue';
 import { formatCurrency } from '../utils/format';
+import { extractTickerMetrics } from '../utils/tickerData';
 
 /**
  * Editable row — inline share count editor.
@@ -69,15 +70,15 @@ export default function HoldingRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [rowHover, setRowHover] = useState(false);
-  const data = live || {};
-  const price = (live?.price > 0 ? live.price : null) || stock.price || 0;
+  const m = extractTickerMetrics(live, stock);
+  const price = m.price;
   const value = price * (stock.shares || 0);
-  const yld = (data.divYield > 0 ? data.divYield : null) ?? stock.yld ?? 0;
-  const annualDiv = (data.annualDiv > 0 ? data.annualDiv : null) ?? stock.div ?? 0;
-  const payout = data.payout ?? stock.payout ?? null;
-  const change = data.change ?? 0;
-  const g5 = data.g5 ?? stock.g5 ?? 0;
-  const streak = Math.max(data.streak ?? 0, stock.streak ?? 0);
+  const yld = m.divYield;
+  const annualDiv = m.annualDiv;
+  const payout = m.payout;
+  const change = m.change;
+  const g5 = m.g5;
+  const streak = m.streak;
 
   if (editing) {
     return (

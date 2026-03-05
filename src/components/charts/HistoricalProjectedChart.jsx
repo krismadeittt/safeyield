@@ -81,8 +81,11 @@ export default function HistoricalProjectedChart({
   const finalDrip = contribVals ? (contribVals[contribVals.length - 1] || 0)
     : (dripVals?.[dripVals.length - 1] || 0);
   const dripAdvantage = finalDrip - finalNoDrip;
-  // Step 10: Use projected portfolio value × yield to reflect DRIP share accumulation
-  const incomeAtHorizon = Math.round(finalDrip * (avgYield / 100));
+  // Income at horizon: use MC simulation's actual dividend income (reflects DRIP share growth + dividend growth)
+  // Falls back to yield-on-cost compound growth if simulation data unavailable
+  const incomeAtHorizon = divIncomePerYear?.length > 0
+    ? Math.round(divIncomePerYear[divIncomePerYear.length - 1])
+    : Math.round(totalIncome * Math.pow(1 + (growth || 0) / 100, horizon));
 
   // Only show historical bars when real data is loaded (no synthetic fallback)
   const effectiveHistYears = (histRange > 0 && realHistData && realHistData.length > 1) ? histRange : 0;
@@ -344,10 +347,11 @@ export default function HistoricalProjectedChart({
         </div>
 
         {/* Stat cards: STARTING, CURRENT (DRIP), DRIP ADVANTAGE */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 8, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
           <StatCard label={`BACKTEST START (${startingYear})`} value={formatCurrency(startingValue)} color="var(--text-sub)" compact={isMobile} borderColor="var(--text-sub)" />
           <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="var(--primary)" compact={isMobile} borderColor="var(--primary)" />
-          <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="var(--green)" last compact={isMobile} borderColor="var(--green)" />
+          <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="var(--green)" compact={isMobile} borderColor="var(--green)" />
+          <StatCard label={`INCOME AT ${horizon}Y`} value={`${shortMoney(incomeAtHorizon)}/yr`} sub={`from ${shortMoney(totalIncome)} today`} color="var(--warning)" compact={isMobile} borderColor="var(--warning)" />
         </div>
 
         {/* Row 1: Horizon + Real World Returns + Granularity */}
