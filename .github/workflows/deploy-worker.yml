@@ -1,5 +1,6 @@
 name: Deploy Workers
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths: ['worker/**']
