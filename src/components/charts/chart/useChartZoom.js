@@ -11,24 +11,46 @@ import { useState, useCallback, useEffect, useRef } from 'react';
  * Shared between Portfolio Value and Dividend Income charts for synced zoom.
  */
 
-function getDefaultRange(granularity, totalPoints) {
+/**
+ * Compute the default viewRange for a granularity.
+ * Centers "Now" at ~65% from left so user sees mostly history + some future.
+ *
+ * @param {string} granularity - 'daily' | 'weekly' | 'monthly' | 'yearly'
+ * @param {number} totalPoints - total bar count
+ * @param {number} nowIdx - index of the "Now" bar
+ */
+function getDefaultRange(granularity, totalPoints, nowIdx) {
   const maxIdx = Math.max(0, totalPoints - 1);
-  if (granularity === 'daily') {
-    const span = Math.min(63, maxIdx); // ~3 months of trading days
-    return [Math.max(0, maxIdx - span), maxIdx];
+  const now = Math.max(0, Math.min(maxIdx, nowIdx));
+
+  // Monthly/yearly: show full range
+  if (granularity !== 'daily' && granularity !== 'weekly') {
+    return [0, maxIdx];
   }
-  if (granularity === 'weekly') {
-    const span = Math.min(52, maxIdx); // ~1 year
-    return [Math.max(0, maxIdx - span), maxIdx];
-  }
-  return [0, maxIdx]; // monthly/yearly = full range
+
+  // Daily: ~63 trading days (~3 months). Weekly: ~52 weeks (~1 year).
+  const span = granularity === 'daily' ? Math.min(63, maxIdx) : Math.min(52, maxIdx);
+
+  // Place "Now" at 65% from left edge
+  const nowOffset = Math.round(span * 0.65);
+  let start = now - nowOffset;
+  let end = start + span;
+
+  // Clamp to valid range
+  if (start < 0) { end -= start; start = 0; }
+  if (end > maxIdx) { start -= (end - maxIdx); end = maxIdx; }
+  start = Math.max(0, start);
+  end = Math.min(maxIdx, end);
+
+  return [start, end];
 }
 
-export default function useChartZoom(totalPoints, granularity) {
+export default function useChartZoom(totalPoints, granularity, nowIdx = -1) {
   const maxIdx = Math.max(0, totalPoints - 1);
   const minSpan = Math.min(7, maxIdx);
+  const effectiveNow = nowIdx >= 0 ? nowIdx : maxIdx;
 
-  const [viewRange, setViewRange] = useState(() => getDefaultRange(granularity, totalPoints));
+  const [viewRange, setViewRange] = useState(() => getDefaultRange(granularity, totalPoints, effectiveNow));
   const chartWidthRef = useRef(600);
   const padLRef = useRef(0);
 
@@ -39,9 +61,9 @@ export default function useChartZoom(totalPoints, granularity) {
 
   // Apply default range when granularity or totalPoints changes
   useEffect(() => {
-    const [defStart, defEnd] = getDefaultRange(granularity, totalPoints);
+    const [defStart, defEnd] = getDefaultRange(granularity, totalPoints, effectiveNow);
     setViewRange([defStart, defEnd]);
-  }, [granularity, totalPoints]);
+  }, [granularity, totalPoints, effectiveNow]);
 
   const isZoomed = viewRange[0] > 0 || viewRange[1] < maxIdx;
   const visibleCount = viewRange[1] - viewRange[0] + 1;
@@ -163,9 +185,9 @@ export default function useChartZoom(totalPoints, granularity) {
   // ── Reset zoom ──
   const resetZoom = useCallback((gran) => {
     const g = gran || granularity;
-    const [defStart, defEnd] = getDefaultRange(g, totalPoints);
+    const [defStart, defEnd] = getDefaultRange(g, totalPoints, effectiveNow);
     setViewRange([defStart, defEnd]);
-  }, [granularity, totalPoints]);
+  }, [granularity, totalPoints, effectiveNow]);
 
   const handleDoubleClick = useCallback(() => {
     resetZoom();
