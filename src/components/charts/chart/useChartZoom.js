@@ -158,7 +158,9 @@ export default function useChartZoom(totalPoints, totalYearsSpan = 1) {
       const pointsPerPx = visibleCount / (chartWidthRef.current || 600);
       const deltaPoints = Math.round(-deltaX * pointsPerPx);
 
-      const [origStart, origEnd] = dragRef.current.startRange || viewRange;
+      const startRange = dragRef.current.startRange;
+      if (!startRange) return;
+      const [origStart, origEnd] = startRange;
       let newStart = origStart + deltaPoints;
       let newEnd = origEnd + deltaPoints;
       if (newStart < 0) { newEnd -= newStart; newStart = 0; }

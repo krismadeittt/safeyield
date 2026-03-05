@@ -316,7 +316,7 @@ export default function HistoricalProjectedChart({
     if (autoGran !== granularity) {
       setGranularity(autoGran);
     }
-  }, [zoom.viewRange, zoom.isZoomed, zoom.visibleYears]);
+  }, [zoom.viewRange, zoom.isZoomed, zoom.visibleYears, granularity, setGranularity, manualGranularity]);
 
   // Dividend income data
   const divBars = useMemo(() => {
