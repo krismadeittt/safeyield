@@ -5,6 +5,7 @@ import {
   prevTradingDay,
   createSnapshot,
   buildMissingSnapshots,
+  getMarketDate,
 } from '../utils/snapshots';
 
 describe('isTradingDay', () => {
@@ -65,6 +66,15 @@ describe('isTradingDay', () => {
   it('returns false for Labor Day', () => {
     // 2026 Labor Day: 1st Monday of September = Sep 7
     expect(isTradingDay('2026-09-07')).toBe(false);
+  });
+
+  it('returns false for Good Friday', () => {
+    // 2025: Easter Sunday = April 20 → Good Friday = April 18
+    expect(isTradingDay('2025-04-18')).toBe(false);
+    // 2026: Easter Sunday = April 5 → Good Friday = April 3
+    expect(isTradingDay('2026-04-03')).toBe(false);
+    // 2024: Easter Sunday = March 31 → Good Friday = March 29
+    expect(isTradingDay('2024-03-29')).toBe(false);
   });
 });
 
@@ -133,9 +143,16 @@ describe('createSnapshot', () => {
   });
 });
 
+describe('getMarketDate', () => {
+  it('returns a valid YYYY-MM-DD string', () => {
+    const date = getMarketDate();
+    expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
 describe('buildMissingSnapshots', () => {
   it('returns empty for same day', () => {
-    const today = new Date().toISOString().substring(0, 10);
+    const today = getMarketDate();
     const result = buildMissingSnapshots(today, [], 0, {}, {}, {});
     expect(result).toEqual([]);
   });

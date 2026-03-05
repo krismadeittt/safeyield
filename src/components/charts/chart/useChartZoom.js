@@ -6,9 +6,13 @@ import { useState, useCallback, useEffect, useRef } from 'react';
  *
  * Designed to be shared between Portfolio Value and Dividend Income charts
  * so zoom is synced.
+ *
+ * React compatibility: uses only useState, useCallback, useEffect, useRef —
+ * all stable APIs fully supported in React 19.x.
  */
 export default function useChartZoom(totalPoints) {
-  const [viewRange, setViewRange] = useState([0, Math.max(0, totalPoints - 1)]);
+  const maxSpan = Math.max(0, totalPoints - 1);
+  const [viewRange, setViewRange] = useState([0, maxSpan]);
   const [selectionRange, setSelectionRange] = useState(null);
   const dragRef = useRef({ active: false, start: null });
   const pinchRef = useRef({ active: false, initialDist: 0, initialRange: null });
@@ -22,13 +26,18 @@ export default function useChartZoom(totalPoints) {
   const isZoomed = viewRange[0] > 0 || viewRange[1] < totalPoints - 1;
   const visibleCount = viewRange[1] - viewRange[0] + 1;
 
+  // Minimum visible span — clamped so it works with small datasets
+  const minSpan = Math.min(7, maxSpan);
+
   // Mouse wheel zoom centered on cursor
   const handleWheel = useCallback((e, cursorFraction) => {
     e.preventDefault();
+    if (totalPoints <= 1) return;
+
     const [start, end] = viewRange;
     const span = end - start;
     const zoomFactor = e.deltaY > 0 ? 1.2 : 0.8;
-    const newSpan = Math.max(7, Math.min(totalPoints - 1, Math.round(span * zoomFactor)));
+    const newSpan = Math.max(minSpan, Math.min(maxSpan, Math.round(span * zoomFactor)));
     if (newSpan === span) return;
 
     const center = start + span * (cursorFraction || 0.5);
@@ -41,7 +50,7 @@ export default function useChartZoom(totalPoints) {
     newEnd = Math.min(totalPoints - 1, newEnd);
 
     setViewRange([newStart, newEnd]);
-  }, [viewRange, totalPoints]);
+  }, [viewRange, totalPoints, minSpan, maxSpan]);
 
   // Click-drag to select range
   const handleMouseDown = useCallback((index) => {
@@ -70,7 +79,6 @@ export default function useChartZoom(totalPoints) {
   // Pan when zoomed (shift+drag or programmatic)
   const pan = useCallback((deltaPoints) => {
     const [start, end] = viewRange;
-    const span = end - start;
     let newStart = start + deltaPoints;
     let newEnd = end + deltaPoints;
     if (newStart < 0) { newEnd -= newStart; newStart = 0; }
@@ -96,15 +104,20 @@ export default function useChartZoom(totalPoints) {
   const handleTouchMove = useCallback((e) => {
     if (pinchRef.current.active && e.touches.length === 2) {
       e.preventDefault();
+      if (totalPoints <= 1) return;
+
       const dist = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
         e.touches[0].clientY - e.touches[1].clientY
       );
+      // Guard against zero distance (fingers at same point)
+      if (dist < 1 || pinchRef.current.initialDist < 1) return;
+
       const scale = pinchRef.current.initialDist / dist;
       const [iStart, iEnd] = pinchRef.current.initialRange;
       const iSpan = iEnd - iStart;
       const center = (iStart + iEnd) / 2;
-      const newSpan = Math.max(7, Math.min(totalPoints - 1, Math.round(iSpan * scale)));
+      const newSpan = Math.max(minSpan, Math.min(maxSpan, Math.round(iSpan * scale)));
       let newStart = Math.round(center - newSpan / 2);
       let newEnd = newStart + newSpan;
       if (newStart < 0) { newEnd -= newStart; newStart = 0; }
@@ -118,7 +131,7 @@ export default function useChartZoom(totalPoints) {
       const deltaPoints = Math.round(-deltaX * pointsPerPx);
       if (deltaPoints !== 0) pan(deltaPoints);
     }
-  }, [totalPoints, isZoomed, visibleCount, pan]);
+  }, [totalPoints, isZoomed, visibleCount, pan, minSpan, maxSpan]);
 
   const handleTouchEnd = useCallback(() => {
     pinchRef.current = { active: false, initialDist: 0, initialRange: null };

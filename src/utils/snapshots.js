@@ -2,8 +2,44 @@
  * Portfolio snapshot utilities — build daily snapshots for tracking.
  */
 
-// NYSE holidays (fixed dates + observed rules). Covers common holidays.
-// For floating holidays (Thanksgiving, etc.), we use approximations.
+/**
+ * Get today's date in US Eastern Time (NYSE market timezone) as YYYY-MM-DD.
+ * This ensures snapshot boundaries align with the trading calendar regardless
+ * of the user's local timezone or server timezone.
+ */
+export function getMarketDate() {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return fmt.format(new Date()); // en-CA formats as YYYY-MM-DD
+}
+
+/**
+ * Compute Easter Sunday for a given year using the Anonymous Gregorian algorithm.
+ * Returns a Date object in UTC.
+ */
+function easterSunday(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+// NYSE holidays (fixed dates + observed rules + Good Friday).
 function getHolidays(year) {
   const holidays = new Set();
   // New Year's Day
@@ -12,7 +48,11 @@ function getHolidays(year) {
   holidays.add(nthWeekday(year, 0, 1, 3));
   // Presidents' Day: 3rd Monday of February
   holidays.add(nthWeekday(year, 1, 1, 3));
-  // Good Friday: ~2 days before Easter (approximate — skip for simplicity, rely on market data gaps)
+  // Good Friday: 2 days before Easter Sunday
+  const easter = easterSunday(year);
+  const goodFriday = new Date(easter);
+  goodFriday.setUTCDate(goodFriday.getUTCDate() - 2);
+  holidays.add(goodFriday.toISOString().substring(0, 10));
   // Memorial Day: Last Monday of May
   holidays.add(lastWeekday(year, 4, 1));
   // Juneteenth
@@ -113,7 +153,7 @@ export function prevTradingDay(dateStr) {
  * Create a single snapshot for today using live prices.
  */
 export function createSnapshot(holdings, cashBalance, liveData) {
-  const today = new Date().toISOString().substring(0, 10);
+  const today = getMarketDate();
   let holdingsValue = 0;
   const holdingsSnap = [];
 
@@ -152,7 +192,7 @@ export function createSnapshot(holdings, cashBalance, liveData) {
  * @returns {Array} snapshots to save
  */
 export function buildMissingSnapshots(lastDate, holdings, cashBalance, dailyPrices, dividendHistory, liveData) {
-  const today = new Date().toISOString().substring(0, 10);
+  const today = getMarketDate();
   if (!lastDate || lastDate >= today) return [];
 
   // Build per-ticker price lookup: { TICKER: { "2024-01-15": {close, adj_close} } }
