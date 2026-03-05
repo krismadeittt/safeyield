@@ -1,6 +1,7 @@
 import { HISTORY_WORKER_URL } from '../config';
 
 const cache = {};
+const MAX_CACHE_SIZE = 100;
 
 /**
  * Fetch full history (prices + dividends) for a ticker.
@@ -9,9 +10,16 @@ const cache = {};
 export async function fetchHistory(ticker) {
   if (cache[ticker]) return cache[ticker];
   try {
-    const res = await fetch(`${HISTORY_WORKER_URL}/history/${ticker}`);
+    const res = await fetch(`${HISTORY_WORKER_URL}/history/${ticker}`, {
+      signal: AbortSignal.timeout(15000),
+    });
     if (!res.ok) return null;
     const data = await res.json();
+    // Evict oldest entries when cache exceeds size limit
+    const keys = Object.keys(cache);
+    if (keys.length >= MAX_CACHE_SIZE) {
+      delete cache[keys[0]];
+    }
     cache[ticker] = data;
     return data;
   } catch {
@@ -278,11 +286,14 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
     validHoldings.forEach(h => {
       const base = basePrices[h.ticker];
       const periodP = tickerGroups[h.ticker]?.[period];
-      if (!periodP) return;
+      if (!periodP || !base.ac || !base.c) return;
 
       const weight = (h.shares || 0) * base.c;
-      weightedTotal += weight * (periodP.ac / base.ac);
-      weightedPrice += weight * (periodP.c / base.c);
+      const totalRatio = periodP.ac / base.ac;
+      const priceRatio = periodP.c / base.c;
+      if (!isFinite(totalRatio) || !isFinite(priceRatio)) return;
+      weightedTotal += weight * totalRatio;
+      weightedPrice += weight * priceRatio;
       totalWeight += weight;
       if (periodP.date > latestDate) latestDate = periodP.date;
     });

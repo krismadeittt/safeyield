@@ -1,0 +1,227 @@
+import { describe, it, expect } from 'vitest';
+import { calcHistoricalDividendsByYear, calcHistoricalPortfolioValues } from '../api/history';
+
+// =============================================================================
+// calcHistoricalDividendsByYear — aggregates dividend income by year
+// =============================================================================
+describe('calcHistoricalDividendsByYear', () => {
+  it('aggregates dividends by year, quarter, and month', () => {
+    // Two dividends in 2024: one in Q1 (Jan), one in Q2 (Apr)
+    const historyMap = {
+      KO: {
+        d: [
+          { d: '2024-01-15', v: 0.50 },
+          { d: '2024-04-15', v: 0.50 },
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalDividendsByYear(historyMap, holdings);
+    // Annual: (0.50 + 0.50) × 100 = $100, rounded
+    expect(result[2024].annual).toBe(100);
+    // Q1 (Jan): $50, Q2 (Apr): $50
+    expect(result[2024].quarters[0]).toBe(50);
+    expect(result[2024].quarters[1]).toBe(50);
+    // Month 0 (Jan): $50, Month 3 (Apr): $50
+    expect(result[2024].months[0]).toBe(50);
+    expect(result[2024].months[3]).toBe(50);
+  });
+
+  it('handles multiple tickers', () => {
+    const historyMap = {
+      KO: { d: [{ d: '2024-03-15', v: 0.50 }] },
+      PEP: { d: [{ d: '2024-03-15', v: 0.60 }] },
+    };
+    const holdings = [
+      { ticker: 'KO', shares: 100 },
+      { ticker: 'PEP', shares: 200 },
+    ];
+    const result = calcHistoricalDividendsByYear(historyMap, holdings);
+    // KO: 0.50 × 100 = 50, PEP: 0.60 × 200 = 120, total = 170
+    expect(result[2024].annual).toBe(170);
+  });
+
+  it('returns empty object for empty holdings', () => {
+    expect(calcHistoricalDividendsByYear({}, [])).toEqual({});
+  });
+
+  it('skips holdings with zero shares', () => {
+    const historyMap = { KO: { d: [{ d: '2024-01-15', v: 0.50 }] } };
+    const holdings = [{ ticker: 'KO', shares: 0 }];
+    const result = calcHistoricalDividendsByYear(historyMap, holdings);
+    expect(Object.keys(result)).toHaveLength(0);
+  });
+
+  it('skips tickers with no dividend history', () => {
+    const historyMap = { KO: { d: [] } };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalDividendsByYear(historyMap, holdings);
+    expect(Object.keys(result)).toHaveLength(0);
+  });
+
+  it('skips tickers missing from historyMap', () => {
+    const holdings = [{ ticker: 'MISSING', shares: 100 }];
+    const result = calcHistoricalDividendsByYear({}, holdings);
+    expect(Object.keys(result)).toHaveLength(0);
+  });
+
+  it('rounds values to nearest dollar', () => {
+    // $0.333 × 3 shares = $0.999 → rounds to $1
+    const historyMap = { KO: { d: [{ d: '2024-01-15', v: 0.333 }] } };
+    const holdings = [{ ticker: 'KO', shares: 3 }];
+    const result = calcHistoricalDividendsByYear(historyMap, holdings);
+    expect(result[2024].annual).toBe(1);
+  });
+
+  it('handles dividends across multiple years', () => {
+    const historyMap = {
+      KO: {
+        d: [
+          { d: '2023-06-15', v: 0.50 },
+          { d: '2024-06-15', v: 0.55 },
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalDividendsByYear(historyMap, holdings);
+    expect(result[2023].annual).toBe(50);
+    expect(result[2024].annual).toBe(55);
+  });
+});
+
+// =============================================================================
+// calcHistoricalPortfolioValues — growth-ratio based portfolio valuation
+// =============================================================================
+describe('calcHistoricalPortfolioValues', () => {
+  it('returns values anchored to current portfolio value', () => {
+    // Two periods of price data — result should be anchored to portfolioValue
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-01-15', c: 50, ac: 50 },
+          { d: '2024-01-15', c: 55, ac: 55 },
+          { d: '2025-01-15', c: 60, ac: 60 },
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 6000, 20, 'yearly');
+    expect(result.length).toBeGreaterThan(0);
+    // Last value should equal portfolioValue (anchor point)
+    const last = result[result.length - 1];
+    expect(last.value).toBe(6000);
+  });
+
+  it('returns empty for insufficient data (< 2 periods)', () => {
+    const historyMap = {
+      KO: { p: [{ d: '2024-01-15', c: 50, ac: 50 }] },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty for no holdings', () => {
+    const result = calcHistoricalPortfolioValues({}, [], 5000);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty when all base prices are zero', () => {
+    // Zero base prices → can't compute growth ratios
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-01-15', c: 0, ac: 0 },
+          { d: '2024-01-15', c: 50, ac: 50 },
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
+    // Base prices are 0 → ticker is filtered out → empty
+    expect(result).toEqual([]);
+  });
+
+  it('all values are finite (no NaN from division)', () => {
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2020-01-15', c: 40, ac: 40 },
+          { d: '2021-01-15', c: 45, ac: 46 },
+          { d: '2022-01-15', c: 50, ac: 52 },
+          { d: '2023-01-15', c: 55, ac: 58 },
+          { d: '2024-01-15', c: 60, ac: 64 },
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 6000, 20, 'yearly');
+    result.forEach(r => {
+      expect(isFinite(r.value)).toBe(true);
+      expect(isFinite(r.noDripValue)).toBe(true);
+    });
+  });
+
+  it('noDripValue is less than or equal to value (dividends add value)', () => {
+    // When ac grows faster than c (because ac includes dividends), value > noDripValue
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-01-15', c: 50, ac: 50 },
+          { d: '2024-01-15', c: 52, ac: 56 }, // ac grew more (div reinvested)
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
+    if (result.length >= 2) {
+      const last = result[result.length - 1];
+      expect(last.value).toBeGreaterThanOrEqual(last.noDripValue);
+    }
+  });
+
+  it('handles missing ticker in historyMap gracefully', () => {
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-01-15', c: 50, ac: 50 },
+          { d: '2024-01-15', c: 55, ac: 55 },
+        ],
+      },
+    };
+    // PEP is in holdings but not in historyMap — should be skipped
+    const holdings = [
+      { ticker: 'KO', shares: 100 },
+      { ticker: 'PEP', shares: 50 },
+    ];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
+    // Should still produce results from KO
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('handles multiple tickers with overlapping dates', () => {
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-06-15', c: 50, ac: 50 },
+          { d: '2024-06-15', c: 55, ac: 55 },
+        ],
+      },
+      PEP: {
+        p: [
+          { d: '2023-06-15', c: 150, ac: 150 },
+          { d: '2024-06-15', c: 160, ac: 160 },
+        ],
+      },
+    };
+    const holdings = [
+      { ticker: 'KO', shares: 100 },
+      { ticker: 'PEP', shares: 50 },
+    ];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 15500, 20, 'yearly');
+    expect(result.length).toBeGreaterThan(0);
+    result.forEach(r => {
+      expect(isFinite(r.value)).toBe(true);
+    });
+  });
+});

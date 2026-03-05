@@ -15,10 +15,12 @@ export function buildDividendSeries(currentDiv, g5rate, lookback, horizon) {
   // Synthetic history (reverse-engineer past dividends with noise)
   for (let i = lookback; i >= 1; i--) {
     const noise = 1 + Math.sin(i * 1.7 + currentDiv * 10) * 0.15;
-    const pastDiv = currentDiv / Math.pow(1 + (g5rate / 100) * noise, i);
+    const base = 1 + (g5rate / 100) * noise;
+    const divisor = base > 0.01 ? Math.pow(base, i) : 1;
+    const pastDiv = divisor > 0 && isFinite(divisor) ? currentDiv / divisor : currentDiv;
     series.push({
       yr: currentYear - i,
-      div: Math.max(0.01, +pastDiv.toFixed(4)),
+      div: Math.max(0.01, isFinite(pastDiv) ? +pastDiv.toFixed(4) : 0.01),
       kind: "history",
     });
   }

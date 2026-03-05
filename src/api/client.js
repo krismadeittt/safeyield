@@ -52,13 +52,36 @@ export async function authFetch(getToken, path, options = {}) {
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-    signal: AbortSignal.timeout(options.timeout || 15000),
-  });
-  if (!response.ok) {
-    throw new Error(`API ${response.status}`);
+  const timeout = options.timeout || 15000;
+  const method = (options.method || 'GET').toUpperCase();
+  const isIdempotent = ['GET', 'HEAD', 'OPTIONS'].includes(method);
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, AbortSignal.timeout(timeout)])
+    : AbortSignal.timeout(timeout);
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(`${API_BASE_URL}${path}`, {
+        ...options,
+        headers,
+        signal,
+      });
+      if (!response.ok) {
+        if (isIdempotent && RETRY_STATUSES.has(response.status) && attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 1000 * 2 ** attempt));
+          continue;
+        }
+        throw new Error(`API ${response.status}`);
+      }
+      return response.json();
+    } catch (e) {
+      lastError = e;
+      if (isIdempotent && attempt < MAX_RETRIES && e.name !== 'AbortError') {
+        await new Promise(r => setTimeout(r, 1000 * 2 ** attempt));
+        continue;
+      }
+      throw e;
+    }
   }
-  return response.json();
+  throw lastError;
 }

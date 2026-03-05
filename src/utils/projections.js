@@ -51,7 +51,9 @@ export function projectLinearTrend(history, years) {
     sumXY += i * history[i].value;
     sumX2 += i * i;
   }
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+  const denom = n * sumX2 - sumX * sumX;
+  if (Math.abs(denom) < 1e-10) return [];
+  const slope = (n * sumXY - sumX * sumY) / denom;
   const intercept = (sumY - slope * sumX) / n;
 
   const result = [];

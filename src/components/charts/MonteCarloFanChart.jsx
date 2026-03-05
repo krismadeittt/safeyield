@@ -75,7 +75,7 @@ export default function MonteCarloFanChart({ mcResult, price, title, subtitle })
 
   // Stat cards
   const finalBand = bands[bands.length - 1];
-  const medianReturn = ((finalBand.p50 / bands[0].p50 - 1) * 100).toFixed(0);
+  const medianReturn = bands[0].p50 > 0 ? ((finalBand.p50 / bands[0].p50 - 1) * 100).toFixed(0) : "0";
 
   return (
     <div ref={containerRef} style={{
