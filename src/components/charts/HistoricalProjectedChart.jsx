@@ -87,7 +87,7 @@ export default function HistoricalProjectedChart({
       if (!hist?.d?.length || !h.shares) return;
 
       // Use last 8 dividend payments to determine payment months and typical amounts
-      const recent = hist.d.slice(-8);
+      const recent = [...hist.d].sort((a, b) => a.d.localeCompare(b.d)).slice(-8);
       const monthAmounts = new Map();
       recent.forEach(div => {
         const month = parseInt(div.d.substring(5, 7)) - 1;
@@ -275,6 +275,22 @@ export default function HistoricalProjectedChart({
           .reduce((acc, m) => { acc[m] += 1; return acc; }, Array(12).fill(0))
       : null;
 
+    const patternTotal = projMonthlyPattern.reduce((s, v) => s + v, 0);
+    const displayPeriodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
+
+    // Distribute an annual total by the history-derived monthly pattern
+    const distributeByMonth = (annual, periodIndex) => {
+      if (patternTotal > 0 && granularity === 'monthly') {
+        return annual * (projMonthlyPattern[periodIndex] / patternTotal);
+      } else if (patternTotal > 0 && granularity === 'weekly') {
+        const monthForWeek = Math.min(11, Math.floor(periodIndex * 12 / 52));
+        const monthWeight = (projMonthlyPattern[monthForWeek] || 0) / patternTotal;
+        const weekSlots = weeklyMonthCounts?.[monthForWeek] || 1;
+        return annual * monthWeight / weekSlots;
+      }
+      return annual / displayPeriodsPerYear;
+    };
+
     return barData.map(bar => {
       let divIncome;
 
@@ -283,24 +299,7 @@ export default function HistoricalProjectedChart({
         const key = getPeriodKey(bar.date);
         divIncome = (realDivByPeriod[key] || 0) * divScale;
       } else {
-        // Projected / current: distribute by actual payment months from historyMap
-        // so projected bars mirror the exact same scattered pattern as historical bars.
-        const displayPeriodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
         const yearIdx = (bar.yearsFromNow || 1) - 1;
-        const patternTotal = projMonthlyPattern.reduce((s, v) => s + v, 0);
-
-        // Helper: distribute an annual total by the history-derived monthly pattern
-        const distributeByMonth = (annual) => {
-          if (patternTotal > 0 && granularity === 'monthly') {
-            return annual * (projMonthlyPattern[bar.periodIndex] / patternTotal);
-          } else if (patternTotal > 0 && granularity === 'weekly') {
-            const monthForWeek = Math.min(11, Math.floor(bar.periodIndex * 12 / 52));
-            const monthWeight = (projMonthlyPattern[monthForWeek] || 0) / patternTotal;
-            const weekSlots = weeklyMonthCounts?.[monthForWeek] || 1;
-            return annual * monthWeight / weekSlots;
-          }
-          return annual / displayPeriodsPerYear;
-        };
 
         if (bar.isCurrent || bar.yearsFromNow === 0) {
           // "Now" bar: show average income level (no month-specific weighting)
@@ -308,11 +307,11 @@ export default function HistoricalProjectedChart({
           divIncome = expectedAnnual / displayPeriodsPerYear;
         } else if (divIncomePerYear && yearIdx >= 0 && yearIdx < divIncomePerYear.length) {
           // Use simulation dividends (reflects MC volatility + dividend stress)
-          divIncome = distributeByMonth(divIncomePerYear[yearIdx]);
+          divIncome = distributeByMonth(divIncomePerYear[yearIdx], bar.periodIndex);
         } else {
           // Fallback: static growth estimate
           const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
-          divIncome = distributeByMonth(expectedAnnual * growthFactor);
+          divIncome = distributeByMonth(expectedAnnual * growthFactor, bar.periodIndex);
         }
       }
 
