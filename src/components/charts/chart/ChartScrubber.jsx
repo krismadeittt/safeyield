@@ -47,16 +47,7 @@ export default function ChartScrubber({
     return Math.max(...miniBars.map(b => b.value), 1);
   }, [miniBars]);
 
-  // Convert pixel X to data index
-  const pxToIdx = useCallback((clientX) => {
-    if (!svgRef.current) return 0;
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = clientX - rect.left - padL;
-    const fraction = Math.max(0, Math.min(1, x / chartW));
-    return Math.round(fraction * (totalPoints - 1));
-  }, [padL, chartW, totalPoints]);
-
-  // Convert data index to pixel X
+  // Convert data index to pixel X position in SVG
   const idxToPx = useCallback((idx) => {
     if (totalPoints <= 1) return padL;
     return padL + (idx / (totalPoints - 1)) * chartW;
@@ -67,14 +58,14 @@ export default function ChartScrubber({
   const handleW = 4;
   const touchPad = isMobile ? 12 : 8;
 
-  // Window-level mouse/touch handlers for smooth dragging
+  // Pixel-delta drag: convert clientX delta to index delta using stable pxPerPoint
   const onPointerMove = useCallback((clientX) => {
     const { type, startX, startRange } = dragRef.current;
     if (!type || !startRange) return;
 
-    const deltaIdx = pxToIdx(clientX) - pxToIdx(startX);
+    const pxPerPoint = chartW / Math.max(1, totalPoints - 1);
+    const deltaIdx = Math.round((clientX - startX) / pxPerPoint);
     const [origStart, origEnd] = startRange;
-    const span = origEnd - origStart;
     const maxEnd = totalPoints - 1;
 
     if (type === 'left') {
@@ -90,7 +81,7 @@ export default function ChartScrubber({
       if (newEnd > maxEnd) { newStart -= (newEnd - maxEnd); newEnd = maxEnd; }
       onRangeChange(Math.max(0, newStart), Math.min(maxEnd, newEnd));
     }
-  }, [pxToIdx, totalPoints, onRangeChange]);
+  }, [chartW, totalPoints, onRangeChange]);
 
   const onPointerUp = useCallback(() => {
     dragRef.current = { type: null, startX: 0, startRange: null };
@@ -117,7 +108,8 @@ export default function ChartScrubber({
     };
   }, [onPointerMove, onPointerUp]);
 
-  const startDrag = useCallback((type, clientX) => {
+  const startDrag = useCallback((type, clientX, e) => {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
     dragRef.current = { type, startX: clientX, startRange: [...viewRange] };
   }, [viewRange]);
 
@@ -143,46 +135,47 @@ export default function ChartScrubber({
 
       {/* Dimmed overlay — left side */}
       <rect x={padL} y={0} width={Math.max(0, leftHandleX - padL)} height={height}
-        fill="var(--bg-dark)" opacity={0.6} />
+        fill="var(--bg-dark)" opacity={0.7} />
 
       {/* Dimmed overlay — right side */}
       <rect x={rightHandleX + handleW} y={0}
         width={Math.max(0, padL + chartW - rightHandleX - handleW)} height={height}
-        fill="var(--bg-dark)" opacity={0.6} />
+        fill="var(--bg-dark)" opacity={0.7} />
+
+      {/* Visible region highlight */}
+      <rect x={leftHandleX + handleW} y={1}
+        width={Math.max(0, rightHandleX - leftHandleX - handleW)} height={height - 2}
+        fill="var(--primary)" opacity={0.06} rx={2} />
 
       {/* Center drag area */}
       <rect x={leftHandleX + handleW} y={0}
         width={Math.max(0, rightHandleX - leftHandleX - handleW)} height={height}
         fill="transparent"
         style={{ cursor: 'grab' }}
-        onMouseDown={(e) => startDrag('center', e.clientX)}
-        onTouchStart={(e) => e.touches.length === 1 && startDrag('center', e.touches[0].clientX)}
+        onMouseDown={(e) => startDrag('center', e.clientX, e)}
+        onTouchStart={(e) => e.touches.length === 1 && startDrag('center', e.touches[0].clientX, e)}
       />
 
-      {/* Left handle */}
-      <rect x={leftHandleX} y={2} width={handleW} height={height - 4}
-        fill="var(--primary)" rx={2} style={{ cursor: 'ew-resize' }}
-        onMouseDown={(e) => { e.stopPropagation(); startDrag('left', e.clientX); }}
-        onTouchStart={(e) => { e.stopPropagation(); e.touches.length === 1 && startDrag('left', e.touches[0].clientX); }}
-      />
-      {/* Left handle touch target */}
+      {/* Left handle touch target (behind visible handle, larger hit area) */}
       <rect x={leftHandleX - touchPad} y={0} width={handleW + touchPad * 2} height={height}
         fill="transparent" style={{ cursor: 'ew-resize' }}
-        onMouseDown={(e) => startDrag('left', e.clientX)}
-        onTouchStart={(e) => e.touches.length === 1 && startDrag('left', e.touches[0].clientX)}
+        onMouseDown={(e) => startDrag('left', e.clientX, e)}
+        onTouchStart={(e) => e.touches.length === 1 && startDrag('left', e.touches[0].clientX, e)}
+      />
+      {/* Left handle (visible) */}
+      <rect x={leftHandleX} y={2} width={handleW} height={height - 4}
+        fill="var(--primary)" rx={2} style={{ cursor: 'ew-resize', pointerEvents: 'none' }}
       />
 
-      {/* Right handle */}
-      <rect x={rightHandleX} y={2} width={handleW} height={height - 4}
-        fill="var(--primary)" rx={2} style={{ cursor: 'ew-resize' }}
-        onMouseDown={(e) => { e.stopPropagation(); startDrag('right', e.clientX); }}
-        onTouchStart={(e) => { e.stopPropagation(); e.touches.length === 1 && startDrag('right', e.touches[0].clientX); }}
-      />
-      {/* Right handle touch target */}
+      {/* Right handle touch target (behind visible handle, larger hit area) */}
       <rect x={rightHandleX - touchPad} y={0} width={handleW + touchPad * 2} height={height}
         fill="transparent" style={{ cursor: 'ew-resize' }}
-        onMouseDown={(e) => startDrag('right', e.clientX)}
-        onTouchStart={(e) => e.touches.length === 1 && startDrag('right', e.touches[0].clientX)}
+        onMouseDown={(e) => startDrag('right', e.clientX, e)}
+        onTouchStart={(e) => e.touches.length === 1 && startDrag('right', e.touches[0].clientX, e)}
+      />
+      {/* Right handle (visible) */}
+      <rect x={rightHandleX} y={2} width={handleW} height={height - 4}
+        fill="var(--primary)" rx={2} style={{ cursor: 'ew-resize', pointerEvents: 'none' }}
       />
 
       {/* Subtle top border line */}
