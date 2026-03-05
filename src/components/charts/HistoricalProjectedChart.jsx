@@ -102,19 +102,6 @@ export default function HistoricalProjectedChart({
       });
     });
 
-    // Log payment schedules for verification
-    if (holdings?.length && Object.keys(historyMap).length > 0) {
-      const logTickers = holdings.slice(0, 3);
-      logTickers.forEach(h => {
-        const hist = historyMap[h.ticker];
-        if (!hist?.d?.length) return;
-        const recent = hist.d.slice(-8);
-        const months = [...new Set(recent.map(d => parseInt(d.d.substring(5, 7))))].sort((a, b) => a - b);
-        const monthNames = months.map(m => ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1]);
-        console.log(`[DivProjection] ${h.ticker}: pays in ${monthNames.join(', ')} (from last ${recent.length} payments)`);
-      });
-    }
-
     return pattern;
   }, [holdings, historyMap]);
 
