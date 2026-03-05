@@ -45,7 +45,7 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
   const effectiveCashRate = (cashCompounding !== 'none' && cashApy > 0) ? cashApy / 100 : 0;
 
   if (!holdings?.length) {
-    const simPPY = useVolatility ? 12 : 1;
+    const simPPY = 12;
     const len = horizon * simPPY + 1;
     // If there's cash with a rate, project its growth
     if (cashBalance > 0 && effectiveCashRate > 0) {
@@ -164,23 +164,25 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
           } else {
             cashDividends += qDiv;
           }
+          // Grow dividends incrementally at each payment — compounds to g5 annually
+          // (1 + g5)^(quartersPerEvent/4) per event, so 4/quartersPerEvent events = (1+g5) per year
+          st.divPerShare *= Math.pow(1 + st.g5, quartersPerEvent / 4);
         });
         divIncomePerYear[Math.floor(t / ppy)] += periodDivTotal;
       }
 
-      // End of year: dividend stress + dividend growth
+      // End of year: dividend stress (macro event based on annual price returns)
       if (periodInYear === ppy - 1) {
-        stocks.forEach((st, i) => {
-          if (divStress) {
+        if (divStress) {
+          stocks.forEach((st, i) => {
             const yearReturn = yearStartPrices[i] > 0 ? (st.price / yearStartPrices[i] - 1) : 0;
             if (yearReturn < -0.15) {
               const drop = -yearReturn;
               const cutPct = Math.min((drop - 0.15) * 0.8, 0.50);
               st.divPerShare *= (1 - cutPct);
             }
-          }
-          st.divPerShare *= (1 + st.g5);
-        });
+          });
+        }
       }
 
       // Accrue cash interest
@@ -228,18 +230,21 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
   }
 
   // --- Deterministic mode: single path, no noise ---
+  // Run at monthly resolution (ppy=12) so quarterly dividend growth compounds intra-year.
   if (!useVolatility) {
+    const detPPY = 12;
     const template = initStocks();
     const detReturns = [];
-    for (let year = 0; year < horizon; year++) {
-      detReturns.push(template.map(st => st.priceGrowthRate));
+    for (let t = 0; t < horizon * detPPY; t++) {
+      // Convert annual price growth to monthly: (1 + r)^(1/12) - 1
+      detReturns.push(template.map(st => Math.pow(1 + st.priceGrowthRate, 1 / detPPY) - 1));
     }
-    const noDrip = runPath(detReturns, 'nodrip', false, 1);
-    const drip = runPath(detReturns, 'drip', false, 1);
-    const contrib = extraContrib > 0 ? runPath(detReturns, 'contrib', false, 1) : null;
+    const noDrip = runPath(detReturns, 'nodrip', false, detPPY);
+    const drip = runPath(detReturns, 'drip', false, detPPY);
+    const contrib = extraContrib > 0 ? runPath(detReturns, 'contrib', false, detPPY) : null;
     // Use divIncomePerYear from the drip/contrib path (reflects DRIP share accumulation)
     const divSource = contrib || drip;
-    return { noDripVals: noDrip.vals, dripVals: drip.vals, contribVals: contrib?.vals ?? null, divIncomePerYear: divSource.divIncomePerYear, simPeriodsPerYear: 1 };
+    return { noDripVals: noDrip.vals, dripVals: drip.vals, contribVals: contrib?.vals ?? null, divIncomePerYear: divSource.divIncomePerYear, simPeriodsPerYear: detPPY };
   }
 
   // --- Real World mode: single realistic path (fixed seed) ---

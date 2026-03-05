@@ -112,7 +112,7 @@ describe('projectPortfolioPerStock', () => {
     const result = projectPortfolioPerStock(5, null, {}, 0, false, null);
     expect(result.noDripVals.every(v => v === 0)).toBe(true);
     expect(result.dripVals.every(v => v === 0)).toBe(true);
-    expect(result.simPeriodsPerYear).toBe(1);
+    expect(result.simPeriodsPerYear).toBe(12);
   });
 
   it('returns zeros for empty array holdings', () => {
@@ -121,10 +121,10 @@ describe('projectPortfolioPerStock', () => {
   });
 
   it('correct array length for deterministic mode', () => {
-    // Deterministic: 1 period/year, so length = horizon + 1 (includes start)
+    // Deterministic: 12 periods/year (monthly), so length = horizon*12 + 1 (includes start)
     const result = projectPortfolioPerStock(10, singleHolding, emptyLiveData, 0, false, null);
-    expect(result.noDripVals).toHaveLength(11); // 10 years + starting value
-    expect(result.simPeriodsPerYear).toBe(1);
+    expect(result.noDripVals).toHaveLength(121); // 10*12 + 1
+    expect(result.simPeriodsPerYear).toBe(12);
   });
 
   it('correct array length for volatile mode', () => {
@@ -282,8 +282,10 @@ describe('projectPortfolioPerStock', () => {
     for (let i = 1; i < income.length; i++) {
       expect(income[i]).toBeGreaterThan(income[i - 1]);
     }
-    // Year 1 income should be approximately $180 (100 shares × $1.80)
-    expect(income[0]).toBeCloseTo(180, -1);
+    // Year 1 income should be close to $180 (100 shares × $1.80)
+    // With intra-year compounding, later quarterly payments grow slightly → ~$185
+    expect(income[0]).toBeGreaterThan(175);
+    expect(income[0]).toBeLessThan(200);
     // Year 5 income should exceed simple $180 × 1.05^4 ≈ $218.89 because
     // DRIP reinvestment adds shares, compounding on top of dividend growth
     expect(income[4]).toBeGreaterThan(180 * Math.pow(1.05, 4));

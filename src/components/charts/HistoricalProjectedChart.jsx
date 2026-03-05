@@ -166,8 +166,9 @@ export default function HistoricalProjectedChart({
       for (let p = 0; p < displayPPY; p++) {
         let interpNoDrip, interpDrip;
 
-        if (useVolatility) {
-          // MC arrays are at simPPY (12/yr) resolution. Interpolate to display resolution.
+        // Simulation arrays are at simPPY resolution (12/yr for both modes).
+        // Interpolate to display resolution.
+        {
           const fractionalSimIdx = (yr - 1) * simPPY + ((p + 1) / displayPPY) * simPPY;
           const lo = Math.floor(fractionalSimIdx);
           const hi = Math.min(lo + 1, (noDripVals?.length || 1) - 1);
@@ -175,15 +176,6 @@ export default function HistoricalProjectedChart({
           interpNoDrip = Math.round((noDripVals?.[lo] || portfolioValue) + ((noDripVals?.[hi] || portfolioValue) - (noDripVals?.[lo] || portfolioValue)) * frac);
           const dripArr = contribVals || dripVals;
           interpDrip = Math.round((dripArr?.[lo] || portfolioValue) + ((dripArr?.[hi] || portfolioValue) - (dripArr?.[lo] || portfolioValue)) * frac);
-        } else {
-          // Deterministic: arrays are yearly (simPPY=1), interpolate to display resolution
-          const noDripVal = noDripVals?.[yr] || portfolioValue;
-          const dripVal = contribVals ? (contribVals[yr] || portfolioValue) : (dripVals?.[yr] || portfolioValue);
-          const prevNoDrip = noDripVals?.[yr - 1] || portfolioValue;
-          const prevDrip = contribVals ? (contribVals[yr - 1] || portfolioValue) : (dripVals?.[yr - 1] || portfolioValue);
-          const t = (p + 1) / displayPPY;
-          interpNoDrip = Math.round(prevNoDrip + (noDripVal - prevNoDrip) * t);
-          interpDrip = Math.round(prevDrip + (dripVal - prevDrip) * t);
         }
 
         const projYear = currentYear + yr;
