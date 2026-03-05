@@ -1,10 +1,12 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { formatCurrency, shortMoney } from '../../utils/format';
 import { fetchBatchHistory, calcHistoricalPortfolioValues, calcHistoricalDividendsByYear, calcDividendsByPeriod } from '../../api/history';
 import useIsMobile from '../../hooks/useIsMobile';
+import ChartLine from './chart/ChartLine';
+import ChartBars from './chart/ChartBars';
+import useChartZoom from './chart/useChartZoom';
 
 const HORIZONS = [1, 5, 10, 15, 25, 30, 40, 50];
-const CONTRIBUTIONS = [0, 1000, 5000, 10000, 20000, 25000, 50000];
 
 
 export default function HistoricalProjectedChart({
@@ -17,6 +19,7 @@ export default function HistoricalProjectedChart({
   monthlyData, holdings,
   expanded, setExpanded,
   granularity, setGranularity,
+  snapshots, inceptionDate,
 }) {
   const isMobile = useIsMobile();
   const containerRef = useRef(null);
@@ -26,7 +29,11 @@ export default function HistoricalProjectedChart({
   const [historyMap, setHistoryMap] = useState({});
   const [histLoading, setHistLoading] = useState(false);
   const [showDivReturn, setShowDivReturn] = useState(true);
-  const [histRange, setHistRange] = useState(10); // 0=Off, 5, 10, 15, 20
+  const [histRange, setHistRange] = useState(10);
+  const [dataSource, setDataSource] = useState('backtest'); // 'tracked' | 'backtest'
+
+  // Use line charts for daily/weekly, bars for monthly/yearly
+  const useLineChart = granularity === 'daily' || granularity === 'weekly';
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -49,7 +56,7 @@ export default function HistoricalProjectedChart({
   const currentYear = new Date().getFullYear();
   const projYears = horizon;
 
-  // Step 11: Stabilize anchor value — only update when holdings change, not on every price tick
+  // Stabilize anchor value — only update when holdings change, not on every price tick
   const anchorValueRef = useRef(null);
   const prevHoldingsRef = useRef(null);
   const holdingsKey = holdings?.map(h => `${h.ticker}:${h.shares}`).join(',') || '';
@@ -60,25 +67,39 @@ export default function HistoricalProjectedChart({
   const stableAnchor = anchorValueRef.current || portfolioValue;
 
   const realHistData = useMemo(() => {
+    if (dataSource === 'tracked') return null; // Don't compute backtest when in tracked mode
     if (Object.keys(historyMap).length === 0 || histRange === 0) return null;
     return calcHistoricalPortfolioValues(historyMap, holdings, stableAnchor, histRange, granularity);
-  }, [historyMap, holdings, stableAnchor, histRange, granularity]);
+  }, [historyMap, holdings, stableAnchor, histRange, granularity, dataSource]);
 
-  // Real dividend income from KV history data (actual payments, not estimates)
+  // Convert snapshot data to chart-compatible format
+  const snapshotChartData = useMemo(() => {
+    if (!snapshots?.length || dataSource !== 'tracked') return null;
+    return snapshots.map(s => ({
+      date: s.date,
+      year: parseInt(s.date.substring(0, 4)),
+      value: s.total_value,
+      noDripValue: s.holdings_value, // price-only approximation
+      divIncome: s.total_div_income || 0,
+    }));
+  }, [snapshots, dataSource]);
+
+  // Effective historical data based on data source
+  const effectiveHistData = dataSource === 'tracked' ? snapshotChartData : realHistData;
+
+  // Real dividend income from KV history data
   const realDivByYear = useMemo(() => {
     if (Object.keys(historyMap).length === 0) return null;
     return calcHistoricalDividendsByYear(historyMap, holdings);
   }, [historyMap, holdings]);
 
-  // Period-keyed dividend data (matches price history granularity)
+  // Period-keyed dividend data
   const realDivByPeriod = useMemo(() => {
     if (Object.keys(historyMap).length === 0) return null;
     return calcDividendsByPeriod(historyMap, holdings, granularity);
   }, [historyMap, holdings, granularity]);
 
-  // Derive payment patterns from SAME historyMap used for historical bars.
-  // Monthly pattern (12 elements): income per calendar month.
-  // Weekly pattern (52 elements): income in the specific week each stock pays.
+  // Derive payment patterns for projections
   const { projMonthlyPattern, projWeeklyPattern } = useMemo(() => {
     const monthly = new Array(12).fill(0);
     const weekly = new Array(52).fill(0);
@@ -92,7 +113,6 @@ export default function HistoricalProjectedChart({
 
       const recent = [...hist.d].sort((a, b) => a.d.localeCompare(b.d)).slice(-24);
 
-      // Monthly: average income per payment month
       const monthAmounts = new Map();
       recent.forEach(div => {
         const month = parseInt(div.d.substring(5, 7)) - 1;
@@ -103,8 +123,6 @@ export default function HistoricalProjectedChart({
         monthly[month] += amounts.reduce((s, v) => s + v, 0) / amounts.length;
       });
 
-      // Weekly: for each payment month, use the most recent payment's week-of-year.
-      // This places the full payment in one specific week, not spread across the month.
       const monthToWeekEntry = new Map();
       recent.forEach(div => {
         const parts = div.d.split('-').map(Number);
@@ -113,7 +131,6 @@ export default function HistoricalProjectedChart({
         const jan1 = new Date(Date.UTC(parts[0], 0, 1));
         const dayOfYear = Math.floor((date - jan1) / 86400000);
         const weekIdx = Math.min(51, Math.floor(dayOfYear / 7));
-        // Keep the most recent (last in sorted order) for each payment month
         monthToWeekEntry.set(month, { week: weekIdx, amount: div.v * h.shares });
       });
       monthToWeekEntry.forEach(({ week, amount }) => {
@@ -124,43 +141,41 @@ export default function HistoricalProjectedChart({
     return { projMonthlyPattern: monthly, projWeeklyPattern: weekly };
   }, [holdings, historyMap]);
 
-  // Stat card values — always use last element (arrays may be sub-annual length in Real World)
+  // Stat card values
   const finalNoDrip = noDripVals?.[noDripVals.length - 1] || 0;
   const finalDrip = contribVals ? (contribVals[contribVals.length - 1] || 0)
     : (dripVals?.[dripVals.length - 1] || 0);
   const dripAdvantage = finalDrip - finalNoDrip;
-  // Income at horizon: use MC simulation's actual dividend income (reflects DRIP share growth + dividend growth)
-  // Falls back to yield-on-cost compound growth if simulation data unavailable
   const incomeAtHorizon = divIncomePerYear?.length > 0
     ? Math.round(divIncomePerYear[divIncomePerYear.length - 1])
     : Math.round(totalIncome * Math.pow(1 + (growth || 0) / 100, horizon));
 
-  // Only show historical bars when real data is loaded (no synthetic fallback)
-  const effectiveHistYears = (histRange > 0 && realHistData && realHistData.length > 1) ? histRange : 0;
-  const startingValue = useMemo(() => {
-    if (realHistData && realHistData.length > 1) return realHistData[0].value;
-    return portfolioValue;
-  }, [realHistData, portfolioValue]);
-  const startingYear = useMemo(() => {
-    if (realHistData && realHistData.length > 1) return realHistData[0].year;
-    return currentYear;
-  }, [realHistData, currentYear]);
+  const effectiveHistYears = (dataSource === 'tracked')
+    ? (snapshotChartData && snapshotChartData.length > 1 ? 1 : 0) // Use 1 as truthy marker
+    : (histRange > 0 && realHistData && realHistData.length > 1) ? histRange : 0;
 
-  // Growth percentage from starting to current
+  const startingValue = useMemo(() => {
+    if (effectiveHistData && effectiveHistData.length > 1) return effectiveHistData[0].value;
+    return portfolioValue;
+  }, [effectiveHistData, portfolioValue]);
+  const startingYear = useMemo(() => {
+    if (effectiveHistData && effectiveHistData.length > 1) return effectiveHistData[0].year;
+    return currentYear;
+  }, [effectiveHistData, currentYear]);
+
   const growthPct = startingValue > 0 ? ((portfolioValue / startingValue - 1) * 100).toFixed(1) : "0";
 
-  // Build bar data: historical (actual data points) + projected (interpolated)
+  // Build bar data: historical + projected
   const bars = useMemo(() => {
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const periodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
+    const periodsPerYear = granularity === 'daily' ? 252 : granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
     const result = [];
 
-    // --- HISTORICAL --- (actual data points, no interpolation)
     let nowNoDrip = portfolioValue;
 
-    if (effectiveHistYears > 0 && realHistData) {
-      for (let i = 0; i < realHistData.length; i++) {
-        const pt = realHistData[i];
+    if (effectiveHistYears > 0 && effectiveHistData) {
+      for (let i = 0; i < effectiveHistData.length; i++) {
+        const pt = effectiveHistData[i];
         const date = pt.date;
         const year = pt.year;
         const month = parseInt(date.substring(5, 7)) - 1;
@@ -170,16 +185,21 @@ export default function HistoricalProjectedChart({
         let label, fullLabel, axLabel;
         if (granularity === 'yearly') {
           label = String(year);
-          fullLabel = `${year} (actual)`;
+          fullLabel = `${year} (${dataSource === 'tracked' ? 'tracked' : 'actual'})`;
           axLabel = shortYr;
         } else if (granularity === 'monthly') {
           label = `${months[month]} ${year}`;
-          fullLabel = `${months[month]} ${year} (actual)`;
+          fullLabel = `${months[month]} ${year} (${dataSource === 'tracked' ? 'tracked' : 'actual'})`;
           axLabel = month === 0 ? `J${shortYr}` : "";
-        } else {
+        } else if (granularity === 'daily') {
           label = `${months[month]} ${day}, ${year}`;
-          fullLabel = `${date} (actual)`;
-          axLabel = (i === 0 || realHistData[i - 1]?.year !== year) ? shortYr : "";
+          fullLabel = `${date} (${dataSource === 'tracked' ? 'tracked' : 'actual'})`;
+          axLabel = (i === 0 || effectiveHistData[i - 1]?.year !== year) ? shortYr : "";
+        } else {
+          // weekly
+          label = `${months[month]} ${day}, ${year}`;
+          fullLabel = `${date} (${dataSource === 'tracked' ? 'tracked' : 'actual'})`;
+          axLabel = (i === 0 || effectiveHistData[i - 1]?.year !== year) ? shortYr : "";
         }
 
         result.push({
@@ -192,7 +212,7 @@ export default function HistoricalProjectedChart({
           yearsFromNow: year - currentYear,
         });
       }
-      const lastHist = realHistData[realHistData.length - 1];
+      const lastHist = effectiveHistData[effectiveHistData.length - 1];
       nowNoDrip = lastHist?.noDripValue || portfolioValue;
     }
 
@@ -207,15 +227,13 @@ export default function HistoricalProjectedChart({
 
     const nowBarIndex = result.length - 1;
 
-    // --- PROJECTED --- (simulation arrays are at simPPY resolution; interpolate to display)
+    // --- PROJECTED ---
     const simPPY = simPeriodsPerYear || 1;
     const displayPPY = periodsPerYear;
     for (let yr = 1; yr <= projYears; yr++) {
       for (let p = 0; p < displayPPY; p++) {
         let interpNoDrip, interpDrip;
 
-        // Simulation arrays are at simPPY resolution (12/yr for both modes).
-        // Interpolate to display resolution.
         {
           const fractionalSimIdx = (yr - 1) * simPPY + ((p + 1) / displayPPY) * simPPY;
           const lo = Math.floor(fractionalSimIdx);
@@ -234,6 +252,13 @@ export default function HistoricalProjectedChart({
         } else if (granularity === 'monthly') {
           label = `${months[p]} ${projYear}`; fullLabel = `${months[p]} ${projYear} (projected)`;
           axLabel = p === 0 ? `J${shortYr}` : "";
+        } else if (granularity === 'daily') {
+          // For daily projected, show as day-of-year
+          const dayLabel = Math.round((p / 252) * 365);
+          const approxMonth = Math.floor(dayLabel / 30.5);
+          label = `Day ${p + 1}, ${projYear}`;
+          fullLabel = `~${months[Math.min(11, approxMonth)]} ${projYear} (projected)`;
+          axLabel = p === 0 ? shortYr : "";
         } else {
           label = `W${p + 1} ${projYear}`; fullLabel = `Week ${p + 1}, ${projYear} (projected)`;
           axLabel = p === 0 ? shortYr : "";
@@ -250,19 +275,19 @@ export default function HistoricalProjectedChart({
     }
 
     return { bars: result, nowBarIndex };
-  }, [portfolioValue, projYears, currentYear, realHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears, useVolatility, simPeriodsPerYear]);
+  }, [portfolioValue, projYears, currentYear, effectiveHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears, simPeriodsPerYear, dataSource]);
 
   const { bars: barData, nowBarIndex } = bars;
 
-  // Dividend income bars — use REAL dividend data from KV for historical, growth estimate for projected.
-  // KV data may be incomplete (not all tickers have dividend history), so we compute a
-  // scaling factor from the most recent full year to normalize historical bars.
+  // Zoom hook — shared between portfolio value and dividend income charts
+  const zoom = useChartZoom(barData.length);
+
+  // Dividend income data
   const divBars = useMemo(() => {
     if (!monthlyData?.length) return [];
     const growthRate = (growth || 5) / 100;
     const expectedAnnual = monthlyData.reduce((s, v) => s + v, 0);
 
-    // Scaling factor: normalize historical KV dividends to match fundamentals estimate
     let divScale = 1;
     if (realDivByYear && expectedAnnual > 0) {
       for (const checkYear of [currentYear - 1, currentYear - 2]) {
@@ -276,10 +301,10 @@ export default function HistoricalProjectedChart({
       }
     }
 
-    // Helper: compute period key from a date string (matches history.js periodKey)
     function getPeriodKey(dateStr) {
       if (granularity === 'yearly') return dateStr.substring(0, 4);
       if (granularity === 'monthly') return dateStr.substring(0, 7);
+      if (granularity === 'daily') return dateStr; // exact date for daily
       const parts = dateStr.split('-').map(Number);
       const d = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
       const day = d.getUTCDay();
@@ -290,15 +315,21 @@ export default function HistoricalProjectedChart({
 
     const monthlyTotal = projMonthlyPattern.reduce((s, v) => s + v, 0);
     const weeklyTotal = projWeeklyPattern.reduce((s, v) => s + v, 0);
-    const displayPeriodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
+    const displayPeriodsPerYear = granularity === 'daily' ? 252 : granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
 
-    // Distribute an annual total by the history-derived payment pattern.
-    // Monthly: spreads by payment month. Weekly: places income in the exact payment week.
     const distributeByPeriod = (annual, periodIndex) => {
       if (granularity === 'monthly' && monthlyTotal > 0) {
         return annual * (projMonthlyPattern[periodIndex] / monthlyTotal);
-      } else if (granularity === 'weekly' && weeklyTotal > 0) {
-        return annual * (projWeeklyPattern[periodIndex] / weeklyTotal);
+      } else if ((granularity === 'weekly' || granularity === 'daily') && weeklyTotal > 0) {
+        // For daily: map to week, then distribute within that week
+        const weekIdx = granularity === 'daily' ? Math.min(51, Math.floor(periodIndex / (252 / 52))) : periodIndex;
+        const weeklyShare = projWeeklyPattern[weekIdx] / weeklyTotal;
+        if (granularity === 'daily') {
+          // Only place income on one day per week (the first day of that week)
+          const weekStart = Math.floor(weekIdx * (252 / 52));
+          return periodIndex === weekStart ? annual * weeklyShare : 0;
+        }
+        return annual * weeklyShare;
       }
       return annual / displayPeriodsPerYear;
     };
@@ -306,22 +337,24 @@ export default function HistoricalProjectedChart({
     return barData.map(bar => {
       let divIncome;
 
-      // Historical: use actual dividend payment data grouped by period
-      if (bar.isHistorical && !bar.isCurrent && bar.date && realDivByPeriod) {
+      // For tracked mode, use snapshot dividend data
+      if (dataSource === 'tracked' && bar.isHistorical && !bar.isCurrent && bar.date) {
+        // Find matching snapshot
+        const snap = snapshots?.find(s => s.date === bar.date);
+        divIncome = snap?.total_div_income || 0;
+      }
+      // Historical from backtest: use actual dividend payment data
+      else if (bar.isHistorical && !bar.isCurrent && bar.date && realDivByPeriod && dataSource === 'backtest') {
         const key = getPeriodKey(bar.date);
         divIncome = (realDivByPeriod[key] || 0) * divScale;
       } else {
         const yearIdx = (bar.yearsFromNow || 1) - 1;
 
         if (bar.isCurrent || bar.yearsFromNow === 0) {
-          // "Now" bar: show average income level (no month-specific weighting)
-          // to avoid a gap between historical and projected
           divIncome = expectedAnnual / displayPeriodsPerYear;
         } else if (divIncomePerYear && yearIdx >= 0 && yearIdx < divIncomePerYear.length) {
-          // Use simulation dividends (reflects MC volatility + dividend stress)
           divIncome = distributeByPeriod(divIncomePerYear[yearIdx], bar.periodIndex);
         } else {
-          // Fallback: static growth estimate
           const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
           divIncome = distributeByPeriod(expectedAnnual * growthFactor, bar.periodIndex);
         }
@@ -329,17 +362,26 @@ export default function HistoricalProjectedChart({
 
       return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern]);
+  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern, projWeeklyPattern, dataSource, snapshots]);
 
   // Chart layout
   const padL = isMobile ? 35 : 55;
   const padR = 10;
   const svgW = Math.max(100, width - 48);
   const chartW = svgW - padL - padR;
-  const barCount = barData.length || 1;
+
+  // Visible data range (respecting zoom)
+  const visibleBars = zoom.isZoomed
+    ? barData.slice(zoom.viewRange[0], zoom.viewRange[1] + 1)
+    : barData;
+  const visibleDivBars = zoom.isZoomed
+    ? divBars.slice(zoom.viewRange[0], zoom.viewRange[1] + 1)
+    : divBars;
+
+  const barCount = visibleBars.length || 1;
   const stepW = chartW / barCount;
   const barW = Math.max(2, Math.min(stepW * 0.65, 18));
-  const maxVal = Math.max(...barData.map(b => b.total), 1);
+  const maxVal = Math.max(...visibleBars.map(b => b.total), 1);
 
   const mainH = 300;
   const mainPadTop = 40;
@@ -350,13 +392,26 @@ export default function HistoricalProjectedChart({
   const divPadTop = 4;
   const divPadBot = 24;
   const divChartH = divH - divPadTop - divPadBot;
-  const maxDiv = divBars.length > 0 ? Math.max(...divBars.map(b => b.value), 1) : 1;
+  const maxDiv = visibleDivBars.length > 0 ? Math.max(...visibleDivBars.map(b => b.value), 1) : 1;
 
-  const nowX = padL + nowBarIndex * stepW + stepW / 2;
+  // NOW divider position within visible range
+  const visibleNowIndex = zoom.isZoomed
+    ? nowBarIndex - zoom.viewRange[0]
+    : nowBarIndex;
+  const nowVisible = visibleNowIndex >= 0 && visibleNowIndex < barCount;
+  const nowX = nowVisible ? padL + visibleNowIndex * stepW + stepW / 2 : -100;
 
-  // Tooltip for portfolio chart
+  // Tooltip data
   const hovBar = hovered != null ? barData[hovered] : null;
   const divHovBar = divHovered != null ? divBars[divHovered] : null;
+
+  // Wheel handler for zoom
+  const handleChartWheel = useCallback((e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cursorX = e.clientX - rect.left - padL;
+    const fraction = Math.max(0, Math.min(1, cursorX / chartW));
+    zoom.handleWheel(e, fraction);
+  }, [zoom.handleWheel, padL, chartW]);
 
   return (
     <div ref={containerRef} style={{ background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--border)", overflow: "hidden" }}>
@@ -369,7 +424,9 @@ export default function HistoricalProjectedChart({
             </div>
             <div style={{ fontSize: "0.72rem", color: "var(--text-sub)", marginTop: 2, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
               {horizon}-yr · {growth.toFixed(1)}% avg div growth · Gordon model (yield + growth)
-              {realHistData && " · backtest: if you'd held this portfolio"}{histLoading && " · loading..."}
+              {dataSource === 'tracked' && inceptionDate && ` · tracking since ${inceptionDate}`}
+              {dataSource === 'backtest' && realHistData && " · backtest: if you'd held this portfolio"}
+              {histLoading && " · loading..."}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -394,15 +451,29 @@ export default function HistoricalProjectedChart({
 
         {/* Legend */}
         <div style={{ display: "flex", gap: isMobile ? 10 : 16, alignItems: "center", margin: "0.8rem 0 0.6rem", flexWrap: "wrap" }}>
-          <LegendItem color="var(--chart-hist-bright)" label="Div Return" />
-          <LegendItem color="var(--chart-hist)" label="Price" />
-          <LegendItem color="var(--chart-proj-bright)" label="Proj DRIP" />
-          <LegendItem color="var(--chart-proj)" label="Proj Base" />
+          {useLineChart ? (
+            <>
+              <LegendItem color="var(--chart-hist-bright)" label="Total" type="line" />
+              <LegendItem color="var(--chart-hist)" label="No DRIP" type="dashed" />
+              <LegendItem color="var(--chart-proj-bright)" label="Proj Total" type="line" />
+              <LegendItem color="var(--chart-proj)" label="Proj Base" type="dashed" />
+            </>
+          ) : (
+            <>
+              <LegendItem color="var(--chart-hist-bright)" label="Div Return" />
+              <LegendItem color="var(--chart-hist)" label="Price" />
+              <LegendItem color="var(--chart-proj-bright)" label="Proj DRIP" />
+              <LegendItem color="var(--chart-proj)" label="Proj Base" />
+            </>
+          )}
         </div>
 
-        {/* Stat cards: STARTING, CURRENT (DRIP), DRIP ADVANTAGE */}
+        {/* Stat cards */}
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 8, marginBottom: isMobile ? "0.5rem" : "1rem" }}>
-          <StatCard label={`BACKTEST START (${startingYear})`} value={formatCurrency(startingValue)} color="var(--text-sub)" compact={isMobile} borderColor="var(--text-sub)" />
+          <StatCard
+            label={dataSource === 'tracked' && inceptionDate ? `TRACKING START (${inceptionDate.substring(0, 4)})` : `BACKTEST START (${startingYear})`}
+            value={formatCurrency(startingValue)} color="var(--text-sub)" compact={isMobile} borderColor="var(--text-sub)"
+          />
           <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="var(--primary)" compact={isMobile} borderColor="var(--primary)" />
           <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="var(--green)" compact={isMobile} borderColor="var(--green)" />
           <StatCard label={`INCOME AT ${horizon}Y`} value={`${shortMoney(incomeAtHorizon)}/yr`} sub={`from ${shortMoney(totalIncome)} today`} color="var(--warning)" compact={isMobile} borderColor="var(--warning)" />
@@ -433,9 +504,9 @@ export default function HistoricalProjectedChart({
           </button>
           <div style={{ flex: 1 }} />
           <div style={{ display: "inline-flex", background: "var(--bg-pill)", borderRadius: 8, padding: 2 }}>
-            {["weekly", "monthly", "yearly"].map(m => (
+            {["daily", "weekly", "monthly", "yearly"].map(m => (
               <button key={m} onClick={() => setGranularity(m)} style={{
-                padding: "5px 12px", border: "none", fontSize: "0.72rem", fontWeight: 600,
+                padding: isMobile ? "4px 8px" : "5px 12px", border: "none", fontSize: "0.72rem", fontWeight: 600,
                 cursor: "pointer", textTransform: "uppercase",
                 fontFamily: "'DM Sans', system-ui, sans-serif",
                 background: granularity === m ? "var(--bg-card)" : "transparent",
@@ -449,22 +520,56 @@ export default function HistoricalProjectedChart({
           </div>
         </div>
 
-        {/* Row 2: Historical + Invest/yr */}
+        {/* Row 2: Data source + Historical range + Invest/yr */}
         <div style={{ display: "flex", gap: 0, alignItems: "center", marginBottom: isMobile ? "0.4rem" : "0.8rem", flexWrap: "wrap", rowGap: 6 }}>
-          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginRight: 8, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-            Historical:
-          </span>
-          {[{ l: "Off", v: 0 }, { l: "5Y", v: 5 }, { l: "10Y", v: 10 }, { l: "15Y", v: 15 }, { l: "20Y", v: 20 }].map(opt => (
-            <button key={opt.v} onClick={() => setHistRange(opt.v)} style={{
+          {/* Data source toggle: Tracked vs Backtest */}
+          <div style={{ display: "inline-flex", background: "var(--bg-pill)", borderRadius: 8, padding: 2, marginRight: 12 }}>
+            {[{ l: "Tracked", v: "tracked" }, { l: "Backtest", v: "backtest" }].map(opt => (
+              <button key={opt.v} onClick={() => setDataSource(opt.v)} style={{
+                padding: "4px 10px", border: "none", fontSize: "0.72rem", fontWeight: 600,
+                cursor: "pointer", fontFamily: "'DM Sans', system-ui, sans-serif",
+                background: dataSource === opt.v ? "var(--bg-card)" : "transparent",
+                color: dataSource === opt.v ? "var(--text-primary)" : "var(--text-muted)",
+                borderRadius: 6, transition: "all 0.15s",
+                boxShadow: dataSource === opt.v ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+              }}>
+                {opt.l}
+              </button>
+            ))}
+          </div>
+
+          {/* Historical range (only for backtest mode) */}
+          {dataSource === 'backtest' && (
+            <>
+              <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginRight: 8, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+                Historical:
+              </span>
+              {[{ l: "Off", v: 0 }, { l: "5Y", v: 5 }, { l: "10Y", v: 10 }, { l: "15Y", v: 15 }, { l: "20Y", v: 20 }].map(opt => (
+                <button key={opt.v} onClick={() => setHistRange(opt.v)} style={{
+                  padding: "4px 10px", border: "none", cursor: "pointer",
+                  fontSize: "0.75rem", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif",
+                  background: histRange === opt.v ? "var(--green)" : "var(--bg-pill)",
+                  color: histRange === opt.v ? "#ffffff" : "var(--text-muted)",
+                  borderRadius: 8, marginRight: 4, transition: "all 0.15s",
+                }}>
+                  {opt.l}
+                </button>
+              ))}
+            </>
+          )}
+
+          {/* Zoom reset button */}
+          {zoom.isZoomed && (
+            <button onClick={zoom.resetZoom} style={{
               padding: "4px 10px", border: "none", cursor: "pointer",
-              fontSize: "0.75rem", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif",
-              background: histRange === opt.v ? "var(--green)" : "var(--bg-pill)",
-              color: histRange === opt.v ? "#ffffff" : "var(--text-muted)",
-              borderRadius: 8, marginRight: 4, transition: "all 0.15s",
+              fontSize: "0.72rem", fontWeight: 600, fontFamily: "'DM Sans', system-ui, sans-serif",
+              background: "var(--accent-bg)", color: "var(--primary)",
+              borderRadius: 8, marginLeft: 8, transition: "all 0.15s",
             }}>
-              {opt.l}
+              Reset Zoom
             </button>
-          ))}
+          )}
+
           <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", margin: "0 8px 0 16px", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
             Invest/yr:
           </span>
@@ -489,8 +594,13 @@ export default function HistoricalProjectedChart({
       </div>
 
       {/* ==================== PORTFOLIO VALUE CHART ==================== */}
-      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)" }}>
-        {/* Fixed-height tooltip area — prevents jitter */}
+      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)" }}
+        onWheel={handleChartWheel}
+        onTouchStart={zoom.handleTouchStart}
+        onTouchMove={zoom.handleTouchMove}
+        onTouchEnd={zoom.handleTouchEnd}
+      >
+        {/* Tooltip area */}
         <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 1rem" }}>
           {hovBar ? (
             <div style={{
@@ -510,7 +620,7 @@ export default function HistoricalProjectedChart({
             </div>
           ) : (
             <span style={{ fontSize: "0.5rem", color: "var(--text-sub)", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-              Portfolio Value
+              Portfolio Value {zoom.isZoomed && `(${zoom.visibleCount} of ${barData.length} points)`}
             </span>
           )}
         </div>
@@ -536,68 +646,43 @@ export default function HistoricalProjectedChart({
             );
           })}
 
-          {/* Bars */}
-          {barData.map((bar, i) => {
-            const x = padL + i * stepW + (stepW - barW) / 2;
-            const isHov = hovered === i;
-            const totalH = maxVal > 0 ? (bar.total / maxVal) * mainChartH : 0;
-            const noDripH = maxVal > 0 ? (bar.noDrip / maxVal) * mainChartH : 0;
-            const bonusH = Math.max(0, totalH - noDripH);
-            const showStack = bar.isHistorical ? (showDivReturn && bar.dripBonus > 0) : true;
-
-            // Colors: historical = green, projected = blue (using CSS vars)
-            let bottomFill, topFill;
-            if (bar.isHistorical) {
-              if (isHov) { bottomFill = "var(--chart-hist-bright)"; topFill = "var(--text-primary)"; }
-              else if (hovered != null && i > hovered) { bottomFill = "var(--border)"; topFill = "var(--border-dim)"; }
-              else { bottomFill = "var(--chart-hist)"; topFill = "var(--chart-hist-bright)"; }
-            } else {
-              if (isHov) { bottomFill = "var(--chart-proj-bright)"; topFill = "var(--text-primary)"; }
-              else if (hovered != null && i > hovered) { bottomFill = "var(--border)"; topFill = "var(--border-dim)"; }
-              else { bottomFill = "var(--chart-proj)"; topFill = "var(--chart-proj-bright)"; }
-            }
-
-            const bottomBarH = showStack ? noDripH : totalH;
-            const topBarH = showStack ? bonusH : 0;
-
-            return (
-              <g key={i}
-                onMouseEnter={() => setHovered(i)}
-                onMouseLeave={() => setHovered(null)}
-                onClick={() => setHovered(prev => prev === i ? null : i)}
-                style={{ cursor: "pointer" }}
-              >
-                {/* Bottom (noDrip / price) */}
-                <rect x={x} y={mainPadTop + mainChartH - bottomBarH} width={barW} height={bottomBarH}
-                  fill={bottomFill}
-                  opacity={isHov ? 1 : (hovered != null && i > hovered) ? 0.4 : 0.85}
-                  rx={1}
-                />
-                {/* Top (DRIP bonus / div return) */}
-                {topBarH > 0 && (
-                  <rect x={x} y={mainPadTop + mainChartH - bottomBarH - topBarH} width={barW} height={topBarH}
-                    fill={topFill}
-                    filter={isHov ? "url(#neonGlow)" : undefined}
-                    opacity={isHov ? 1 : (hovered != null && i > hovered) ? 0.4 : 0.9}
-                    rx={1}
-                  />
-                )}
-              </g>
-            );
-          })}
+          {/* Chart content — line or bars */}
+          {useLineChart ? (
+            <ChartLine
+              data={barData}
+              chartW={chartW} chartH={mainChartH}
+              padL={padL} padTop={mainPadTop} maxVal={maxVal}
+              hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)}
+              mode="portfolio" nowIndex={nowBarIndex} zoom={zoom}
+            />
+          ) : (
+            <ChartBars
+              data={barData}
+              chartW={chartW} chartH={mainChartH}
+              padL={padL} padTop={mainPadTop} maxVal={maxVal}
+              hovered={hovered} onHover={setHovered} onLeave={() => setHovered(null)}
+              showDivReturn={showDivReturn} mode="portfolio" zoom={zoom}
+            />
+          )}
 
           {/* NOW divider */}
-          <line x1={nowX} y1={mainPadTop - 8} x2={nowX} y2={mainPadTop + mainChartH + 4}
-            stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
-          <rect x={nowX - 16} y={mainPadTop - 22} width={32} height={16} rx={4} fill="var(--primary)" />
-          <text x={nowX} y={mainPadTop - 11} textAnchor="middle" fontSize="8" fontWeight="700"
-            fill="#ffffff" fontFamily="'DM Sans', system-ui, sans-serif">NOW</text>
+          {nowVisible && (
+            <>
+              <line x1={nowX} y1={mainPadTop - 8} x2={nowX} y2={mainPadTop + mainChartH + 4}
+                stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
+              <rect x={nowX - 16} y={mainPadTop - 22} width={32} height={16} rx={4} fill="var(--primary)" />
+              <text x={nowX} y={mainPadTop - 11} textAnchor="middle" fontSize="8" fontWeight="700"
+                fill="#ffffff" fontFamily="'DM Sans', system-ui, sans-serif">NOW</text>
+            </>
+          )}
 
-          {/* Hovered bar line */}
-          {hovBar && (() => {
+          {/* Hovered bar line (for bar mode) */}
+          {!useLineChart && hovBar && (() => {
+            const hovVi = hovered - (zoom.isZoomed ? zoom.viewRange[0] : 0);
+            if (hovVi < 0 || hovVi >= barCount) return null;
             const totalH = maxVal > 0 ? (hovBar.total / maxVal) * mainChartH : 0;
             const barY = mainPadTop + mainChartH - totalH;
-            const barX = padL + hovered * stepW + stepW / 2;
+            const barX = padL + hovVi * stepW + stepW / 2;
             return (
               <line x1={barX} y1={mainPadTop} x2={barX} y2={barY}
                 stroke="var(--primary)" strokeWidth={1} strokeDasharray="3,2" opacity={0.5} />
@@ -607,14 +692,14 @@ export default function HistoricalProjectedChart({
 
         {/* X-axis labels */}
         <svg width={svgW} height={18} style={{ display: "block" }}>
-          {barData.map((bar, i) => {
+          {visibleBars.map((bar, vi) => {
             if (!bar.axisLabel) return null;
-            // Thin labels when too many bars
             if (barCount > 800 && bar.year % 5 !== 0 && !bar.isCurrent) return null;
             if (barCount > 300 && bar.year % 2 !== 0 && !bar.isCurrent) return null;
-            const x = padL + i * stepW + stepW / 2;
+            const x = padL + vi * stepW + stepW / 2;
+            const i = (zoom.isZoomed ? zoom.viewRange[0] : 0) + vi;
             return (
-              <text key={i} x={x} y={13}
+              <text key={vi} x={x} y={13}
                 textAnchor="middle" fontSize={barCount > 60 ? 6 : 7.5}
                 fill={hovered === i ? "var(--primary)" : bar.isCurrent ? "var(--primary)" : "var(--text-sub)"}
                 fontWeight={hovered === i || bar.isCurrent ? 700 : 400}
@@ -626,9 +711,14 @@ export default function HistoricalProjectedChart({
         </svg>
       </div>
 
-      {/* ==================== DIVIDEND INCOME (INDEPENDENT) ==================== */}
-      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)", marginTop: 8 }}>
-        {/* Fixed-height tooltip area */}
+      {/* ==================== DIVIDEND INCOME ==================== */}
+      <div style={{ background: "var(--bg-dark)", borderTop: "1px solid var(--border)", marginTop: 8 }}
+        onWheel={handleChartWheel}
+        onTouchStart={zoom.handleTouchStart}
+        onTouchMove={zoom.handleTouchMove}
+        onTouchEnd={zoom.handleTouchEnd}
+      >
+        {/* Tooltip */}
         <div style={{ height: 30, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 1rem" }}>
           {divHovBar ? (
             <span style={{ fontSize: "0.72rem", fontFamily: "'JetBrains Mono', monospace" }}>
@@ -655,43 +745,37 @@ export default function HistoricalProjectedChart({
             );
           })}
 
-          {divBars.map((bar, i) => {
-            const x = padL + i * stepW + (stepW - barW) / 2;
-            const barH = maxDiv > 0 ? (bar.value / maxDiv) * divChartH : 0;
-            const y = divPadTop + divChartH - barH;
-            const isHov = divHovered === i;
+          {/* Dividend chart — line spikes for daily/weekly, bars for monthly/yearly */}
+          {useLineChart ? (
+            <ChartLine
+              data={divBars}
+              chartW={chartW} chartH={divChartH}
+              padL={padL} padTop={divPadTop} maxVal={maxDiv}
+              hovered={divHovered} onHover={setDivHovered} onLeave={() => setDivHovered(null)}
+              mode="dividend" nowIndex={nowBarIndex} zoom={zoom}
+            />
+          ) : (
+            <ChartBars
+              data={divBars}
+              chartW={chartW} chartH={divChartH}
+              padL={padL} padTop={divPadTop} maxVal={maxDiv}
+              hovered={divHovered} onHover={setDivHovered} onLeave={() => setDivHovered(null)}
+              mode="dividend" zoom={zoom}
+            />
+          )}
 
-            let fill;
-            if (isHov) fill = "var(--green)";
-            else if (divHovered != null && i > divHovered) fill = "var(--border)";
-            else if (divHovered != null) fill = "var(--chart-hist-bright)";
-            else fill = bar.isHistorical ? "var(--chart-hist)" : "var(--chart-hist)";
+          {nowVisible && (
+            <line x1={nowX} y1={0} x2={nowX} y2={divPadTop + divChartH + 4}
+              stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
+          )}
 
-            return (
-              <g key={i}
-                onMouseEnter={() => setDivHovered(i)}
-                onMouseLeave={() => setDivHovered(null)}
-                onClick={() => setDivHovered(prev => prev === i ? null : i)}
-                style={{ cursor: "pointer" }}
-              >
-                <rect x={x} y={y} width={barW} height={barH}
-                  fill={fill}
-                  filter={isHov ? "url(#neonGlow)" : undefined}
-                  opacity={isHov ? 1 : (divHovered != null && i > divHovered) ? 0.4 : 0.85}
-                  rx={1}
-                />
-              </g>
-            );
-          })}
-
-          <line x1={nowX} y1={0} x2={nowX} y2={divPadTop + divChartH + 4}
-            stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="4,3" opacity={0.5} />
-
-          {barData.map((bar, i) => {
+          {/* X-axis labels for dividend chart */}
+          {visibleBars.map((bar, vi) => {
             if (!bar.axisLabel) return null;
-            const x = padL + i * stepW + stepW / 2;
+            const x = padL + vi * stepW + stepW / 2;
+            const i = (zoom.isZoomed ? zoom.viewRange[0] : 0) + vi;
             return (
-              <text key={i} x={x} y={divH - 4}
+              <text key={vi} x={x} y={divH - 4}
                 textAnchor="middle" fontSize={barCount > 60 ? 5 : 7}
                 fill={divHovered === i ? "var(--green)" : bar.isCurrent ? "var(--primary)" : "var(--text-sub)"}
                 fontWeight={divHovered === i || bar.isCurrent ? 700 : 400}
@@ -709,7 +793,11 @@ export default function HistoricalProjectedChart({
         borderTop: "1px solid var(--border)",
       }}>
         <span style={{ fontSize: "0.63rem", color: "var(--text-sub)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-          Backtest assumes current holdings held for entire period · Gordon model (yield + growth) · divs reinvested at each payment
+          {dataSource === 'tracked'
+            ? 'Real portfolio snapshots · Gordon model (yield + growth) · divs reinvested at each payment'
+            : 'Backtest assumes current holdings held for entire period · Gordon model (yield + growth) · divs reinvested at each payment'
+          }
+          {zoom.isZoomed && ' · scroll to zoom, drag to select range'}
         </span>
       </div>
     </div>
@@ -738,10 +826,16 @@ function StatCard({ label, value, sub, color, last, compact, borderColor }) {
   );
 }
 
-function LegendItem({ color, label }) {
+function LegendItem({ color, label, type }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <div style={{ width: 12, height: 8, background: color, borderRadius: 2 }} />
+      {type === 'line' ? (
+        <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke={color} strokeWidth={2} /></svg>
+      ) : type === 'dashed' ? (
+        <svg width={16} height={8}><line x1={0} y1={4} x2={16} y2={4} stroke={color} strokeWidth={1.5} strokeDasharray="3,2" /></svg>
+      ) : (
+        <div style={{ width: 12, height: 8, background: color, borderRadius: 2 }} />
+      )}
       <span style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{label}</span>
     </div>
   );

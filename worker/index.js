@@ -13,6 +13,9 @@ import {
   getFundamentals, saveFundamentals,
   getPriceHistory, savePriceHistory, getLatestPriceMonth,
   getDividendHistory, saveDividendHistory, getLatestDividendDate,
+  getSnapshots, getLatestSnapshot, saveSnapshots, deleteSnapshots,
+  getDailyPrices, saveDailyPrices, getCachedPriceDates,
+  getAllUsersWithHoldings, getAllHoldingsGrouped,
 } from './db.js';
 import { parseFundamentals, sf, round, quarterly, annual, computeG5, computeStreak, buildAnnualHistory } from './parse.js';
 
@@ -155,6 +158,105 @@ function normPrice(d) {
 }
 
 export default {
+  // Daily cron: take portfolio snapshots for all users
+  async scheduled(event, env) {
+    var today = new Date().toISOString().slice(0, 10);
+    var dayOfWeek = new Date().getUTCDay(); // 0=Sun, 6=Sat
+    if (dayOfWeek === 0 || dayOfWeek === 6) return; // skip weekends
+
+    var KEY = env.EODHD_KEY;
+    var db = env.DB;
+    if (!KEY || !db) return;
+
+    try {
+      // 1. Get all users with holdings + their cash balances
+      var users = await getAllUsersWithHoldings(db);
+      if (!users.length) return;
+
+      // 2. Get all holdings grouped by user
+      var holdingsGrouped = await getAllHoldingsGrouped(db);
+
+      // 3. Collect all unique tickers
+      var allTickers = new Set();
+      Object.values(holdingsGrouped).forEach(function(hArr) {
+        hArr.forEach(function(h) { allTickers.add(h.ticker); });
+      });
+      var tickerArr = Array.from(allTickers);
+
+      // 4. Fetch today's prices — check D1 cache first
+      var priceMap = {}; // ticker → close price
+      var cached = await getDailyPrices(db, tickerArr, today, today);
+      cached.forEach(function(r) { priceMap[r.ticker] = r.close; });
+      var missing = tickerArr.filter(function(t) { return !priceMap[t]; });
+
+      // Fetch missing from EODHD in chunks of 20
+      for (var ci = 0; ci < missing.length; ci += 20) {
+        var chunk = missing.slice(ci, ci + 20);
+        var fetchPromises = chunk.map(function(t) {
+          var code = t.includes(".") ? t : t + ".US";
+          var url = EODHD_BASE + "/eod/" + code + "?api_token=" + KEY + "&fmt=json&period=d&from=" + today + "&to=" + today;
+          return fetch(url)
+            .then(function(r) { return r.ok ? r.json() : []; })
+            .then(function(d) {
+              if (Array.isArray(d) && d.length > 0) {
+                priceMap[t] = parseFloat(d[0].close || 0);
+              }
+            })
+            .catch(function() {});
+        });
+        await Promise.all(fetchPromises);
+      }
+
+      // Save new prices to D1 cache
+      var newPrices = missing.filter(function(t) { return priceMap[t]; }).map(function(t) {
+        return { ticker: t, date: today, close: priceMap[t], adj_close: priceMap[t] };
+      });
+      if (newPrices.length > 0) {
+        await saveDailyPrices(db, newPrices).catch(function() {});
+      }
+
+      // 5. Build snapshot for each user
+      for (var ui = 0; ui < users.length; ui++) {
+        var userId = users[ui].user_id;
+        var cashBalance = users[ui].cash_balance || 0;
+        var userHoldings = holdingsGrouped[userId] || [];
+        if (!userHoldings.length) continue;
+
+        var holdingsValue = 0;
+        var holdingsSnap = [];
+        userHoldings.forEach(function(h) {
+          var price = priceMap[h.ticker] || 0;
+          var value = price * (h.shares || 0);
+          holdingsValue += value;
+          holdingsSnap.push({
+            t: h.ticker,
+            s: h.shares || 0,
+            p: Math.round(price * 100) / 100,
+            v: Math.round(value * 100) / 100,
+            d: 0,
+          });
+        });
+
+        var snapshot = {
+          date: today,
+          total_value: Math.round((holdingsValue + cashBalance) * 100) / 100,
+          cash_value: Math.round(cashBalance * 100) / 100,
+          holdings_value: Math.round(holdingsValue * 100) / 100,
+          total_div_income: 0,
+          holdings_snapshot: JSON.stringify(holdingsSnap),
+        };
+
+        await saveSnapshots(db, userId, [snapshot]).catch(function(e) {
+          console.error("Snapshot save failed for user", userId, e.message);
+        });
+      }
+
+      console.log("Cron: snapshots taken for " + users.length + " users on " + today);
+    } catch (cronErr) {
+      console.error("Cron error:", cronErr.message);
+    }
+  },
+
   async fetch(request, env) {
     var origin = request.headers.get("Origin") || "";
 
@@ -515,6 +617,73 @@ export default {
       return json({ results: dbResults }, origin, 200, 86400);
     }
 
+    // ── /daily-prices — cached daily closing prices ──────────────────────
+    if (path === "/daily-prices") {
+      var dpRaw = (reqUrl.searchParams.get("symbols") || "").toUpperCase().trim();
+      var dpFrom = reqUrl.searchParams.get("from") || "";
+      var dpTo = reqUrl.searchParams.get("to") || new Date().toISOString().slice(0, 10);
+      if (!dpRaw || !dpFrom) return err("symbols and from params required", origin, 400);
+      var dpSyms = dpRaw.split(",").map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 20);
+      try {
+        // 1. Check D1 cache for existing data
+        var dpCached = env.DB ? await getDailyPrices(env.DB, dpSyms, dpFrom, dpTo) : [];
+        var dpCachedSet = new Set(dpCached.map(function(r) { return r.ticker + ":" + r.date; }));
+        // Build result map
+        var dpResults = {};
+        dpCached.forEach(function(r) {
+          if (!dpResults[r.ticker]) dpResults[r.ticker] = [];
+          dpResults[r.ticker].push({ date: r.date, close: r.close, adj_close: r.adj_close });
+        });
+        // 2. Fetch missing data from EODHD per ticker
+        var dpFetches = dpSyms.map(function(dpSym) {
+          // Check if we already have full data for this ticker
+          var hasSome = dpResults[dpSym] && dpResults[dpSym].length > 0;
+          // Find the latest cached date to fetch only new data
+          var fetchFrom = dpFrom;
+          if (hasSome) {
+            var dates = dpResults[dpSym].map(function(r) { return r.date; }).sort();
+            var latestCached = dates[dates.length - 1];
+            if (latestCached >= dpTo) return Promise.resolve(); // fully cached
+            fetchFrom = latestCached; // fetch from day after latest
+          }
+          var dpCode = toEOD(dpSym);
+          var dpUrl = EODHD_BASE + "/eod/" + dpCode + "?api_token=" + KEY + "&fmt=json&period=d&from=" + fetchFrom + "&to=" + dpTo;
+          return fetch(dpUrl)
+            .then(function(r) { return r.ok ? r.json() : []; })
+            .then(function(d) {
+              if (!Array.isArray(d)) return;
+              var newRows = [];
+              d.forEach(function(x) {
+                if (!x.date) return;
+                var key = dpSym + ":" + x.date;
+                if (dpCachedSet.has(key)) return; // already cached
+                var row = {
+                  date: x.date,
+                  close: parseFloat((x.close || 0).toFixed(2)),
+                  adj_close: parseFloat((x.adjusted_close || x.close || 0).toFixed(2)),
+                };
+                if (!dpResults[dpSym]) dpResults[dpSym] = [];
+                dpResults[dpSym].push(row);
+                newRows.push({ ticker: dpSym, date: x.date, close: row.close, adj_close: row.adj_close });
+              });
+              // Save new data to D1 permanently
+              if (env.DB && newRows.length > 0) {
+                return saveDailyPrices(env.DB, newRows).catch(function() {});
+              }
+            })
+            .catch(function() { if (!dpResults[dpSym]) dpResults[dpSym] = []; });
+        });
+        await Promise.all(dpFetches);
+        // Sort each ticker's data by date
+        Object.keys(dpResults).forEach(function(t) {
+          dpResults[t].sort(function(a, b) { return a.date.localeCompare(b.date); });
+        });
+        return json({ results: dpResults }, origin, 200, 300);
+      } catch (dpErr) {
+        return err("Daily prices failed: " + dpErr.message, origin, 502);
+      }
+    }
+
     // ── Protected /user/* routes ───────────────────────────────────────────
     if (path.startsWith("/user/")) {
       var auth = await verifyClerkToken(request, env);
@@ -605,6 +774,46 @@ export default {
       if (path.startsWith("/user/watchlist/") && method === "DELETE") {
         var wlTicker = path.split("/user/watchlist/")[1].toUpperCase();
         await removeFromWatchlist(db, auth.userId, wlTicker);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      // GET /user/snapshots/latest — most recent snapshot
+      if (path === "/user/snapshots/latest" && method === "GET") {
+        var latestSnap = await getLatestSnapshot(db, auth.userId);
+        return json({ result: latestSnap || null }, origin, 200, 0);
+      }
+
+      // GET /user/snapshots — fetch range
+      if (path === "/user/snapshots" && method === "GET") {
+        var snapFrom = reqUrl.searchParams.get("from") || "2000-01-01";
+        var snapTo = reqUrl.searchParams.get("to") || new Date().toISOString().slice(0, 10);
+        var snapLimit = parseInt(reqUrl.searchParams.get("limit") || "2000", 10);
+        var snaps = await getSnapshots(db, auth.userId, snapFrom, snapTo, snapLimit);
+        return json({ result: snaps, count: snaps.length }, origin, 200, 0);
+      }
+
+      // POST /user/snapshots — save batch
+      if (path === "/user/snapshots" && method === "POST") {
+        var snapBody = await request.json();
+        var snapArr = snapBody.snapshots || [];
+        if (snapArr.length === 0) return err("snapshots array required", origin, 400);
+        if (snapArr.length > 500) return err("max 500 snapshots per request", origin, 400);
+        // Validate each snapshot
+        for (var si = 0; si < snapArr.length; si++) {
+          if (!snapArr[si].date || !/^\d{4}-\d{2}-\d{2}$/.test(snapArr[si].date)) {
+            return err("invalid date format at index " + si, origin, 400);
+          }
+          if (typeof snapArr[si].holdings_snapshot !== 'string') {
+            snapArr[si].holdings_snapshot = JSON.stringify(snapArr[si].holdings_snapshot || []);
+          }
+        }
+        await saveSnapshots(db, auth.userId, snapArr);
+        return json({ ok: true, inserted: snapArr.length }, origin, 200, 0);
+      }
+
+      // DELETE /user/snapshots — clear all
+      if (path === "/user/snapshots" && method === "DELETE") {
+        await deleteSnapshots(db, auth.userId);
         return json({ ok: true }, origin, 200, 0);
       }
 

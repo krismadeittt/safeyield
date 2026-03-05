@@ -9,6 +9,9 @@ import { getUserHoldings, saveUserHoldings, getUserProfile, updateUserProfile, g
 import { fetchBatchHistory, fetchDivHistoryBatch } from '../api/history';
 import { processCatchUp } from '../utils/catchUp';
 import { calcMonthlyIncome, deriveDividendSchedule } from '../utils/dividends';
+import { getLatestSnapshot, saveSnapshots, deleteAllSnapshots, getSnapshots } from '../api/snapshots';
+import { fetchDailyPrices } from '../api/prices';
+import { createSnapshot, buildMissingSnapshots } from '../utils/snapshots';
 
 const POLL_INTERVAL = 5 * 60000; // 5 minutes
 const SAVE_DEBOUNCE = 2000; // 2 seconds
@@ -56,6 +59,10 @@ export default function usePortfolio(getToken) {
 
   // Visualizer type state
   const [vizType, setVizType] = useState('sunburst');
+
+  // Snapshot state — real tracked portfolio data
+  const [snapshots, setSnapshots] = useState([]);
+  const [inceptionDate, setInceptionDate] = useState(null);
 
   // Watchlist state
   const [watchlist, setWatchlist] = useState([]);
@@ -130,10 +137,11 @@ export default function usePortfolio(getToken) {
           // Catch-up processing: apply dividends/splits since last update
           const today = new Date().toISOString().substring(0, 10);
           let updatedCash = profileCash;
+          let historyMap = null; // hoisted for snapshot backfill access
           if (profileLastProcessed && profileLastProcessed < today) {
             try {
               const tickers = restored.map(h => h.ticker);
-              const historyMap = await fetchBatchHistory(tickers);
+              historyMap = await fetchBatchHistory(tickers);
               if (!cancelled && historyMap && Object.keys(historyMap).length > 0) {
                 const result = processCatchUp({
                   holdings: restored,
@@ -230,6 +238,44 @@ export default function usePortfolio(getToken) {
           setHoldings(hydrated);
           setIsOnboarding(false);
           hasLoadedRef.current = true;
+
+          // --- Snapshot capture ---
+          try {
+            const latestSnap = await getLatestSnapshot(getToken);
+            if (!latestSnap && hydrated.length > 0) {
+              // First time: create inception snapshot
+              const inception = createSnapshot(hydrated, updatedCash, merged);
+              await saveSnapshots(getToken, [inception]);
+              setInceptionDate(inception.date);
+            } else if (latestSnap && latestSnap.date < today) {
+              setInceptionDate(null); // will be set after fetching all snapshots
+              // Backfill missing days with real daily prices
+              const backfillTickers = hydrated.map(h => h.ticker);
+              const dailyPriceData = await fetchDailyPrices(backfillTickers, latestSnap.date, today);
+              // Build dividend history lookup from historyMap (already fetched for catch-up)
+              const divHistLookup = {};
+              backfillTickers.forEach(t => {
+                const hist = historyMap?.[t];
+                if (hist?.d) divHistLookup[t] = hist.d;
+              });
+              const missing = buildMissingSnapshots(latestSnap.date, hydrated, updatedCash, dailyPriceData, divHistLookup, merged);
+              if (missing.length > 0) {
+                await saveSnapshots(getToken, missing);
+              }
+            } else if (latestSnap) {
+              // Same day — update with fresh prices
+              const todaySnap = createSnapshot(hydrated, updatedCash, merged);
+              await saveSnapshots(getToken, [todaySnap]);
+            }
+            // Fetch all snapshots for chart
+            const allSnaps = await getSnapshots(getToken, '2000-01-01', today);
+            if (allSnaps.length > 0) {
+              setSnapshots(allSnaps);
+              setInceptionDate(allSnaps[0].date);
+            }
+          } catch (snapErr) {
+            console.warn('Snapshot capture failed:', snapErr.message);
+          }
         }
       } catch (e) {
         console.warn('Failed to load saved data:', e.message);
@@ -475,6 +521,13 @@ export default function usePortfolio(getToken) {
       );
       // Save strategy + target balance + lastProcessedAt to profile
       updateUserProfile(getToken, { displayName: '', defaultStrategy: strategyId || '', targetBalance: balance || 0, dripEnabled: true, cashBalance: cashVal, lastProcessedAt: today, cashApy: 0, cashCompounding: 'none' }).catch(() => {});
+      // Create inception snapshot
+      const liveMerged = { ...prePrices };
+      const inception = createSnapshot(newHoldings, cashVal, liveMerged);
+      saveSnapshots(getToken, [inception]).then(() => {
+        setInceptionDate(inception.date);
+        setSnapshots([inception]);
+      }).catch(e => console.warn('Inception snapshot failed:', e.message));
     }
   }
 
@@ -561,9 +614,14 @@ export default function usePortfolio(getToken) {
     setCashApy(0);
     setCashCompounding('none');
     hasLoadedRef.current = false;
+    setSnapshots([]);
+    setInceptionDate(null);
     if (getToken) {
       saveUserHoldings(getToken, []).catch(e =>
         console.warn('Reset save failed:', e.message)
+      );
+      deleteAllSnapshots(getToken).catch(e =>
+        console.warn('Snapshot delete failed:', e.message)
       );
     }
   }
@@ -729,5 +787,7 @@ export default function usePortfolio(getToken) {
     lastUpdatedAt,
     // Merge fundamentals from detail view
     mergeLiveData,
+    // Portfolio snapshots (real tracked data)
+    snapshots, inceptionDate,
   };
 }

@@ -11,6 +11,7 @@ export default function Dashboard({
   totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth, cashBalance = 0,
   cashApy = 0, cashCompounding = 'none',
   vizType, setVizType, monthlyAvg, divScheduleMap,
+  snapshots, inceptionDate,
 }) {
   const isMobile = useIsMobile();
   const [horizon, setHorizon] = useState(10);
@@ -116,6 +117,8 @@ export default function Dashboard({
             setExpanded={setChartExpanded}
             granularity={granularity}
             setGranularity={setGranularity}
+            snapshots={snapshots}
+            inceptionDate={inceptionDate}
           />
           </div>
         )}

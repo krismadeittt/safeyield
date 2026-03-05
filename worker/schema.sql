@@ -58,3 +58,30 @@ CREATE TABLE IF NOT EXISTS dividend_history (
   amount REAL NOT NULL,
   PRIMARY KEY (ticker, date)
 );
+
+-- Daily portfolio snapshots (real tracked data)
+CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,                    -- YYYY-MM-DD (trading days only)
+  total_value REAL NOT NULL DEFAULT 0,   -- holdings + cash
+  cash_value REAL NOT NULL DEFAULT 0,
+  holdings_value REAL NOT NULL DEFAULT 0,
+  total_div_income REAL DEFAULT 0,       -- dividends received that day
+  holdings_snapshot TEXT NOT NULL,        -- JSON: [{t,s,p,v,d}, ...]
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(user_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_user_date ON portfolio_snapshots(user_id, date);
+
+-- Daily price cache (permanent — never re-fetched)
+CREATE TABLE IF NOT EXISTS daily_prices (
+  ticker TEXT NOT NULL,
+  date TEXT NOT NULL,       -- YYYY-MM-DD
+  close REAL NOT NULL,
+  adj_close REAL,
+  PRIMARY KEY (ticker, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_prices_date ON daily_prices(date);
