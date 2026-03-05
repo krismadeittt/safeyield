@@ -576,6 +576,8 @@ export default function usePortfolio(getToken) {
   }
 
   // Derived cash yield from APY and compounding settings
+  // APY is already the effective annual rate (compounding baked in), so income = balance * APY.
+  // The compounding selector toggles interest on/off; the frequency is stored for display.
   const cashYield = useMemo(() => {
     if (cashCompounding === 'none' || cashApy <= 0 || cashBalance <= 0) {
       return { annualRate: 0, annualIncome: 0, monthlyIncome: 0 };

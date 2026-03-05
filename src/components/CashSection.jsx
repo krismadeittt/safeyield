@@ -186,7 +186,10 @@ export default function CashSection({
                 <input
                   type="number"
                   value={cashApy || ''}
-                  onChange={e => onEditApy(parseFloat(e.target.value) || 0)}
+                  onChange={e => {
+                    const val = parseFloat(e.target.value) || 0;
+                    onEditApy(Math.max(0, Math.min(20, val)));
+                  }}
                   placeholder="0.00"
                   min="0"
                   max="20"
