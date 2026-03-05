@@ -290,17 +290,17 @@ export default function HistoricalProjectedChart({
   // Zoom hook — shared between portfolio value and dividend income charts
   const zoom = useChartZoom(barData.length, totalYearsSpan);
 
-  // Smart auto-granularity: when zooming, auto-switch granularity based on visible time span
-  const prevViewRangeRef = useRef(null);
+  // Smart auto-granularity: when zoom SPAN changes (zoom in/out, not pan), auto-switch granularity
+  const prevSpanRef = useRef(null);
   useEffect(() => {
-    const key = `${zoom.viewRange[0]}-${zoom.viewRange[1]}`;
-    if (prevViewRangeRef.current === key) return;
-    prevViewRangeRef.current = key;
+    const currentSpan = zoom.viewRange[1] - zoom.viewRange[0];
+    if (prevSpanRef.current === currentSpan) return; // Pan only — span unchanged, skip
+    prevSpanRef.current = currentSpan;
 
     // Only auto-switch when zooming (not on initial render)
     if (!zoom.isZoomed && !manualGranularity) return;
 
-    // Clear manual override when zoom changes
+    // Clear manual override only when span changes (user zoomed in/out)
     if (manualGranularity) {
       setManualGranularity(null);
     }

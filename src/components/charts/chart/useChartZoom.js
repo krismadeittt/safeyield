@@ -21,10 +21,20 @@ export default function useChartZoom(totalPoints, totalYearsSpan = 1) {
   const pinchRef = useRef({ active: false, initialDist: 0, initialRange: null });
   const chartWidthRef = useRef(600);
 
-  // Reset when total points change
+  // Clamp viewRange when total points change; only reset to full range if already at full range
   useEffect(() => {
-    setViewRange([0, Math.max(0, totalPoints - 1)]);
-  }, [totalPoints]);
+    setViewRange(prev => {
+      const prevSpan = prev[1] - prev[0];
+      const wasFullRange = prev[0] === 0 && prevSpan >= maxSpan;
+      if (wasFullRange || maxSpan <= 0) {
+        return [0, Math.max(0, totalPoints - 1)];
+      }
+      // Preserve zoom position, clamped to new valid range
+      const newEnd = Math.min(prev[1], totalPoints - 1);
+      const newStart = Math.max(0, newEnd - prevSpan);
+      return [newStart, Math.min(newStart + prevSpan, totalPoints - 1)];
+    });
+  }, [totalPoints, maxSpan]);
 
   const isZoomed = viewRange[0] > 0 || viewRange[1] < totalPoints - 1;
   const visibleCount = viewRange[1] - viewRange[0] + 1;
@@ -51,7 +61,7 @@ export default function useChartZoom(totalPoints, totalYearsSpan = 1) {
     const newSpan = Math.max(minSpan, Math.min(maxSpan, Math.round(span * zoomFactor)));
     if (newSpan === span) return;
 
-    const cf = cursorFraction || 0.5;
+    const cf = Number.isFinite(cursorFraction) ? Math.max(0, Math.min(1, cursorFraction)) : 0.5;
     const center = start + span * cf;
     let newStart = Math.round(center - newSpan * cf);
     let newEnd = newStart + newSpan;
