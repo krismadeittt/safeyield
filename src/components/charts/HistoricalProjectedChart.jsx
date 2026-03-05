@@ -282,6 +282,12 @@ export default function HistoricalProjectedChart({
       return d.toISOString().substring(0, 10);
     }
 
+    // Proper weeks-per-month counts so weekly bars sum to the annual total
+    const weeklyMonthCounts = granularity === 'weekly'
+      ? Array.from({ length: 52 }, (_, w) => Math.min(11, Math.floor((w * 12) / 52)))
+          .reduce((acc, m) => { acc[m] += 1; return acc; }, Array(12).fill(0))
+      : null;
+
     return barData.map(bar => {
       let divIncome;
 
@@ -302,7 +308,9 @@ export default function HistoricalProjectedChart({
             return annual * (projMonthlyPattern[bar.periodIndex] / patternTotal);
           } else if (patternTotal > 0 && granularity === 'weekly') {
             const monthForWeek = Math.min(11, Math.floor(bar.periodIndex * 12 / 52));
-            return annual * (projMonthlyPattern[monthForWeek] / patternTotal) / (52 / 12);
+            const monthWeight = (projMonthlyPattern[monthForWeek] || 0) / patternTotal;
+            const weekSlots = weeklyMonthCounts?.[monthForWeek] || 1;
+            return annual * monthWeight / weekSlots;
           }
           return annual / displayPeriodsPerYear;
         };
