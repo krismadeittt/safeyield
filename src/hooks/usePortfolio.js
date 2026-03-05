@@ -608,6 +608,15 @@ export default function usePortfolio(getToken) {
     }
   }
 
+  // Update cash balance — persists to DB
+  function updateCashBalance(amount) {
+    const val = Math.max(0, Number(amount) || 0);
+    setCashBalance(val);
+    if (getToken) {
+      updateUserProfile(getToken, undefined, undefined, undefined, undefined, val).catch(() => {});
+    }
+  }
+
   // Toggle DRIP setting
   function toggleDrip() {
     const newVal = !dripEnabled;
@@ -639,7 +648,7 @@ export default function usePortfolio(getToken) {
     // Visualizer
     vizType, updateVizType,
     // DRIP & cash
-    dripEnabled, toggleDrip, cashBalance,
+    dripEnabled, toggleDrip, cashBalance, updateCashBalance,
     // Watchlist
     watchlist, addWatch, removeWatch, isWatched,
     // Timestamp

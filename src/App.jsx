@@ -50,7 +50,7 @@ function AppInner() {
     pickTicker,
     summary, resetPortfolio,
     vizType, updateVizType,
-    dripEnabled, toggleDrip, cashBalance,
+    dripEnabled, toggleDrip, cashBalance, updateCashBalance,
     watchlist, addWatch, removeWatch, isWatched,
     lastUpdatedAt,
     mergeLiveData,
@@ -269,6 +269,8 @@ function AppInner() {
               lastUpdatedAt={lastUpdatedAt}
               refreshing={refreshing}
               holdingsValue={summary.holdingsValue}
+              cashBalance={cashBalance}
+              onEditCash={updateCashBalance}
             />
             </div>
             <MethodologyDisclosure />
