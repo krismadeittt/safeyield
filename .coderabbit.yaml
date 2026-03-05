@@ -1,0 +1,8 @@
+reviews:
+  tone_instructions: >
+    You are reviewing a financial portfolio tracker.
+    Flag any use of floating point for monetary values.
+    Flag any division that could be division by zero.
+    Flag any percentage calculation that doesn't handle edge cases.
+    Flag any API call without timeout or retry logic.
+    Flag any place where stale or cached financial data could be shown to users.
