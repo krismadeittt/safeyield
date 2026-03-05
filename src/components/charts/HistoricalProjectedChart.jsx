@@ -248,20 +248,31 @@ export default function HistoricalProjectedChart({
         const key = getPeriodKey(bar.date);
         divIncome = (realDivByPeriod[key] || 0) * divScale;
       } else {
-        // Projected / current: use simulation dividend data when available
+        // Projected / current: distribute by actual payment months (monthlyData weights)
+        // so projected bars mirror the same scattered pattern as historical bars.
         const displayPeriodsPerYear = granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
         const yearIdx = (bar.yearsFromNow || 1) - 1;
+
+        // Helper: get per-period income from an annual total using monthlyData weights
+        const distributeByMonth = (annual) => {
+          if (expectedAnnual > 0 && granularity === 'monthly') {
+            return annual * (monthlyData[bar.periodIndex] / expectedAnnual);
+          } else if (expectedAnnual > 0 && granularity === 'weekly') {
+            const monthForWeek = Math.min(11, Math.floor(bar.periodIndex * 12 / 52));
+            return annual * (monthlyData[monthForWeek] / expectedAnnual) / (52 / 12);
+          }
+          return annual / displayPeriodsPerYear;
+        };
+
         if (bar.isCurrent || bar.yearsFromNow === 0) {
-          // "Now" bar: use current expected annual, spread across display period
-          divIncome = expectedAnnual / displayPeriodsPerYear;
+          divIncome = distributeByMonth(expectedAnnual);
         } else if (divIncomePerYear && yearIdx >= 0 && yearIdx < divIncomePerYear.length) {
           // Use simulation dividends (reflects MC volatility + dividend stress)
-          const annualDiv = divIncomePerYear[yearIdx];
-          divIncome = annualDiv / displayPeriodsPerYear;
+          divIncome = distributeByMonth(divIncomePerYear[yearIdx]);
         } else {
           // Fallback: static growth estimate
           const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
-          divIncome = (expectedAnnual / displayPeriodsPerYear) * growthFactor;
+          divIncome = distributeByMonth(expectedAnnual * growthFactor);
         }
       }
 
