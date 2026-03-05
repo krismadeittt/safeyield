@@ -90,7 +90,7 @@ export default function HistoricalProjectedChart({
       const hist = historyMap[h.ticker];
       if (!hist?.d?.length || !h.shares) return;
 
-      const recent = [...hist.d].sort((a, b) => a.d.localeCompare(b.d)).slice(-8);
+      const recent = [...hist.d].sort((a, b) => a.d.localeCompare(b.d)).slice(-24);
 
       // Monthly: average income per payment month
       const monthAmounts = new Map();

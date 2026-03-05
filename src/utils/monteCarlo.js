@@ -118,12 +118,15 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     const totalPeriods = priceReturnsMatrix.length;
     const divIncomePerYear = new Array(Math.ceil(totalPeriods / ppy)).fill(0);
 
-    // Dividend payment schedule: up to 4 times per year (quarterly)
-    const divEventsPerYear = Math.min(4, ppy);
-    const periodsPerDivEvent = Math.max(1, Math.round(ppy / divEventsPerYear));
+    // Dividend payment schedule: pay every period (monthly when ppy=12).
+    // This handles monthly payers correctly and compounds DRIP at each payment.
+    const divEventsPerYear = ppy;
+    const periodsPerDivEvent = 1;
     const quartersPerEvent = 4 / divEventsPerYear;
 
     let yearStartPrices = stocks.map(st => st.price);
+    const initialShares = stocks.map(st => st.shares);
+    let dripLogCount = 0;
 
     for (let t = 0; t < totalPeriods; t++) {
       const periodInYear = t % ppy;
@@ -160,7 +163,10 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
           const qDiv = st.shares * st.divPerShare / 4 * quartersPerEvent;
           periodDivTotal += qDiv;
           if (scenario === 'drip' || scenario === 'contrib') {
-            if (st.price > 0) st.shares += qDiv / st.price;
+            if (st.price > 0) {
+              const newShares = qDiv / st.price;
+              st.shares += newShares;
+            }
           } else {
             cashDividends += qDiv;
           }
@@ -169,6 +175,18 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
           st.divPerShare *= Math.pow(1 + st.g5, quartersPerEvent / 4);
         });
         divIncomePerYear[Math.floor(t / ppy)] += periodDivTotal;
+
+        // Debug: log first 12 DRIP payments
+        if (scenario === 'drip' && dripLogCount < 12) {
+          const month = (t % ppy) + 1;
+          const year = Math.floor(t / ppy) + 1;
+          stocks.forEach((st, i) => {
+            const dripShares = st.shares - initialShares[i];
+            const dripValue = dripShares * st.price;
+            console.log(`[DRIP] Y${year} M${month}: stock#${i} div=$${(st.shares > initialShares[i] ? periodDivTotal / stocks.length : 0).toFixed(2)} price=$${st.price.toFixed(2)} cumDripShares=${dripShares.toFixed(4)} cumDripValue=$${dripValue.toFixed(2)}`);
+          });
+          dripLogCount++;
+        }
       }
 
       // End of year: dividend stress (macro event based on annual price returns)
