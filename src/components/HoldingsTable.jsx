@@ -81,7 +81,7 @@ export default function HoldingsTable({
               padding: "2px 8px", fontSize: "0.68rem", color: "var(--text-muted)",
               fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
             }}>
-              {holdings.length + 1}
+              {holdings.length + (onEditCash ? 1 : 0)}
             </span>
           </div>
           {toggleDrip && (
