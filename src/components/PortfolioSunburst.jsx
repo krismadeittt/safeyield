@@ -123,35 +123,82 @@ export default function PortfolioSunburst({ holdings, liveData, portfolioValue, 
     });
 
     paths.on("mouseenter", function (ev, d) {
+      const isRelated = (node) => {
+        let c = d; while (c) { if (c === node) return true; c = c.parent; }
+        c = node; while (c) { if (c === d) return true; c = c.parent; }
+        return false;
+      };
       paths.attr("fill-opacity", node => {
         if (node === d) return 1;
-        let c = d; while (c) { if (c === node) return 0.85; c = c.parent; }
-        c = node; while (c) { if (c === d) return 0.85; c = c.parent; }
-        return 0.15;
+        return isRelated(node) ? 0.85 : 0.15;
       }).attr("stroke-width", node => node === d ? 2.5 : (node.depth <= 2 ? 1.8 : 1))
         .attr("stroke", node => node === d ? "var(--text-primary)" : "var(--bg-card)");
+      if (expanded) {
+        g.selectAll("text.arc-label").attr("fill-opacity", node => {
+          if (node === d) return 1;
+          return isRelated(node) ? 0.9 : 0.1;
+        });
+      }
       setHovered(d);
     }).on("mouseleave", function () {
       paths.attr("fill-opacity", d => d.depth === 4 ? 0.85 : 0.9)
         .attr("stroke-width", d => d.depth <= 2 ? 1.8 : 1)
         .attr("stroke", "var(--bg-card)");
+      if (expanded) {
+        g.selectAll("text.arc-label").attr("fill-opacity", 1);
+      }
       setHovered(null);
     });
 
-  }, [sunburstData, portfolioValue, W, H, weightedYield]);
+    // Arc labels — only in expanded mode
+    if (expanded) {
+      const labelNodes = nodes.filter(d => {
+        const angle = d.x1 - d.x0;
+        if (d.depth === 1) return angle > 0.15;
+        if (d.depth === 2) return angle > 0.20;
+        if (d.depth === 3) return angle > 0.08;
+        if (d.depth === 4) return angle > 0.10;
+        return false;
+      });
 
-  // Resolve Ring 4 hover to parent holding
-  const resolveHolding = (d) => {
-    if (!d) return null;
-    if (d.depth === 4) return d.parent;
-    return d;
-  };
-  const display = resolveHolding(hovered);
+      g.selectAll("text.arc-label")
+        .data(labelNodes)
+        .join("text")
+        .attr("class", "arc-label")
+        .attr("transform", d => {
+          const [cx, cy] = arc.centroid(d);
+          const angle = (Math.atan2(cy, cx) * 180) / Math.PI;
+          const flip = angle > 90 || angle < -90;
+          return `translate(${cx},${cy}) rotate(${flip ? angle + 180 : angle})`;
+        })
+        .attr("text-anchor", "middle")
+        .attr("dominant-baseline", "central")
+        .attr("fill", "#fff")
+        .attr("font-size", d => {
+          if (d.depth === 1) return 10;
+          if (d.depth === 2) return 9;
+          if (d.depth === 3) return 8;
+          return 7;
+        })
+        .attr("font-family", "'DM Sans', system-ui, sans-serif")
+        .attr("font-weight", d => d.depth <= 2 ? 600 : 500)
+        .attr("pointer-events", "none")
+        .text(d => {
+          if (d.depth === 4) return `${d.data.yieldPct}%`;
+          return d.data.name;
+        });
+    }
+
+  }, [sunburstData, portfolioValue, W, H, weightedYield, expanded]);
+
+  const display = hovered;
   const td = display?.data;
   const isHolding = display?.depth === 3;
   const isSector = display?.depth === 2;
   const isAsset = display?.depth === 1;
+  const isYieldTier = display?.depth === 4;
   const alloc = (n) => n ? ((n.value / (portfolioValue || 1)) * 100).toFixed(1) : "0";
+  const useTooltipDocked = !expanded && !isMobile;
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
@@ -231,30 +278,50 @@ export default function PortfolioSunburst({ holdings, liveData, portfolioValue, 
       </div>
 
       {/* Tooltip */}
-      {hovered && td && (
-        <VizTooltip mouse={mouse} containerRef={containerRef} width={240} height={isHolding ? 340 : 120}>
-          <div style={{ fontSize: 8, letterSpacing: 2, color: "var(--text-dim)" }}>
-            {isHolding ? "HOLDING" : isSector ? "SECTOR" : isAsset ? "ASSET CLASS" : "YIELD TIER"}
-          </div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>{td.name}</div>
-          {isHolding && td.full && <div style={{ fontSize: 10, color: "var(--text-dim)", marginBottom: 8 }}>{td.full}</div>}
+      {hovered && td && (() => {
+        const tooltipH = isHolding ? 340 : isYieldTier ? 220 : 120;
+        const parentData = isYieldTier ? hovered.parent?.data : null;
+        return (
+          <VizTooltip mouse={mouse} containerRef={containerRef} width={240} height={tooltipH} docked={useTooltipDocked}>
+            <div style={{ fontSize: 8, letterSpacing: 2, color: "var(--text-dim)" }}>
+              {isHolding ? "HOLDING" : isSector ? "SECTOR" : isAsset ? "ASSET CLASS" : "YIELD TIER"}
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+              {isYieldTier ? td.name : td.name}
+            </div>
+            {isHolding && td.full && <div style={{ fontSize: 10, color: "var(--text-dim)", marginBottom: 8 }}>{td.full}</div>}
+            {isYieldTier && td.ticker && <div style={{ fontSize: 10, color: "var(--text-dim)", marginBottom: 8 }}>{td.ticker}</div>}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 6 }}>
-            <MetricBox label="ALLOC" value={`${alloc(display)}%`} color="var(--primary)" />
-            <MetricBox label="VALUE" value={`$${display.value.toLocaleString()}`} color="var(--text-primary)" />
-            {isHolding && (
-              <>
-                <MetricBox label="DAILY" value={`${td.daily >= 0 ? "+" : ""}${td.daily}%`} color={td.daily >= 0 ? "var(--green)" : "var(--red)"} />
-                <MetricBox label="YIELD" value={`${td.yield}%`} color="var(--warning)" />
-                <MetricBox label="5Y GROWTH" value={td.growth5y ? `+${td.growth5y}%` : "\u2014"} color="var(--green)" />
-                <MetricBox label="PAYOUT" value={td.payout ? `${td.payout}%` : "\u2014"} color={td.payout > 55 ? "var(--warning)" : "var(--text-muted)"} />
-                <MetricBox label="PRICE" value={`$${td.price}`} color="var(--text-primary)" />
-                <MetricBox label="STREAK" value={td.streak ? `${td.streak}y` : "\u2014"} color={td.streak >= 25 ? "var(--warning)" : "var(--text-dim)"} />
-              </>
-            )}
-          </div>
-        </VizTooltip>
-      )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 6 }}>
+              {!isYieldTier && (
+                <>
+                  <MetricBox label="ALLOC" value={`${alloc(display)}%`} color="var(--primary)" />
+                  <MetricBox label="VALUE" value={`$${display.value.toLocaleString()}`} color="var(--text-primary)" />
+                </>
+              )}
+              {isHolding && (
+                <>
+                  <MetricBox label="DAILY" value={`${td.daily >= 0 ? "+" : ""}${td.daily}%`} color={td.daily >= 0 ? "var(--green)" : "var(--red)"} />
+                  <MetricBox label="YIELD" value={`${td.yield}%`} color="var(--warning)" />
+                  <MetricBox label="5Y GROWTH" value={td.growth5y ? `+${td.growth5y}%` : "\u2014"} color="var(--green)" />
+                  <MetricBox label="PAYOUT" value={td.payout ? `${td.payout}%` : "\u2014"} color={td.payout > 55 ? "var(--warning)" : "var(--text-muted)"} />
+                  <MetricBox label="PRICE" value={`$${td.price}`} color="var(--text-primary)" />
+                  <MetricBox label="STREAK" value={td.streak ? `${td.streak}y` : "\u2014"} color={td.streak >= 25 ? "var(--warning)" : "var(--text-dim)"} />
+                </>
+              )}
+              {isYieldTier && parentData && (
+                <>
+                  <MetricBox label="YIELD" value={`${td.yieldPct}%`} color="var(--warning)" />
+                  <MetricBox label="DIV/SHARE" value={parentData.div ? `$${parentData.div}` : "\u2014"} color="var(--text-primary)" />
+                  <MetricBox label="PAYOUT" value={parentData.payout ? `${parentData.payout}%` : "\u2014"} color={parentData.payout > 55 ? "var(--warning)" : "var(--text-muted)"} />
+                  <MetricBox label="5Y GROWTH" value={parentData.growth5y ? `+${parentData.growth5y}%` : "\u2014"} color="var(--green)" />
+                  <MetricBox label="STREAK" value={parentData.streak ? `${parentData.streak}y` : "\u2014"} color={parentData.streak >= 25 ? "var(--warning)" : "var(--text-dim)"} />
+                </>
+              )}
+            </div>
+          </VizTooltip>
+        );
+      })()}
     </div>
   );
 }

@@ -14,7 +14,31 @@ export function MetricBox({ label, value, color }) {
   );
 }
 
-export default function VizTooltip({ mouse, containerRef, children, width = 240, height = 340 }) {
+export default function VizTooltip({ mouse, containerRef, children, width = 240, height = 340, docked = false }) {
+  const shared = {
+    width,
+    background: "var(--bg-overlay-nav)",
+    border: "1px solid var(--border-accent)",
+    padding: 14,
+    boxShadow: "0 16px 48px rgba(0,0,0,0.12)",
+    borderRadius: 12,
+    pointerEvents: "none",
+    zIndex: 50,
+    backdropFilter: "blur(8px)",
+  };
+
+  if (docked) {
+    return (
+      <div style={{
+        ...shared,
+        margin: "12px auto 0",
+        transition: "opacity 0.15s ease-out",
+      }}>
+        {children}
+      </div>
+    );
+  }
+
   const cw = containerRef.current?.clientWidth || 900;
   const ch = containerRef.current?.clientHeight || 900;
 
@@ -30,18 +54,10 @@ export default function VizTooltip({ mouse, containerRef, children, width = 240,
 
   return (
     <div style={{
+      ...shared,
       position: "absolute",
       left: x,
       top: y,
-      width,
-      background: "var(--bg-overlay-nav)",
-      border: "1px solid var(--border-accent)",
-      padding: 14,
-      boxShadow: "0 16px 48px rgba(0,0,0,0.12)",
-      borderRadius: 12,
-      pointerEvents: "none",
-      zIndex: 50,
-      backdropFilter: "blur(8px)",
       transition: "left 0.06s ease-out, top 0.06s ease-out",
     }}>
       {children}
