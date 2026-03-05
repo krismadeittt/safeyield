@@ -30,11 +30,12 @@ export default function useChartZoom(totalPoints, granularity) {
 
   const [viewRange, setViewRange] = useState(() => getDefaultRange(granularity, totalPoints));
   const chartWidthRef = useRef(600);
+  const padLRef = useRef(0);
 
   // Selection state for drag-to-select
   const [selectionRange, setSelectionRange] = useState(null); // [startIdx, endIdx]
-  const [selectionPx, setSelectionPx] = useState(null);       // { x1, x2 }
-  const dragRef = useRef({ active: false, startX: 0, startIdx: 0 });
+  const [selectionPx, setSelectionPx] = useState(null);       // { x1, x2 } relative to chart area
+  const dragRef = useRef({ active: false, startX: 0, startPx: 0, startIdx: 0 });
 
   // Apply default range when granularity or totalPoints changes
   useEffect(() => {
@@ -49,22 +50,28 @@ export default function useChartZoom(totalPoints, granularity) {
     chartWidthRef.current = w;
   }, []);
 
-  // Convert pixel X (relative to chart area left edge) to bar index
+  const setPadL = useCallback((p) => {
+    padLRef.current = p;
+  }, []);
+
+  // Convert pixel X (relative to container left edge) to bar index
+  // Subtracts padL to get chart-area-relative coordinate
   const pxToIdx = useCallback((px) => {
     const chartW = chartWidthRef.current || 600;
+    const adjustedPx = px - padLRef.current;
     const [start, end] = viewRange;
     const span = end - start + 1;
-    const fraction = Math.max(0, Math.min(1, px / chartW));
+    const fraction = Math.max(0, Math.min(1, adjustedPx / chartW));
     return Math.round(start + fraction * (span - 1));
   }, [viewRange]);
 
   // ── Drag-to-select on chart ──
   const handleMouseDown = useCallback((e) => {
-    // Only left mouse button
     if (e.button !== 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    dragRef.current = { active: true, startX: e.clientX, startPx: px, startIdx: pxToIdx(px) };
+    const rawPx = e.clientX - rect.left;
+    const chartPx = rawPx - padLRef.current; // chart-area-relative
+    dragRef.current = { active: true, startX: e.clientX, startPx: chartPx, startIdx: pxToIdx(rawPx) };
   }, [pxToIdx]);
 
   const handleMouseMove = useCallback((e) => {
@@ -73,8 +80,9 @@ export default function useChartZoom(totalPoints, granularity) {
     if (deltaX < 3) return; // Dead zone
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const currentPx = e.clientX - rect.left;
-    const currentIdx = pxToIdx(currentPx);
+    const rawPx = e.clientX - rect.left;
+    const chartPx = rawPx - padLRef.current; // chart-area-relative
+    const currentIdx = pxToIdx(rawPx);
     const startIdx = dragRef.current.startIdx;
 
     const minIdx = Math.min(startIdx, currentIdx);
@@ -84,9 +92,11 @@ export default function useChartZoom(totalPoints, granularity) {
       Math.min(viewRange[1], maxSelectIdx),
     ]);
 
-    const x1 = Math.min(dragRef.current.startPx, currentPx);
-    const x2 = Math.max(dragRef.current.startPx, currentPx);
-    setSelectionPx({ x1: Math.max(0, x1), x2: Math.min(chartWidthRef.current, x2) });
+    // Store selectionPx as chart-area-relative (0 = chart area left edge)
+    const chartW = chartWidthRef.current || 600;
+    const x1 = Math.min(dragRef.current.startPx, chartPx);
+    const x2 = Math.max(dragRef.current.startPx, chartPx);
+    setSelectionPx({ x1: Math.max(0, x1), x2: Math.min(chartW, x2) });
   }, [pxToIdx, viewRange]);
 
   const handleMouseUp = useCallback(() => {
@@ -109,8 +119,9 @@ export default function useChartZoom(totalPoints, granularity) {
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
-    const px = touch.clientX - rect.left;
-    dragRef.current = { active: true, startX: touch.clientX, startPx: px, startIdx: pxToIdx(px) };
+    const rawPx = touch.clientX - rect.left;
+    const chartPx = rawPx - padLRef.current;
+    dragRef.current = { active: true, startX: touch.clientX, startPx: chartPx, startIdx: pxToIdx(rawPx) };
   }, [pxToIdx]);
 
   const handleTouchMove = useCallback((e) => {
@@ -120,8 +131,9 @@ export default function useChartZoom(totalPoints, granularity) {
     if (deltaX < 3) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const currentPx = touch.clientX - rect.left;
-    const currentIdx = pxToIdx(currentPx);
+    const rawPx = touch.clientX - rect.left;
+    const chartPx = rawPx - padLRef.current;
+    const currentIdx = pxToIdx(rawPx);
     const startIdx = dragRef.current.startIdx;
 
     const minIdx = Math.min(startIdx, currentIdx);
@@ -131,9 +143,10 @@ export default function useChartZoom(totalPoints, granularity) {
       Math.min(viewRange[1], maxSelectIdx),
     ]);
 
-    const x1 = Math.min(dragRef.current.startPx, currentPx);
-    const x2 = Math.max(dragRef.current.startPx, currentPx);
-    setSelectionPx({ x1: Math.max(0, x1), x2: Math.min(chartWidthRef.current, x2) });
+    const chartW = chartWidthRef.current || 600;
+    const x1 = Math.min(dragRef.current.startPx, chartPx);
+    const x2 = Math.max(dragRef.current.startPx, chartPx);
+    setSelectionPx({ x1: Math.max(0, x1), x2: Math.min(chartW, x2) });
   }, [pxToIdx, viewRange]);
 
   const handleTouchEnd = useCallback(() => {
@@ -163,6 +176,7 @@ export default function useChartZoom(totalPoints, granularity) {
     isZoomed,
     visibleCount,
     setChartWidth,
+    setPadL,
     // Drag-to-select
     handleMouseDown,
     handleMouseMove,

@@ -367,10 +367,11 @@ export default function HistoricalProjectedChart({
   const svgW = Math.max(100, width - 48);
   const chartW = svgW - padL - padR;
 
-  // Store chart width for accurate pan calculations
+  // Store chart dimensions for accurate drag/pan calculations
   useEffect(() => {
     zoom.setChartWidth(chartW);
-  }, [chartW, zoom.setChartWidth]);
+    zoom.setPadL(padL);
+  }, [chartW, padL, zoom.setChartWidth, zoom.setPadL]);
 
   // Visible data range (respecting zoom)
   const visibleBars = zoom.isZoomed
@@ -612,7 +613,7 @@ export default function HistoricalProjectedChart({
           )}
         </div>
 
-        <svg width={svgW} height={mainH} style={{ display: "block" }}>
+        <svg width={svgW} height={mainH} style={{ display: "block", overflow: "hidden" }}>
           <defs>
             <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
@@ -727,7 +728,7 @@ export default function HistoricalProjectedChart({
           )}
         </div>
 
-        <svg width={svgW} height={divH} style={{ display: "block" }}>
+        <svg width={svgW} height={divH} style={{ display: "block", overflow: "hidden" }}>
           {[0, 0.5, 1].map(pct => {
             const y = divPadTop + divChartH * (1 - pct);
             return (
