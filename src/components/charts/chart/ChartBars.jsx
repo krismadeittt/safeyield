@@ -3,8 +3,6 @@ import React from 'react';
 /**
  * SVG bar chart renderer for all granularities (daily, weekly, monthly, yearly).
  * Renders stacked bars: bottom = noDrip/price, top = DRIP bonus/div return.
- *
- * Supports drag-to-pan when zoomed via zoom.handleMouseDown/Move/Up.
  */
 export default function ChartBars({
   data, chartW, chartH, padL, padTop, maxVal,
@@ -40,7 +38,7 @@ export default function ChartBars({
         <g key={i}
           onMouseEnter={() => onHover(i)}
           onMouseLeave={onLeave}
-          style={{ cursor: zoom?.isZoomed ? 'grab' : 'pointer' }}
+          style={{ cursor: 'crosshair' }}
         >
           <rect x={x} y={y} width={barW} height={barH}
             fill={fill}
@@ -84,7 +82,7 @@ export default function ChartBars({
       <g key={i}
         onMouseEnter={() => onHover(i)}
         onMouseLeave={onLeave}
-        style={{ cursor: zoom?.isZoomed ? 'grab' : 'pointer' }}
+        style={{ cursor: 'crosshair' }}
       >
         {/* Bottom (noDrip / price) */}
         <rect x={x} y={padTop + chartH - bottomBarH} width={barW} height={bottomBarH}

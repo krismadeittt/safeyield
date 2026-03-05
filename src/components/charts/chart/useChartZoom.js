@@ -1,198 +1,181 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 /**
- * Zoom/pan state for charts. Manages viewRange [startIdx, endIdx].
+ * Zoom state for charts. Manages viewRange [startIdx, endIdx].
  *
  * Interactions:
- *  - Scroll wheel: zoom in/out centered on cursor (1.15x per tick)
- *  - Click + drag: pan left/right when zoomed
- *  - Double-click: reset zoom to full view
- *  - Pinch (mobile): zoom in/out
- *  - Single-finger drag (mobile, zoomed): pan
+ *  - Drag on chart: select range to zoom into
+ *  - Double-click: reset zoom to default range for current granularity
+ *  - Scrubber bar: handles + center-drag for precise zoom control
  *
  * Shared between Portfolio Value and Dividend Income charts for synced zoom.
  */
-export default function useChartZoom(totalPoints, totalYearsSpan = 1) {
-  const maxSpan = Math.max(0, totalPoints - 1);
-  const minSpan = Math.min(7, maxSpan);
 
-  const [viewRange, setViewRange] = useState([0, maxSpan]);
-  const dragRef = useRef({ active: false, startX: 0, startRange: null });
-  const pinchRef = useRef({ active: false, initialDist: 0, initialRange: null });
+function getDefaultRange(granularity, totalPoints) {
+  const maxIdx = Math.max(0, totalPoints - 1);
+  if (granularity === 'daily') {
+    const span = Math.min(63, maxIdx); // ~3 months of trading days
+    return [Math.max(0, maxIdx - span), maxIdx];
+  }
+  if (granularity === 'weekly') {
+    const span = Math.min(52, maxIdx); // ~1 year
+    return [Math.max(0, maxIdx - span), maxIdx];
+  }
+  return [0, maxIdx]; // monthly/yearly = full range
+}
+
+export default function useChartZoom(totalPoints, granularity) {
+  const maxIdx = Math.max(0, totalPoints - 1);
+  const minSpan = Math.min(7, maxIdx);
+
+  const [viewRange, setViewRange] = useState(() => getDefaultRange(granularity, totalPoints));
   const chartWidthRef = useRef(600);
 
-  // Clamp viewRange when total points change; only reset to full range if already at full range
-  useEffect(() => {
-    setViewRange(prev => {
-      const prevSpan = prev[1] - prev[0];
-      const wasFullRange = prev[0] === 0 && prevSpan >= maxSpan;
-      if (wasFullRange || maxSpan <= 0) {
-        return [0, Math.max(0, totalPoints - 1)];
-      }
-      // Preserve zoom position, clamped to new valid range
-      const newEnd = Math.min(prev[1], totalPoints - 1);
-      const newStart = Math.max(0, newEnd - prevSpan);
-      return [newStart, Math.min(newStart + prevSpan, totalPoints - 1)];
-    });
-  }, [totalPoints, maxSpan]);
+  // Selection state for drag-to-select
+  const [selectionRange, setSelectionRange] = useState(null); // [startIdx, endIdx]
+  const [selectionPx, setSelectionPx] = useState(null);       // { x1, x2 }
+  const dragRef = useRef({ active: false, startX: 0, startIdx: 0 });
 
-  const isZoomed = viewRange[0] > 0 || viewRange[1] < totalPoints - 1;
+  // Apply default range when granularity or totalPoints changes
+  useEffect(() => {
+    const [defStart, defEnd] = getDefaultRange(granularity, totalPoints);
+    setViewRange([defStart, defEnd]);
+  }, [granularity, totalPoints]);
+
+  const isZoomed = viewRange[0] > 0 || viewRange[1] < maxIdx;
   const visibleCount = viewRange[1] - viewRange[0] + 1;
 
-  // Approximate visible years for smart granularity
-  const visibleYears = useMemo(() => {
-    if (totalPoints <= 1) return totalYearsSpan;
-    return totalYearsSpan * (visibleCount / totalPoints);
-  }, [totalYearsSpan, visibleCount, totalPoints]);
-
-  // Store chart pixel width for pan calculations
   const setChartWidth = useCallback((w) => {
     chartWidthRef.current = w;
   }, []);
 
-  // ── Scroll wheel zoom ──
-  const handleWheel = useCallback((e, cursorFraction) => {
-    e.preventDefault();
-    if (totalPoints <= 1) return;
-
+  // Convert pixel X (relative to chart area left edge) to bar index
+  const pxToIdx = useCallback((px) => {
+    const chartW = chartWidthRef.current || 600;
     const [start, end] = viewRange;
-    const span = end - start;
-    const zoomFactor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-    const newSpan = Math.max(minSpan, Math.min(maxSpan, Math.round(span * zoomFactor)));
-    if (newSpan === span) return;
+    const span = end - start + 1;
+    const fraction = Math.max(0, Math.min(1, px / chartW));
+    return Math.round(start + fraction * (span - 1));
+  }, [viewRange]);
 
-    const cf = Number.isFinite(cursorFraction) ? Math.max(0, Math.min(1, cursorFraction)) : 0.5;
-    const center = start + span * cf;
-    let newStart = Math.round(center - newSpan * cf);
-    let newEnd = newStart + newSpan;
-
-    if (newStart < 0) { newEnd -= newStart; newStart = 0; }
-    if (newEnd > totalPoints - 1) { newStart -= (newEnd - totalPoints + 1); newEnd = totalPoints - 1; }
-    newStart = Math.max(0, newStart);
-    newEnd = Math.min(totalPoints - 1, newEnd);
-
-    setViewRange([newStart, newEnd]);
-  }, [viewRange, totalPoints, minSpan, maxSpan]);
-
-  // ── Click + drag to pan ──
+  // ── Drag-to-select on chart ──
   const handleMouseDown = useCallback((e) => {
-    if (!isZoomed) return;
-    dragRef.current = { active: true, startX: e.clientX, startRange: [...viewRange] };
-  }, [isZoomed, viewRange]);
+    // Only left mouse button
+    if (e.button !== 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    dragRef.current = { active: true, startX: e.clientX, startPx: px, startIdx: pxToIdx(px) };
+  }, [pxToIdx]);
 
   const handleMouseMove = useCallback((e) => {
     if (!dragRef.current.active) return;
-    const deltaX = e.clientX - dragRef.current.startX;
-    const pointsPerPx = visibleCount / (chartWidthRef.current || 600);
-    const deltaPoints = Math.round(-deltaX * pointsPerPx);
+    const deltaX = Math.abs(e.clientX - dragRef.current.startX);
+    if (deltaX < 3) return; // Dead zone
 
-    const [origStart, origEnd] = dragRef.current.startRange;
-    let newStart = origStart + deltaPoints;
-    let newEnd = origEnd + deltaPoints;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const currentPx = e.clientX - rect.left;
+    const currentIdx = pxToIdx(currentPx);
+    const startIdx = dragRef.current.startIdx;
 
-    if (newStart < 0) { newEnd -= newStart; newStart = 0; }
-    if (newEnd > totalPoints - 1) { newStart -= (newEnd - totalPoints + 1); newEnd = totalPoints - 1; }
-    newStart = Math.max(0, newStart);
-    newEnd = Math.min(totalPoints - 1, newEnd);
+    const minIdx = Math.min(startIdx, currentIdx);
+    const maxSelectIdx = Math.max(startIdx, currentIdx);
+    setSelectionRange([
+      Math.max(viewRange[0], minIdx),
+      Math.min(viewRange[1], maxSelectIdx),
+    ]);
 
-    setViewRange([newStart, newEnd]);
-  }, [visibleCount, totalPoints]);
+    const x1 = Math.min(dragRef.current.startPx, currentPx);
+    const x2 = Math.max(dragRef.current.startPx, currentPx);
+    setSelectionPx({ x1: Math.max(0, x1), x2: Math.min(chartWidthRef.current, x2) });
+  }, [pxToIdx, viewRange]);
 
   const handleMouseUp = useCallback(() => {
-    dragRef.current = { active: false, startX: 0, startRange: null };
-  }, []);
-
-  // ── Double-click to reset ──
-  const handleDoubleClick = useCallback(() => {
-    setViewRange([0, Math.max(0, totalPoints - 1)]);
-  }, [totalPoints]);
-
-  // ── Pan (programmatic) ──
-  const pan = useCallback((deltaPoints) => {
-    const [start, end] = viewRange;
-    let newStart = start + deltaPoints;
-    let newEnd = end + deltaPoints;
-    if (newStart < 0) { newEnd -= newStart; newStart = 0; }
-    if (newEnd > totalPoints - 1) { newStart -= (newEnd - totalPoints + 1); newEnd = totalPoints - 1; }
-    newStart = Math.max(0, newStart);
-    newEnd = Math.min(totalPoints - 1, newEnd);
-    setViewRange([newStart, newEnd]);
-  }, [viewRange, totalPoints]);
-
-  // ── Touch pinch zoom ──
-  const handleTouchStart = useCallback((e) => {
-    if (e.touches.length === 2) {
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      pinchRef.current = { active: true, initialDist: dist, initialRange: [...viewRange] };
-    } else if (e.touches.length === 1 && isZoomed) {
-      dragRef.current = { active: true, startX: e.touches[0].clientX, startRange: [...viewRange] };
+    if (dragRef.current.active && selectionRange) {
+      const [sStart, sEnd] = selectionRange;
+      if (sEnd - sStart >= 2) {
+        setViewRange([
+          Math.max(0, sStart),
+          Math.min(maxIdx, sEnd),
+        ]);
+      }
     }
-  }, [viewRange, isZoomed]);
+    dragRef.current = { active: false, startX: 0, startPx: 0, startIdx: 0 };
+    setSelectionRange(null);
+    setSelectionPx(null);
+  }, [selectionRange, maxIdx]);
+
+  // ── Touch drag-to-select ──
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = touch.clientX - rect.left;
+    dragRef.current = { active: true, startX: touch.clientX, startPx: px, startIdx: pxToIdx(px) };
+  }, [pxToIdx]);
 
   const handleTouchMove = useCallback((e) => {
-    if (pinchRef.current.active && e.touches.length === 2) {
-      e.preventDefault();
-      if (totalPoints <= 1) return;
+    if (!dragRef.current.active || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - dragRef.current.startX);
+    if (deltaX < 3) return;
 
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      if (dist < 1 || pinchRef.current.initialDist < 1) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const currentPx = touch.clientX - rect.left;
+    const currentIdx = pxToIdx(currentPx);
+    const startIdx = dragRef.current.startIdx;
 
-      const scale = pinchRef.current.initialDist / dist;
-      const [iStart, iEnd] = pinchRef.current.initialRange;
-      const iSpan = iEnd - iStart;
-      const center = (iStart + iEnd) / 2;
-      const newSpan = Math.max(minSpan, Math.min(maxSpan, Math.round(iSpan * scale)));
-      let newStart = Math.round(center - newSpan / 2);
-      let newEnd = newStart + newSpan;
-      if (newStart < 0) { newEnd -= newStart; newStart = 0; }
-      if (newEnd > totalPoints - 1) { newStart -= (newEnd - totalPoints + 1); newEnd = totalPoints - 1; }
-      setViewRange([Math.max(0, newStart), Math.min(totalPoints - 1, newEnd)]);
-    } else if (dragRef.current.active && e.touches.length === 1) {
-      const deltaX = e.touches[0].clientX - dragRef.current.startX;
-      const pointsPerPx = visibleCount / (chartWidthRef.current || 600);
-      const deltaPoints = Math.round(-deltaX * pointsPerPx);
+    const minIdx = Math.min(startIdx, currentIdx);
+    const maxSelectIdx = Math.max(startIdx, currentIdx);
+    setSelectionRange([
+      Math.max(viewRange[0], minIdx),
+      Math.min(viewRange[1], maxSelectIdx),
+    ]);
 
-      const startRange = dragRef.current.startRange;
-      if (!startRange) return;
-      const [origStart, origEnd] = startRange;
-      let newStart = origStart + deltaPoints;
-      let newEnd = origEnd + deltaPoints;
-      if (newStart < 0) { newEnd -= newStart; newStart = 0; }
-      if (newEnd > totalPoints - 1) { newStart -= (newEnd - totalPoints + 1); newEnd = totalPoints - 1; }
-      setViewRange([Math.max(0, newStart), Math.min(totalPoints - 1, newEnd)]);
-    }
-  }, [totalPoints, visibleCount, viewRange, minSpan, maxSpan]);
+    const x1 = Math.min(dragRef.current.startPx, currentPx);
+    const x2 = Math.max(dragRef.current.startPx, currentPx);
+    setSelectionPx({ x1: Math.max(0, x1), x2: Math.min(chartWidthRef.current, x2) });
+  }, [pxToIdx, viewRange]);
 
   const handleTouchEnd = useCallback(() => {
-    pinchRef.current = { active: false, initialDist: 0, initialRange: null };
-    dragRef.current = { active: false, startX: 0, startRange: null };
-  }, []);
+    handleMouseUp();
+  }, [handleMouseUp]);
 
-  const resetZoom = useCallback(() => {
-    setViewRange([0, Math.max(0, totalPoints - 1)]);
-  }, [totalPoints]);
+  // ── Scrubber API ──
+  const setScrubberRange = useCallback((start, end) => {
+    const newStart = Math.max(0, Math.min(start, maxIdx));
+    const newEnd = Math.max(newStart + minSpan, Math.min(end, maxIdx));
+    setViewRange([newStart, newEnd]);
+  }, [maxIdx, minSpan]);
+
+  // ── Reset zoom ──
+  const resetZoom = useCallback((gran) => {
+    const g = gran || granularity;
+    const [defStart, defEnd] = getDefaultRange(g, totalPoints);
+    setViewRange([defStart, defEnd]);
+  }, [granularity, totalPoints]);
+
+  const handleDoubleClick = useCallback(() => {
+    resetZoom();
+  }, [resetZoom]);
 
   return {
     viewRange,
     isZoomed,
     visibleCount,
-    visibleYears,
     setChartWidth,
-    handleWheel,
+    // Drag-to-select
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
-    handleDoubleClick,
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
-    pan,
+    selectionRange,
+    selectionPx,
+    // Scrubber
+    setScrubberRange,
+    // Reset
     resetZoom,
+    handleDoubleClick,
   };
 }
