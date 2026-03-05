@@ -58,6 +58,7 @@ function AppInner() {
     lastUpdatedAt,
     mergeLiveData,
     refreshAll, refreshing,
+    snapshots, inceptionDate,
   } = usePortfolio(getToken);
 
   const sharesInputRef = useRef(null);
@@ -257,6 +258,8 @@ function AppInner() {
               setVizType={updateVizType}
               monthlyAvg={summary.monthlyAvg}
               divScheduleMap={divScheduleMap}
+              snapshots={snapshots}
+              inceptionDate={inceptionDate}
             />
             <CashSection
               cashBalance={cashBalance}

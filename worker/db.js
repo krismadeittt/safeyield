@@ -188,3 +188,91 @@ export async function getLatestDividendDate(db, ticker) {
   ).bind(ticker).first();
   return row ? row.latest : null;
 }
+
+// ── Portfolio snapshot helpers ──
+
+export async function getSnapshots(db, userId, from, to, limit) {
+  limit = Math.min(limit || 2000, 2000);
+  const { results } = await db.prepare(
+    'SELECT date, total_value, cash_value, holdings_value, total_div_income, holdings_snapshot FROM portfolio_snapshots WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC LIMIT ?'
+  ).bind(userId, from, to, limit).all();
+  return results || [];
+}
+
+export async function getLatestSnapshot(db, userId) {
+  return db.prepare(
+    'SELECT date, total_value, cash_value, holdings_value, total_div_income, holdings_snapshot FROM portfolio_snapshots WHERE user_id = ? ORDER BY date DESC LIMIT 1'
+  ).bind(userId).first();
+}
+
+export async function saveSnapshots(db, userId, snapshots) {
+  if (!snapshots || snapshots.length === 0) return;
+  const stmts = snapshots.map(s =>
+    db.prepare(
+      'INSERT OR REPLACE INTO portfolio_snapshots (user_id, date, total_value, cash_value, holdings_value, total_div_income, holdings_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(
+      userId, s.date, s.total_value || 0, s.cash_value || 0,
+      s.holdings_value || 0, s.total_div_income || 0,
+      typeof s.holdings_snapshot === 'string' ? s.holdings_snapshot : JSON.stringify(s.holdings_snapshot)
+    )
+  );
+  for (let i = 0; i < stmts.length; i += 80) {
+    await db.batch(stmts.slice(i, i + 80));
+  }
+}
+
+export async function deleteSnapshots(db, userId) {
+  await db.prepare('DELETE FROM portfolio_snapshots WHERE user_id = ?').bind(userId).run();
+}
+
+// ── Daily price cache helpers ──
+
+export async function getDailyPrices(db, tickers, from, to) {
+  if (!tickers?.length) return [];
+  // Build query for multiple tickers
+  const placeholders = tickers.map(() => '?').join(',');
+  const { results } = await db.prepare(
+    `SELECT ticker, date, close, adj_close FROM daily_prices WHERE ticker IN (${placeholders}) AND date >= ? AND date <= ? ORDER BY ticker, date`
+  ).bind(...tickers, from, to).all();
+  return results || [];
+}
+
+export async function saveDailyPrices(db, prices) {
+  if (!prices || prices.length === 0) return;
+  const stmts = prices.map(p =>
+    db.prepare(
+      'INSERT OR REPLACE INTO daily_prices (ticker, date, close, adj_close) VALUES (?, ?, ?, ?)'
+    ).bind(p.ticker, p.date, p.close, p.adj_close ?? null)
+  );
+  for (let i = 0; i < stmts.length; i += 80) {
+    await db.batch(stmts.slice(i, i + 80));
+  }
+}
+
+export async function getCachedPriceDates(db, tickers, from, to) {
+  if (!tickers?.length) return new Set();
+  const placeholders = tickers.map(() => '?').join(',');
+  const { results } = await db.prepare(
+    `SELECT DISTINCT ticker || ':' || date as key FROM daily_prices WHERE ticker IN (${placeholders}) AND date >= ? AND date <= ?`
+  ).bind(...tickers, from, to).all();
+  return new Set((results || []).map(r => r.key));
+}
+
+export async function getAllUsersWithHoldings(db) {
+  const { results } = await db.prepare(
+    'SELECT DISTINCT h.user_id, u.cash_balance FROM holdings h JOIN users u ON h.user_id = u.id'
+  ).all();
+  return results || [];
+}
+
+export async function getAllHoldingsGrouped(db) {
+  const { results } = await db.prepare(
+    'SELECT user_id, ticker, shares FROM holdings ORDER BY user_id'
+  ).all();
+  const grouped = {};
+  for (const r of (results || [])) {
+    if (!grouped[r.user_id]) grouped[r.user_id] = [];
+    grouped[r.user_id].push({ ticker: r.ticker, shares: r.shares });
+  }
+  return grouped;
+}
