@@ -21,6 +21,7 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
   const [mode, setMode] = useState("pick"); // "pick", "balance", "custom"
   const [strategy, setStrategy] = useState(null);
   const [balance, setBalance] = useState("");
+  const [cashAmount, setCashAmount] = useState("");
   const [error, setError] = useState("");
 
   // Custom picks state
@@ -51,7 +52,8 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
     else holdings = [];
 
     if (setVizType) setVizType('sunburst');
-    onLoad(holdings, strategy.id, val);
+    const cash = parseFloat(cashAmount.replace(/[,$]/g, "")) || 0;
+    onLoad(holdings, strategy.id, val, cash);
   }
 
   async function handleCustomStart() {
@@ -79,7 +81,8 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
         });
       }
       if (setVizType) setVizType('sunburst');
-      onLoad(holdings, "custom");
+      const cash = parseFloat(cashAmount.replace(/[,$]/g, "")) || 0;
+      onLoad(holdings, "custom", undefined, cash);
     } catch (e) {
       setError("Failed to load some stocks. Please try again.");
     } finally {
@@ -182,6 +185,35 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
             />
           ))}
 
+          {/* Cash position input */}
+          <div style={{
+            marginTop: 16, padding: "12px 14px",
+            background: "var(--bg-card)", border: "1px solid var(--border-dim)",
+            borderLeft: "3px solid var(--primary)",
+            display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+          }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600, minWidth: 90 }}>
+              Cash Position
+            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>$</span>
+              <input
+                type="text"
+                placeholder="0"
+                value={cashAmount}
+                onChange={e => setCashAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                style={{
+                  width: 120, padding: "6px 10px", fontSize: "0.9rem",
+                  background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
+                  color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif",
+                }}
+              />
+            </div>
+            <span style={{ fontSize: "0.65rem", color: "var(--text-dim)", fontStyle: "italic" }}>
+              Optional — uninvested cash in your account
+            </span>
+          </div>
+
           {error && <div style={{ color: "var(--red)", fontSize: "0.8rem", marginTop: 12 }}>{error}</div>}
 
           <div style={{ display: "flex", gap: 8, marginTop: "1.5rem", justifyContent: "center" }}>
@@ -239,6 +271,35 @@ export default function Onboarding({ onLoad, prePrices, preLoading, preloadPrice
           fontFamily: "'DM Sans', system-ui, sans-serif", marginBottom: "1rem",
         }}
       />
+      {/* Cash position input */}
+      <div style={{
+        marginBottom: "1rem", padding: "12px 16px",
+        background: "var(--bg-card)", border: "1px solid var(--border-dim)",
+        borderLeft: "3px solid var(--primary)",
+        display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+        justifyContent: "center",
+      }}>
+        <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", fontWeight: 600 }}>
+          Cash Position
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>$</span>
+          <input
+            type="text"
+            placeholder="0"
+            value={cashAmount}
+            onChange={e => setCashAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+            style={{
+              width: 120, padding: "6px 10px", fontSize: "0.9rem", textAlign: "center",
+              background: "var(--bg-input-fill)", border: "1px solid var(--bg-input-border)",
+              color: "var(--text-primary)", fontFamily: "'DM Sans', system-ui, sans-serif",
+            }}
+          />
+        </div>
+        <span style={{ fontSize: "0.65rem", color: "var(--text-dim)", fontStyle: "italic" }}>
+          Optional — uninvested cash
+        </span>
+      </div>
       {error && <div style={{ color: "var(--red)", fontSize: "0.8rem", marginBottom: 8 }}>{error}</div>}
       <button onClick={handleStart} disabled={preLoading} style={{
         padding: "12px 40px", fontSize: "1rem", cursor: "pointer",

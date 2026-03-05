@@ -430,7 +430,7 @@ export default function usePortfolio(getToken) {
   }
 
   // Handle onboarding complete
-  function handleLoad(newHoldings, strategyId, balance) {
+  function handleLoad(newHoldings, strategyId, balance, initialCash = 0) {
     setHoldings(newHoldings);
     setStrategy(strategyId);
     setIsOnboarding(false);
@@ -442,7 +442,8 @@ export default function usePortfolio(getToken) {
       setLiveData(prev => ({ ...prev, ...prePrices }));
     }
     // Reset DRIP and cash state for new portfolio
-    setCashBalance(0);
+    const cashVal = Math.max(0, initialCash || 0);
+    setCashBalance(cashVal);
     setCashApy(0);
     setCashCompounding('none');
     setDripEnabled(true);
@@ -461,7 +462,7 @@ export default function usePortfolio(getToken) {
         console.warn('Save on load failed:', e.message)
       );
       // Save strategy + target balance + lastProcessedAt to profile
-      updateUserProfile(getToken, { displayName: '', defaultStrategy: strategyId || '', targetBalance: balance || 0, dripEnabled: true, cashBalance: 0, lastProcessedAt: today, cashApy: 0, cashCompounding: 'none' }).catch(() => {});
+      updateUserProfile(getToken, { displayName: '', defaultStrategy: strategyId || '', targetBalance: balance || 0, dripEnabled: true, cashBalance: cashVal, lastProcessedAt: today, cashApy: 0, cashCompounding: 'none' }).catch(() => {});
     }
   }
 
