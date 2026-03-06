@@ -169,8 +169,6 @@ export default function HistoricalProjectedChart({
     const periodsPerYear = granularity === 'daily' ? 252 : granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
     const result = [];
 
-    let nowNoDrip = portfolioValue;
-
     if (effectiveHistYears > 0 && effectiveHistData) {
       for (let i = 0; i < effectiveHistData.length; i++) {
         const pt = effectiveHistData[i];
@@ -210,15 +208,13 @@ export default function HistoricalProjectedChart({
           yearsFromNow: year - currentYear,
         });
       }
-      const lastHist = effectiveHistData[effectiveHistData.length - 1];
-      nowNoDrip = lastHist?.noDripValue || portfolioValue;
     }
 
     result.push({
       label: "Now", axisLabel: "Now",
       fullLabel: `${currentYear} (current)`,
-      total: portfolioValue, noDrip: nowNoDrip,
-      dripBonus: Math.max(0, portfolioValue - nowNoDrip),
+      total: portfolioValue, noDrip: portfolioValue,
+      dripBonus: 0,
       isHistorical: true, isCurrent: true,
       year: currentYear, periodIndex: 0, yearsFromNow: 0,
     });
@@ -502,8 +498,7 @@ export default function HistoricalProjectedChart({
 
         {/* Legend */}
         <div style={{ display: "flex", gap: isMobile ? 10 : 16, alignItems: "center", margin: "0.8rem 0 0.6rem", flexWrap: "wrap" }}>
-          <LegendItem color="var(--chart-hist-bright)" label="Div Return" />
-          <LegendItem color="var(--chart-hist)" label="Price" />
+          <LegendItem color="var(--chart-hist)" label="Historical" />
           <LegendItem color="var(--chart-proj-bright)" label="Proj DRIP" />
           <LegendItem color="var(--chart-proj)" label="Proj Base" />
         </div>
@@ -514,7 +509,7 @@ export default function HistoricalProjectedChart({
             label={dataSource === 'tracked' && inceptionDate ? `TRACKING START (${inceptionDate.substring(0, 4)})` : `BACKTEST START (${startingYear})`}
             value={formatCurrency(startingValue)} color="var(--text-sub)" compact={isMobile} borderColor="var(--text-sub)"
           />
-          <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="var(--primary)" compact={isMobile} borderColor="var(--primary)" />
+          <StatCard label="CURRENT" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="var(--primary)" compact={isMobile} borderColor="var(--primary)" />
           <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="var(--green)" compact={isMobile} borderColor="var(--green)" />
           <StatCard label={`INCOME AT ${horizon}Y`} value={`${shortMoney(incomeAtHorizon)}/yr`} sub={`from ${shortMoney(totalIncome)} today`} color="var(--warning)" compact={isMobile} borderColor="var(--warning)" />
         </div>
@@ -658,9 +653,11 @@ export default function HistoricalProjectedChart({
               <span style={{ fontSize: "1rem", color: "var(--primary)", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
                 {formatCurrency(hovBar.total)}
               </span>
-              <span style={{ fontSize: "0.68rem", color: "var(--text-sub)", fontFamily: "'JetBrains Mono', monospace" }}>
-                No DRIP: {formatCurrency(hovBar.noDrip)} | DRIP +{formatCurrency(hovBar.dripBonus)}
-              </span>
+              {!hovBar.isHistorical && (
+                <span style={{ fontSize: "0.68rem", color: "var(--text-sub)", fontFamily: "'JetBrains Mono', monospace" }}>
+                  No DRIP: {formatCurrency(hovBar.noDrip)} | DRIP +{formatCurrency(hovBar.dripBonus)}
+                </span>
+              )}
             </div>
           ) : (
             <span style={{ fontSize: "0.5rem", color: "var(--text-sub)", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "'DM Sans', system-ui, sans-serif" }}>
