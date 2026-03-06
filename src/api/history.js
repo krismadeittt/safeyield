@@ -202,19 +202,11 @@ function computeSplitAdjustedClose(prices) {
 
     const impliedFactor = (cPrev / cCurr) / (acPrev / acCurr);
 
-    // Forward split: impliedFactor ≈ N (e.g. 4.0 for 4:1, 20.0 for 20:1)
-    if (impliedFactor > 1.5) {
-      const splitRatio = Math.round(impliedFactor);
-      if (splitRatio >= 2) {
-        factor *= splitRatio;
-      }
-    }
-    // Reverse split: impliedFactor ≈ 1/N (e.g. 0.5 for 1:2)
-    else if (impliedFactor < 0.6) {
-      const reverseSplitRatio = Math.round(1 / impliedFactor);
-      if (reverseSplitRatio >= 2) {
-        factor /= reverseSplitRatio;
-      }
+    // Apply raw impliedFactor for splits (no rounding — handles fractional
+    // splits like 3:2 correctly). Thresholds >1.3/<0.75 avoid false positives
+    // from dividends (a 10% special dividend gives ~1.11, well below 1.3).
+    if (impliedFactor > 1.3 || impliedFactor < 0.75) {
+      factor *= impliedFactor;
     }
 
     adjustedC[i - 1] = cPrev / factor;
@@ -298,35 +290,50 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
   const sortedPeriods = [...allPeriods].sort();
   if (sortedPeriods.length < 2) return [];
 
-  const startPeriod = sortedPeriods[0];
-
-  // Only use tickers that have data at the start period
+  // Per-ticker base: first period where each ticker has valid data
   const basePrices = {};
-  const validHoldings = holdings.filter(h => {
-    const p = tickerGroups[h.ticker]?.[startPeriod];
-    if (p && p.ac > 0 && p.c > 0) { basePrices[h.ticker] = p; return true; }
-    return false;
+  const holdingsWithData = [];
+  holdings.forEach(h => {
+    const groups = tickerGroups[h.ticker];
+    if (!groups) return;
+    for (const period of sortedPeriods) {
+      const p = groups[period];
+      if (p && p.c > 0) {
+        basePrices[h.ticker] = p;
+        holdingsWithData.push(h);
+        break;
+      }
+    }
   });
-  if (validHoldings.length === 0) return [];
+  if (holdingsWithData.length === 0) return [];
 
-  // For each period, compute weighted price-only growth ratios
+  // For each period, compute weighted price-only growth ratios.
+  // Carry forward last known price per ticker for gaps.
+  const lastKnown = {}; // { ticker: { c, date } }
   const results = [];
   for (const period of sortedPeriods) {
     let weightedPrice = 0;
     let totalWeight = 0;
     let latestDate = '';
 
-    validHoldings.forEach(h => {
+    holdingsWithData.forEach(h => {
       const base = basePrices[h.ticker];
       const periodP = tickerGroups[h.ticker]?.[period];
-      if (!periodP || !base.c) return;
+
+      // Update carry-forward if we have data this period
+      if (periodP && periodP.c > 0) {
+        lastKnown[h.ticker] = periodP;
+      }
+
+      const current = lastKnown[h.ticker];
+      if (!current || !base.c) return; // ticker hasn't appeared yet
 
       const weight = (h.shares || 0) * base.c;
-      const priceRatio = periodP.c / base.c;
+      const priceRatio = current.c / base.c;
       if (!isFinite(priceRatio)) return;
       weightedPrice += weight * priceRatio;
       totalWeight += weight;
-      if (periodP.date > latestDate) latestDate = periodP.date;
+      if (current.date > latestDate) latestDate = current.date;
     });
 
     if (totalWeight > 0) {

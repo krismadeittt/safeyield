@@ -157,7 +157,7 @@ describe('calcHistoricalPortfolioValues', () => {
     expect(result).toEqual([]);
   });
 
-  it('returns empty when all base prices are zero', () => {
+  it('skips periods with zero prices, uses first valid as base', () => {
     const historyMap = {
       KO: {
         p: [
@@ -168,7 +168,9 @@ describe('calcHistoricalPortfolioValues', () => {
     };
     const holdings = [{ ticker: 'KO', shares: 100 }];
     const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
-    expect(result).toEqual([]);
+    // Per-ticker base skips c=0 entry, uses c=50 as base → 1 result
+    expect(result.length).toBe(1);
+    expect(result[0].value).toBe(5000);
   });
 
   it('all values are finite (no NaN from division)', () => {
@@ -225,8 +227,6 @@ describe('calcHistoricalPortfolioValues', () => {
     };
     const holdings = [{ ticker: 'AMZN', shares: 100 }];
     const result = calcHistoricalPortfolioValues(historyMap, holdings, 15000, 20, 'yearly');
-    // After split adjustment: 2021 c=1800/20=90, 2022pre c=2000/20=100
-    // Price ratio 2021→latest: 90/150 = 0.6, so 2021 value = 15000 * 0.6 = 9000
     expect(result.length).toBeGreaterThan(0);
     const last = result[result.length - 1];
     expect(last.value).toBe(15000); // anchored
@@ -234,6 +234,33 @@ describe('calcHistoricalPortfolioValues', () => {
     expect(result[0].value).toBeLessThan(15000);
     // Should NOT show an inflated value like 180000 from undetected split
     expect(result[0].value).toBeLessThan(20000);
+  });
+
+  it('includes tickers with later start dates (partial history)', () => {
+    // KO has full history, NEW only has 2024 data
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2022-01-15', c: 40, ac: 40 },
+          { d: '2023-01-15', c: 50, ac: 50 },
+          { d: '2024-01-15', c: 60, ac: 60 },
+        ],
+      },
+      NEW: {
+        p: [
+          { d: '2024-01-15', c: 20, ac: 20 },
+        ],
+      },
+    };
+    const holdings = [
+      { ticker: 'KO', shares: 100 },
+      { ticker: 'NEW', shares: 50 },
+    ];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 7000, 20, 'yearly');
+    expect(result.length).toBe(3); // 2022, 2023, 2024
+    // NEW should contribute from 2024 onward (its base period)
+    // Last value anchored to portfolioValue
+    expect(result[result.length - 1].value).toBe(7000);
   });
 
   it('handles multiple tickers with overlapping dates', () => {
