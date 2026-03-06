@@ -51,6 +51,7 @@ export default function HistoricalProjectedChart({
   }, [holdings]);
 
   const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth(); // 0=Jan, 11=Dec
   const projYears = horizon;
 
   // Stabilize anchor value — only update when holdings change, not on every price tick
@@ -227,52 +228,98 @@ export default function HistoricalProjectedChart({
     // --- PROJECTED ---
     const simPPY = simPeriodsPerYear || 1;
     const displayPPY = periodsPerYear;
-    for (let yr = 1; yr <= projYears; yr++) {
-      for (let p = 0; p < displayPPY; p++) {
-        let interpNoDrip, interpDrip;
+    const dripArr = contribVals || dripVals;
+    const maxSimIdx = (noDripVals?.length || 1) - 1;
 
-        {
-          const fractionalSimIdx = (yr - 1) * simPPY + ((p + 1) / displayPPY) * simPPY;
-          const lo = Math.floor(fractionalSimIdx);
-          const hi = Math.min(lo + 1, (noDripVals?.length || 1) - 1);
-          const frac = fractionalSimIdx - lo;
-          interpNoDrip = Math.round((noDripVals?.[lo] || portfolioValue) + ((noDripVals?.[hi] || portfolioValue) - (noDripVals?.[lo] || portfolioValue)) * frac);
-          const dripArr = contribVals || dripVals;
-          interpDrip = Math.round((dripArr?.[lo] || portfolioValue) + ((dripArr?.[hi] || portfolioValue) - (dripArr?.[lo] || portfolioValue)) * frac);
-        }
+    function interpSim(arr, simIdx) {
+      const lo = Math.floor(simIdx);
+      const hi = Math.min(lo + 1, maxSimIdx);
+      const frac = simIdx - lo;
+      return Math.round((arr?.[lo] || portfolioValue) + ((arr?.[hi] || portfolioValue) - (arr?.[lo] || portfolioValue)) * frac);
+    }
 
+    if (granularity === 'yearly') {
+      // Yearly: "Now" bar is the current year. Projections start at currentYear+1.
+      for (let yr = 1; yr <= projYears; yr++) {
+        const simIdx = yr * simPPY;
         const projYear = currentYear + yr;
         const shortYr = "'" + String(projYear).slice(2);
+        result.push({
+          label: String(projYear), axisLabel: shortYr,
+          fullLabel: `${projYear} (projected)`,
+          total: interpSim(dripArr, simIdx), noDrip: interpSim(noDripVals, simIdx),
+          dripBonus: Math.max(0, interpSim(dripArr, simIdx) - interpSim(noDripVals, simIdx)),
+          isHistorical: false, isCurrent: false,
+          year: projYear, periodIndex: 0, yearsFromNow: yr,
+          fractionalYearsFromNow: yr,
+        });
+      }
+    } else {
+      // Monthly/weekly/daily: start from current period within the current year
+      let startPeriod, ppy;
+      if (granularity === 'monthly') {
+        startPeriod = currentMonth; // 0=Jan
+        ppy = 12;
+      } else if (granularity === 'weekly') {
+        const now = new Date();
+        const jan1 = new Date(now.getFullYear(), 0, 1);
+        startPeriod = Math.floor((now - jan1) / (7 * 86400000));
+        ppy = 52;
+      } else { // daily
+        const now = new Date();
+        const jan1 = new Date(now.getFullYear(), 0, 1);
+        const dayOfYear = Math.floor((now - jan1) / 86400000);
+        startPeriod = Math.floor(dayOfYear * 252 / 365);
+        ppy = 252;
+      }
+
+      const remainingInYear = ppy - startPeriod;
+      const totalPeriods = remainingInYear + (projYears - 1) * ppy;
+      // Cap at what simulation data can support
+      const maxPeriods = Math.min(totalPeriods, Math.ceil(maxSimIdx * ppy / simPPY));
+
+      for (let i = 0; i < maxPeriods; i++) {
+        const absolutePeriod = startPeriod + i;
+        const calendarYear = currentYear + Math.floor(absolutePeriod / ppy);
+        const periodInYear = absolutePeriod % ppy;
+        const fractionalYears = (i + 1) / ppy;
+        const simIdx = fractionalYears * simPPY;
+
+        const interpNoDrip = interpSim(noDripVals, simIdx);
+        const interpDripVal = interpSim(dripArr, simIdx);
+        const shortYr = "'" + String(calendarYear).slice(2);
+
         let label, fullLabel, axLabel;
-        if (granularity === 'yearly') {
-          label = String(projYear); fullLabel = `${projYear} (projected)`; axLabel = shortYr;
-        } else if (granularity === 'monthly') {
-          label = `${months[p]} ${projYear}`; fullLabel = `${months[p]} ${projYear} (projected)`;
-          axLabel = p === 0 ? `J${shortYr}` : "";
+        if (granularity === 'monthly') {
+          label = `${months[periodInYear]} ${calendarYear}`;
+          fullLabel = `${months[periodInYear]} ${calendarYear} (projected)`;
+          axLabel = periodInYear === 0 ? `J${shortYr}` : "";
         } else if (granularity === 'daily') {
-          // For daily projected, show as day-of-year
-          const dayLabel = Math.round((p / 252) * 365);
+          const dayLabel = Math.round((periodInYear / 252) * 365);
           const approxMonth = Math.floor(dayLabel / 30.5);
-          label = `Day ${p + 1}, ${projYear}`;
-          fullLabel = `~${months[Math.min(11, approxMonth)]} ${projYear} (projected)`;
-          axLabel = p === 0 ? shortYr : "";
-        } else {
-          label = `W${p + 1} ${projYear}`; fullLabel = `Week ${p + 1}, ${projYear} (projected)`;
-          axLabel = p === 0 ? shortYr : "";
+          label = `Day ${periodInYear + 1}, ${calendarYear}`;
+          fullLabel = `~${months[Math.min(11, approxMonth)]} ${calendarYear} (projected)`;
+          axLabel = periodInYear === 0 ? shortYr : "";
+        } else { // weekly
+          label = `W${periodInYear + 1} ${calendarYear}`;
+          fullLabel = `Week ${periodInYear + 1}, ${calendarYear} (projected)`;
+          axLabel = periodInYear === 0 ? shortYr : "";
         }
 
         result.push({
           label, axisLabel: axLabel, fullLabel,
-          total: interpDrip, noDrip: interpNoDrip,
-          dripBonus: Math.max(0, interpDrip - interpNoDrip),
+          total: interpDripVal, noDrip: interpNoDrip,
+          dripBonus: Math.max(0, interpDripVal - interpNoDrip),
           isHistorical: false, isCurrent: false,
-          year: projYear, periodIndex: p, yearsFromNow: yr,
+          year: calendarYear, periodIndex: periodInYear,
+          yearsFromNow: Math.max(1, Math.ceil(fractionalYears)),
+          fractionalYearsFromNow: fractionalYears,
         });
       }
     }
 
     return { bars: result, nowBarIndex };
-  }, [portfolioValue, projYears, currentYear, effectiveHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears, simPeriodsPerYear, dataSource]);
+  }, [portfolioValue, projYears, currentYear, currentMonth, effectiveHistData, granularity, noDripVals, dripVals, contribVals, effectiveHistYears, simPeriodsPerYear, dataSource]);
 
   const { bars: barData, nowBarIndex } = bars;
 
@@ -345,15 +392,24 @@ export default function HistoricalProjectedChart({
         const key = getPeriodKey(bar.date);
         divIncome = (realDivByPeriod[key] || 0) * divScale;
       } else {
-        const yearIdx = (bar.yearsFromNow || 1) - 1;
-
         if (bar.isCurrent || bar.yearsFromNow === 0) {
           divIncome = expectedAnnual / displayPeriodsPerYear;
-        } else if (divIncomePerYear && yearIdx >= 0 && yearIdx < divIncomePerYear.length) {
-          divIncome = distributeByPeriod(divIncomePerYear[yearIdx], bar.periodIndex);
+        } else if (divIncomePerYear && bar.fractionalYearsFromNow != null) {
+          const simYearIdx = Math.min(Math.floor(bar.fractionalYearsFromNow), divIncomePerYear.length - 1);
+          if (simYearIdx >= 0) {
+            divIncome = distributeByPeriod(divIncomePerYear[simYearIdx], bar.periodIndex);
+          } else {
+            divIncome = distributeByPeriod(expectedAnnual, bar.periodIndex);
+          }
         } else {
-          const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
-          divIncome = distributeByPeriod(expectedAnnual * growthFactor, bar.periodIndex);
+          // Fallback for bars without fractionalYearsFromNow (legacy)
+          const yearIdx = (bar.yearsFromNow || 1) - 1;
+          if (divIncomePerYear && yearIdx >= 0 && yearIdx < divIncomePerYear.length) {
+            divIncome = distributeByPeriod(divIncomePerYear[yearIdx], bar.periodIndex);
+          } else {
+            const growthFactor = Math.pow(1 + growthRate, bar.yearsFromNow || 0);
+            divIncome = distributeByPeriod(expectedAnnual * growthFactor, bar.periodIndex);
+          }
         }
       }
 
