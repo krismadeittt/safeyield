@@ -241,13 +241,13 @@ function periodKey(dateStr, granularity) {
 /**
  * Get portfolio values from real historical price data at the requested granularity.
  *
- * Direct calculation: for each period, sum (shares × split-adjusted price) for
- * every holding, plus implied cash. No dividend reinvestment — just raw price.
- * Cash is constant (derived as portfolioValue minus stock value at latest prices).
+ * Uses price-only growth ratios: for each ticker, group daily prices by period,
+ * compute weighted price-only return (split-adjusted close, no DRIP), then anchor
+ * the last period to the current portfolioValue.
  *
  * @param {Object} historyMap - { ticker: { p: [...], d: [...] }, ... }
  * @param {Array} holdings - [{ ticker, shares, ... }, ...]
- * @param {number} portfolioValue - Current portfolio value (for cash derivation)
+ * @param {number} portfolioValue - Current portfolio value (anchor point)
  * @param {number} [maxYearsBack=20] - How many years of history to compute
  * @param {string} [granularity='monthly'] - 'daily', 'weekly', 'monthly', or 'yearly'
  * @returns {Array} - [{ date, year, value, noDripValue }, ...]
@@ -264,13 +264,12 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
   });
 
   // Group each ticker's daily prices into periods, keeping last entry per period
-  const tickerGroups = {}; // { TICKER: { periodKey: { date, c } } }
+  const tickerGroups = {}; // { TICKER: { periodKey: { date, ac, c } } }
   const cutoffYear = currentYear - maxYearsBack;
 
-  const holdingsWithData = [];
   holdings.forEach(h => {
     const hist = historyMap[h.ticker];
-    if (!hist?.p?.length || !h.shares) return;
+    if (!hist?.p?.length) return;
     const prices = hist.p;
     const adj = splitAdjusted[h.ticker] || [];
     const groups = {};
@@ -279,18 +278,15 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
       const date = prices[i].d;
       if (parseInt(date.substring(0, 4)) < cutoffYear) continue;
       const key = periodKey(date, granularity);
+      // Always overwrite — last entry in period wins (latest closing price)
       groups[key] = {
         date,
+        ac: prices[i].ac || prices[i].c,
         c: adj[i] ?? prices[i].c,
       };
     }
-    if (Object.keys(groups).length > 0) {
-      tickerGroups[h.ticker] = groups;
-      holdingsWithData.push(h);
-    }
+    tickerGroups[h.ticker] = groups;
   });
-
-  if (holdingsWithData.length === 0) return [];
 
   // Collect all unique period keys, sorted
   const allPeriods = new Set();
@@ -300,54 +296,60 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
   const sortedPeriods = [...allPeriods].sort();
   if (sortedPeriods.length < 2) return [];
 
-  // Find the latest price for each ticker to derive implied cash
-  let stockValueAtLatest = 0;
-  holdingsWithData.forEach(h => {
-    const groups = tickerGroups[h.ticker];
-    const lastPeriod = sortedPeriods[sortedPeriods.length - 1];
-    // Walk backwards to find the most recent price for this ticker
-    let latestPrice = 0;
-    for (let i = sortedPeriods.length - 1; i >= 0; i--) {
-      const p = groups[sortedPeriods[i]];
-      if (p && p.c > 0) { latestPrice = p.c; break; }
-    }
-    stockValueAtLatest += (h.shares || 0) * latestPrice;
+  const startPeriod = sortedPeriods[0];
+
+  // Only use tickers that have data at the start period
+  const basePrices = {};
+  const validHoldings = holdings.filter(h => {
+    const p = tickerGroups[h.ticker]?.[startPeriod];
+    if (p && p.ac > 0 && p.c > 0) { basePrices[h.ticker] = p; return true; }
+    return false;
   });
-  const impliedCash = portfolioValue - stockValueAtLatest;
+  if (validHoldings.length === 0) return [];
 
-  // For each period, compute portfolio value = sum(shares × price) + cash
-  // Carry forward last known price per ticker for missing periods
-  const lastKnownPrice = {}; // { ticker: lastPrice }
+  // For each period, compute weighted price-only growth ratios
   const results = [];
-
   for (const period of sortedPeriods) {
-    let stockValue = 0;
+    let weightedPrice = 0;
+    let totalWeight = 0;
     let latestDate = '';
 
-    holdingsWithData.forEach(h => {
+    validHoldings.forEach(h => {
+      const base = basePrices[h.ticker];
       const periodP = tickerGroups[h.ticker]?.[period];
-      if (periodP && periodP.c > 0) {
-        lastKnownPrice[h.ticker] = periodP.c;
-        if (periodP.date > latestDate) latestDate = periodP.date;
-      }
-      const price = lastKnownPrice[h.ticker];
-      if (price > 0) {
-        stockValue += (h.shares || 0) * price;
-      }
+      if (!periodP || !base.c) return;
+
+      const weight = (h.shares || 0) * base.c;
+      const priceRatio = periodP.c / base.c;
+      if (!isFinite(priceRatio)) return;
+      weightedPrice += weight * priceRatio;
+      totalWeight += weight;
+      if (periodP.date > latestDate) latestDate = periodP.date;
     });
 
-    if (latestDate || Object.keys(lastKnownPrice).length > 0) {
-      // Use period key as fallback date if no new data this period
-      const dateStr = latestDate || period;
-      const value = Math.round(stockValue + impliedCash);
+    if (totalWeight > 0) {
       results.push({
-        date: dateStr,
-        year: parseInt(dateStr.substring(0, 4)),
-        value,
-        noDripValue: value,
+        period,
+        date: latestDate,
+        year: parseInt(latestDate.substring(0, 4)),
+        priceGrowth: weightedPrice / totalWeight,
       });
     }
   }
 
-  return results;
+  if (results.length === 0) return [];
+
+  // Anchor: last period's price-only value = portfolioValue
+  const last = results[results.length - 1];
+  const startValue = last.priceGrowth > 0 ? portfolioValue / last.priceGrowth : portfolioValue;
+
+  return results.map(r => {
+    const val = Math.round(startValue * r.priceGrowth);
+    return {
+      date: r.date,
+      year: r.year,
+      value: val,
+      noDripValue: val,
+    };
+  });
 }

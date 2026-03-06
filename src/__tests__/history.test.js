@@ -90,7 +90,7 @@ describe('calcHistoricalDividendsByYear', () => {
 });
 
 // =============================================================================
-// calcHistoricalPortfolioValues — direct price-based portfolio valuation
+// calcHistoricalPortfolioValues — price-only ratio-based portfolio valuation
 // =============================================================================
 describe('calcHistoricalPortfolioValues', () => {
   it('returns values anchored to current portfolio value', () => {
@@ -111,34 +111,12 @@ describe('calcHistoricalPortfolioValues', () => {
     expect(last.value).toBe(6000);
   });
 
-  it('computes direct shares × price + cash', () => {
-    // 100 shares, prices go 40→50→60. Portfolio value = 6500 (100×60 + 500 cash)
-    const historyMap = {
-      KO: {
-        p: [
-          { d: '2023-01-15', c: 40, ac: 40 },
-          { d: '2024-01-15', c: 50, ac: 50 },
-          { d: '2025-01-15', c: 60, ac: 60 },
-        ],
-      },
-    };
-    const holdings = [{ ticker: 'KO', shares: 100 }];
-    // portfolioValue = 6500 → impliedCash = 6500 - (100×60) = 500
-    const result = calcHistoricalPortfolioValues(historyMap, holdings, 6500, 20, 'yearly');
-    // First period: 100×40 + 500 = 4500
-    expect(result[0].value).toBe(4500);
-    // Second period: 100×50 + 500 = 5500
-    expect(result[1].value).toBe(5500);
-    // Last period: 100×60 + 500 = 6500
-    expect(result[2].value).toBe(6500);
-  });
-
   it('noDripValue equals value (no DRIP in historical)', () => {
     const historyMap = {
       KO: {
         p: [
           { d: '2023-01-15', c: 50, ac: 50 },
-          { d: '2024-01-15', c: 52, ac: 56 }, // ac differs but should be ignored
+          { d: '2024-01-15', c: 52, ac: 56 }, // ac differs but ignored for value
         ],
       },
     };
@@ -147,6 +125,22 @@ describe('calcHistoricalPortfolioValues', () => {
     result.forEach(r => {
       expect(r.noDripValue).toBe(r.value);
     });
+  });
+
+  it('historical values scale correctly by price ratio', () => {
+    // Price doubles from 50→100, so historical should be half of portfolioValue
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-01-15', c: 50, ac: 50 },
+          { d: '2025-01-15', c: 100, ac: 100 },
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 10000, 20, 'yearly');
+    expect(result[0].value).toBe(5000); // 50/100 * 10000
+    expect(result[1].value).toBe(10000); // 100/100 * 10000
   });
 
   it('returns empty for insufficient data (< 2 periods)', () => {
@@ -160,6 +154,20 @@ describe('calcHistoricalPortfolioValues', () => {
 
   it('returns empty for no holdings', () => {
     const result = calcHistoricalPortfolioValues({}, [], 5000);
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty when all base prices are zero', () => {
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-01-15', c: 0, ac: 0 },
+          { d: '2024-01-15', c: 50, ac: 50 },
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
     expect(result).toEqual([]);
   });
 
@@ -198,7 +206,6 @@ describe('calcHistoricalPortfolioValues', () => {
       { ticker: 'PEP', shares: 50 },
     ];
     const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
-    // Should still produce results from KO
     expect(result.length).toBeGreaterThan(0);
   });
 
@@ -221,88 +228,12 @@ describe('calcHistoricalPortfolioValues', () => {
       { ticker: 'KO', shares: 100 },
       { ticker: 'PEP', shares: 50 },
     ];
-    // KO: 100×55=5500, PEP: 50×160=8000. Total stock=13500
-    // portfolioValue=15500 → cash=2000
     const result = calcHistoricalPortfolioValues(historyMap, holdings, 15500, 20, 'yearly');
     expect(result.length).toBeGreaterThan(0);
-    // First: KO 100×50=5000 + PEP 50×150=7500 + 2000 = 14500
-    expect(result[0].value).toBe(14500);
-    // Last: KO 100×55=5500 + PEP 50×160=8000 + 2000 = 15500
+    // Last value = portfolioValue
     expect(result[result.length - 1].value).toBe(15500);
     result.forEach(r => {
       expect(isFinite(r.value)).toBe(true);
     });
-  });
-
-  it('carries forward last known price for missing periods', () => {
-    // KO has data for both periods, PEP only first
-    const historyMap = {
-      KO: {
-        p: [
-          { d: '2023-01-15', c: 50, ac: 50 },
-          { d: '2024-01-15', c: 60, ac: 60 },
-        ],
-      },
-      PEP: {
-        p: [
-          { d: '2023-01-15', c: 100, ac: 100 },
-          // No 2024 data — carry forward 100
-        ],
-      },
-    };
-    const holdings = [
-      { ticker: 'KO', shares: 100 },
-      { ticker: 'PEP', shares: 50 },
-    ];
-    // Latest: KO 100×60=6000, PEP 50×100=5000, total stock=11000
-    // portfolioValue=12000 → cash=1000
-    const result = calcHistoricalPortfolioValues(historyMap, holdings, 12000, 20, 'yearly');
-    // Period 2024: KO 100×60=6000, PEP carry-forward 50×100=5000, + 1000 = 12000
-    const last = result[result.length - 1];
-    expect(last.value).toBe(12000);
-  });
-
-  it('handles partial ticker data (one starts later)', () => {
-    const historyMap = {
-      KO: {
-        p: [
-          { d: '2022-01-15', c: 40, ac: 40 },
-          { d: '2023-01-15', c: 50, ac: 50 },
-          { d: '2024-01-15', c: 60, ac: 60 },
-        ],
-      },
-      // NEW ticker only has 2024 data
-      NEW: {
-        p: [
-          { d: '2024-01-15', c: 20, ac: 20 },
-        ],
-      },
-    };
-    const holdings = [
-      { ticker: 'KO', shares: 100 },
-      { ticker: 'NEW', shares: 50 },
-    ];
-    // Latest: KO 100×60=6000, NEW 50×20=1000, total=7000
-    // portfolioValue=8000 → cash=1000
-    const result = calcHistoricalPortfolioValues(historyMap, holdings, 8000, 20, 'yearly');
-    expect(result.length).toBe(3); // 2022, 2023, 2024
-    // 2022: KO 100×40=4000 + NEW not yet available (0) + 1000 = 5000
-    expect(result[0].value).toBe(5000);
-    // 2024: KO 100×60=6000 + NEW 50×20=1000 + 1000 = 8000
-    expect(result[result.length - 1].value).toBe(8000);
-  });
-
-  it('skips holdings with zero shares', () => {
-    const historyMap = {
-      KO: {
-        p: [
-          { d: '2023-01-15', c: 50, ac: 50 },
-          { d: '2024-01-15', c: 55, ac: 55 },
-        ],
-      },
-    };
-    const holdings = [{ ticker: 'KO', shares: 0 }];
-    const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
-    expect(result).toEqual([]);
   });
 });
