@@ -357,19 +357,29 @@ export default function HistoricalProjectedChart({
     const weeklyTotal = projWeeklyPattern.reduce((s, v) => s + v, 0);
     const displayPeriodsPerYear = granularity === 'daily' ? 252 : granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
 
+    // Pre-compute representative payment days for daily view (one per month)
+    const dailyPaymentDays = new Set();
+    if (granularity === 'daily' && monthlyTotal > 0) {
+      for (let m = 0; m < 12; m++) {
+        if (projMonthlyPattern[m] > 0) {
+          // ~15th of each month in trading days
+          const midMonthCalDay = m * 30.5 + 15;
+          dailyPaymentDays.add(Math.round(midMonthCalDay * 252 / 365));
+        }
+      }
+    }
+
     const distributeByPeriod = (annual, periodIndex) => {
       if (granularity === 'monthly' && monthlyTotal > 0) {
         return annual * (projMonthlyPattern[periodIndex] / monthlyTotal);
-      } else if ((granularity === 'weekly' || granularity === 'daily') && weeklyTotal > 0) {
-        // For daily: map to week, then distribute within that week
-        const weekIdx = granularity === 'daily' ? Math.min(51, Math.floor(periodIndex / (252 / 52))) : periodIndex;
-        const weeklyShare = projWeeklyPattern[weekIdx] / weeklyTotal;
-        if (granularity === 'daily') {
-          // Only place income on one day per week (the first day of that week)
-          const weekStart = Math.floor(weekIdx * (252 / 52));
-          return periodIndex === weekStart ? annual * weeklyShare : 0;
-        }
-        return annual * weeklyShare;
+      } else if (granularity === 'daily' && monthlyTotal > 0) {
+        // Place dividend on one representative trading day per payment month
+        if (!dailyPaymentDays.has(periodIndex)) return 0;
+        const calDay = periodIndex * 365 / 252;
+        const month = Math.min(11, Math.floor(calDay / 30.5));
+        return annual * (projMonthlyPattern[month] / monthlyTotal);
+      } else if (granularity === 'weekly' && weeklyTotal > 0) {
+        return annual * (projWeeklyPattern[periodIndex] / weeklyTotal);
       }
       return annual / displayPeriodsPerYear;
     };
