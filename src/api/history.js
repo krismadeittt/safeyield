@@ -183,9 +183,10 @@ function computeSplitAdjustedClose(prices) {
   if (n === 0) return [];
 
   // Work backward from the most recent price.
-  // Post-all-splits basis: most recent c is already correct (factor = 1).
-  // When we detect a split going backward, pre-split c values are too high
-  // and need to be divided by the split ratio.
+  // Use ac (adjusted close) as ground truth: on a split day, c jumps by the
+  // split factor while ac stays smooth. The implied split factor is:
+  //   impliedFactor = (cPrev/cCurr) / (acPrev/acCurr)
+  // Normal day: ~1.0. Forward split (e.g. 20:1): ~20. Reverse split: ~0.5.
   const adjustedC = new Array(n);
   let factor = 1;
   adjustedC[n - 1] = prices[n - 1].c;
@@ -195,22 +196,23 @@ function computeSplitAdjustedClose(prices) {
     const cCurr = prices[i].c;
     if (!cPrev || !cCurr) { adjustedC[i - 1] = cPrev / factor; continue; }
 
-    const cRatio = cCurr / cPrev;
     const acCurr = prices[i].ac || cCurr;
     const acPrev = prices[i - 1].ac || cPrev;
-    const acRatio = acCurr / acPrev;
+    if (!acPrev || !acCurr) { adjustedC[i - 1] = cPrev / factor; continue; }
 
-    // Forward split: c drops significantly but ac is roughly stable
-    if (cRatio < 0.7 && cRatio > 0.05 && acRatio > 0.85 && acRatio < 1.15) {
-      const splitRatio = Math.round(1 / cRatio);
-      if (splitRatio >= 2 && splitRatio <= 10) {
+    const impliedFactor = (cPrev / cCurr) / (acPrev / acCurr);
+
+    // Forward split: impliedFactor ≈ N (e.g. 4.0 for 4:1, 20.0 for 20:1)
+    if (impliedFactor > 1.5) {
+      const splitRatio = Math.round(impliedFactor);
+      if (splitRatio >= 2) {
         factor *= splitRatio;
       }
     }
-    // Reverse split: c jumps significantly but ac is roughly stable
-    else if (cRatio > 1.5 && acRatio > 0.85 && acRatio < 1.15) {
-      const reverseSplitRatio = Math.round(cRatio);
-      if (reverseSplitRatio >= 2 && reverseSplitRatio <= 10) {
+    // Reverse split: impliedFactor ≈ 1/N (e.g. 0.5 for 1:2)
+    else if (impliedFactor < 0.6) {
+      const reverseSplitRatio = Math.round(1 / impliedFactor);
+      if (reverseSplitRatio >= 2) {
         factor /= reverseSplitRatio;
       }
     }

@@ -209,6 +209,33 @@ describe('calcHistoricalPortfolioValues', () => {
     expect(result.length).toBeGreaterThan(0);
   });
 
+  it('handles 20:1 forward split correctly via ac-based detection', () => {
+    // Stock has a 20:1 split: pre-split c=$2000, post-split c=$100
+    // ac stays smooth across the split (data provider handles it)
+    const historyMap = {
+      AMZN: {
+        p: [
+          { d: '2021-01-15', c: 1800, ac: 90 },  // pre-split, ac adjusted
+          { d: '2022-01-15', c: 2000, ac: 100 },  // pre-split, ac adjusted
+          { d: '2022-07-15', c: 100,  ac: 100 },  // post-split day (20:1)
+          { d: '2023-01-15', c: 120,  ac: 120 },  // post-split
+          { d: '2024-01-15', c: 150,  ac: 150 },  // latest
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'AMZN', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 15000, 20, 'yearly');
+    // After split adjustment: 2021 c=1800/20=90, 2022pre c=2000/20=100
+    // Price ratio 2021→latest: 90/150 = 0.6, so 2021 value = 15000 * 0.6 = 9000
+    expect(result.length).toBeGreaterThan(0);
+    const last = result[result.length - 1];
+    expect(last.value).toBe(15000); // anchored
+    // First value should be LESS than current (stock grew from 90→150)
+    expect(result[0].value).toBeLessThan(15000);
+    // Should NOT show an inflated value like 180000 from undetected split
+    expect(result[0].value).toBeLessThan(20000);
+  });
+
   it('handles multiple tickers with overlapping dates', () => {
     const historyMap = {
       KO: {
