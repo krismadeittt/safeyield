@@ -98,11 +98,16 @@ export default function HistoricalProjectedChart({
   }, [historyMap, holdings, granularity]);
 
   // Derive payment patterns for projections
-  const { projMonthlyPattern, projWeeklyPattern } = useMemo(() => {
+  const { projMonthlyPattern, projWeeklyPattern, projDailySchedule, projDailyTotal, projDailyDetail } = useMemo(() => {
     const monthly = new Array(12).fill(0);
     const weekly = new Array(52).fill(0);
+    const dailySchedule = new Map(); // tradingDayIndex -> aggregate income
+    let dailyTotal = 0;
+    const dailyDetail = []; // for logging: [{tradingDay, month, dayOfMonth, ticker, income}]
+    const daysInMonthArr = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
     if (!holdings?.length || Object.keys(historyMap).length === 0) {
-      return { projMonthlyPattern: monthly, projWeeklyPattern: weekly };
+      return { projMonthlyPattern: monthly, projWeeklyPattern: weekly, projDailySchedule: dailySchedule, projDailyTotal: 0, projDailyDetail: [] };
     }
 
     holdings.forEach(h => {
@@ -134,9 +139,34 @@ export default function HistoricalProjectedChart({
       monthToWeekEntry.forEach(({ week, amount }) => {
         weekly[week] += amount;
       });
+
+      // Daily payment schedule: exact day-of-month from last 8 dividends per ticker
+      const recentForDaily = recent.slice(-8);
+      const monthDays = new Map(); // month -> { days: [], amounts: [] }
+      recentForDaily.forEach(div => {
+        const m = parseInt(div.d.substring(5, 7)) - 1;
+        const d = parseInt(div.d.substring(8, 10));
+        if (!monthDays.has(m)) monthDays.set(m, { days: [], amounts: [] });
+        monthDays.get(m).days.push(d);
+        monthDays.get(m).amounts.push(div.v * h.shares);
+      });
+      monthDays.forEach(({ days, amounts }, month) => {
+        const typicalDay = Math.round(days.reduce((s, d) => s + d, 0) / days.length);
+        const avgIncome = amounts.reduce((s, a) => s + a, 0) / amounts.length;
+        // Convert (month, typicalDay) to trading day index using same formula as bar generation
+        let calDayOfYear = typicalDay - 1; // 0-indexed (Jan 1 = 0)
+        for (let m = 0; m < month; m++) calDayOfYear += daysInMonthArr[m];
+        const tradingDay = Math.min(251, Math.max(0, Math.floor(calDayOfYear * 252 / 365)));
+        const existing = dailySchedule.get(tradingDay) || 0;
+        dailySchedule.set(tradingDay, existing + avgIncome);
+        dailyTotal += avgIncome;
+        dailyDetail.push({ tradingDay, month, dayOfMonth: typicalDay, ticker: h.ticker, income: Math.round(avgIncome) });
+      });
     });
 
-    return { projMonthlyPattern: monthly, projWeeklyPattern: weekly };
+    dailyDetail.sort((a, b) => a.tradingDay - b.tradingDay);
+
+    return { projMonthlyPattern: monthly, projWeeklyPattern: weekly, projDailySchedule: dailySchedule, projDailyTotal: dailyTotal, projDailyDetail: dailyDetail };
   }, [holdings, historyMap]);
 
   // Stat card values
@@ -357,34 +387,21 @@ export default function HistoricalProjectedChart({
     const weeklyTotal = projWeeklyPattern.reduce((s, v) => s + v, 0);
     const displayPeriodsPerYear = granularity === 'daily' ? 252 : granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
 
-    // Pre-compute representative payment days for daily view (one per month)
-    const dailyPaymentDays = new Set();
-    if (granularity === 'daily' && monthlyTotal > 0) {
-      for (let m = 0; m < 12; m++) {
-        if (projMonthlyPattern[m] > 0) {
-          // ~15th of each month in trading days
-          const midMonthCalDay = m * 30.5 + 15;
-          dailyPaymentDays.add(Math.round(midMonthCalDay * 252 / 365));
-        }
-      }
-    }
-
     const distributeByPeriod = (annual, periodIndex) => {
       if (granularity === 'monthly' && monthlyTotal > 0) {
         return annual * (projMonthlyPattern[periodIndex] / monthlyTotal);
-      } else if (granularity === 'daily' && monthlyTotal > 0) {
-        // Place dividend on one representative trading day per payment month
-        if (!dailyPaymentDays.has(periodIndex)) return 0;
-        const calDay = periodIndex * 365 / 252;
-        const month = Math.min(11, Math.floor(calDay / 30.5));
-        return annual * (projMonthlyPattern[month] / monthlyTotal);
+      } else if (granularity === 'daily' && projDailyTotal > 0) {
+        // Place dividend on exact historical payment days per ticker
+        const schedIncome = projDailySchedule.get(periodIndex);
+        if (!schedIncome) return 0;
+        return annual * (schedIncome / projDailyTotal);
       } else if (granularity === 'weekly' && weeklyTotal > 0) {
         return annual * (projWeeklyPattern[periodIndex] / weeklyTotal);
       }
       return annual / displayPeriodsPerYear;
     };
 
-    return barData.map(bar => {
+    const result = barData.map(bar => {
       let divIncome;
 
       // For tracked mode, use snapshot dividend data
@@ -421,7 +438,26 @@ export default function HistoricalProjectedChart({
 
       return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern, projWeeklyPattern, dataSource, snapshots]);
+
+    // Log first 10 projected daily dividend entries for verification
+    if (granularity === 'daily' && projDailyDetail.length > 0) {
+      const projected = result.filter(b => !b.isHistorical && !b.isCurrent && b.value > 0).slice(0, 10);
+      if (projected.length > 0) {
+        console.log('[SafeYield] First 10 projected daily dividends:');
+        projected.forEach(b => {
+          const approxDate = new Date(Date.UTC(b.year, 0, 1 + Math.round(b.periodIndex * 365 / 252)));
+          const dateStr = approxDate.toISOString().substring(0, 10);
+          const tickers = projDailyDetail
+            .filter(d => d.tradingDay === b.periodIndex)
+            .map(d => `${d.ticker}($${d.income})`)
+            .join(', ');
+          console.log(`  ${dateStr} | periodIdx=${b.periodIndex} | $${b.value} | ${tickers}`);
+        });
+      }
+    }
+
+    return result;
+  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern, projWeeklyPattern, projDailySchedule, projDailyTotal, projDailyDetail, dataSource, snapshots]);
 
   // Chart layout
   const padL = isMobile ? 35 : 55;
