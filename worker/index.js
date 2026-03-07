@@ -18,6 +18,7 @@ import {
   getAllUsersWithHoldings, getAllHoldingsGrouped,
   getRetirementPlan, upsertRetirementPlan, deleteRetirementPlan,
 } from './db.js';
+import { handleExtremeRoute } from './routes/extreme.js';
 import { parseFundamentals, sf, round, quarterly, annual, computeG5, computeStreak, buildAnnualHistory } from './parse.js';
 
 const EODHD_BASE = "https://eodhd.com/api";
@@ -695,6 +696,12 @@ export default {
 
       // Ensure user record exists for all /user/* routes
       await getOrCreateUser(db, auth.userId, auth.email);
+
+      // Extreme Detail Mode routes
+      if (path.startsWith("/user/extreme/")) {
+        var extremeRes = await handleExtremeRoute(path, method, request, env, auth, origin);
+        if (extremeRes) return extremeRes;
+      }
 
       // GET /user/profile
       if (path === "/user/profile" && method === "GET") {

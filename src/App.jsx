@@ -20,6 +20,8 @@ import RetirementForm from './screens/RetirementForm';
 import RetirementDashboard from './screens/RetirementDashboard';
 import { updateRetirementMode, saveRetirementPlan, getRetirementPlan as fetchRetirementPlan } from './api/retirement';
 import useTheme from './hooks/useTheme';
+import useHash from './hooks/useHash';
+import ExtremeDetailPage from './screens/ExtremeDetail/index';
 import { formatCurrency, shortMoney } from './utils/format';
 
 function relativeTime(date) {
@@ -71,6 +73,7 @@ function AppInner() {
   const sharesInputRef = useRef(null);
   const isMobile = useIsMobile();
   const { theme, toggleTheme } = useTheme();
+  const hash = useHash();
   const [showConfirm, setShowConfirm] = useState(false);
   const [showTour, setShowTour] = useState(() => shouldShowTour());
   const [, setTick] = useState(0);
@@ -191,6 +194,26 @@ function AppInner() {
     );
   }
 
+  // Extreme Detail Mode
+  if (hash === '#/extreme-detail' || hash === '#/extreme-detail/') {
+    return (
+      <ExtremeDetailPage
+        holdings={holdings}
+        liveData={liveData}
+        summary={summary}
+        getToken={getToken}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        isMobile={isMobile}
+        divScheduleMap={divScheduleMap}
+        dripEnabled={dripEnabled}
+        cashBalance={cashBalance}
+        cashApy={cashApy}
+        onBack={() => { window.location.hash = ''; }}
+      />
+    );
+  }
+
   // Stock detail view
   if (detailView) {
     return (
@@ -288,6 +311,18 @@ function AppInner() {
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
+          <button onClick={() => { window.location.hash = '#/extreme-detail'; }} style={{
+            background: hash === '#/extreme-detail' ? "var(--accent-bg)" : "transparent",
+            border: "none", cursor: "pointer",
+            color: hash === '#/extreme-detail' ? "var(--primary)" : "var(--text-muted)",
+            fontSize: isMobile ? "0.75rem" : "0.85rem",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            fontWeight: hash === '#/extreme-detail' ? 600 : 500,
+            padding: "6px 12px", borderRadius: 8,
+            transition: "all 0.2s",
+          }}>
+            Extreme
+          </button>
           <button onClick={enterRetirementMode} disabled={enteringRetirement} style={{
             background: "transparent",
             border: "none", cursor: enteringRetirement ? "default" : "pointer",
