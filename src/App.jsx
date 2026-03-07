@@ -74,6 +74,25 @@ function AppInner() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showTour, setShowTour] = useState(() => shouldShowTour());
   const [, setTick] = useState(0);
+  const [enteringRetirement, setEnteringRetirement] = useState(false);
+
+  async function enterRetirementMode() {
+    if (enteringRetirement) return;
+    setEnteringRetirement(true);
+    try {
+      await updateRetirementMode(getToken, 1);
+      setRetirementMode(1);
+      if (!retirementPlan) {
+        const plan = await fetchRetirementPlan(getToken);
+        if (plan) setRetirementPlan(plan);
+      }
+    } catch (e) {
+      console.warn('Failed to enter retirement mode:', e.message);
+      toast('Failed to enter retirement mode', 'error');
+    } finally {
+      setEnteringRetirement(false);
+    }
+  }
 
   // Re-render every 30s to keep relative time fresh
   useEffect(() => {
@@ -269,21 +288,11 @@ function AppInner() {
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
-          <button onClick={async () => {
-            try {
-              await updateRetirementMode(getToken, 1);
-              setRetirementMode(1);
-              if (!retirementPlan) {
-                const plan = await fetchRetirementPlan(getToken);
-                if (plan) setRetirementPlan(plan);
-              }
-            } catch (e) {
-              console.warn('Failed to enter retirement mode:', e.message);
-            }
-          }} style={{
+          <button onClick={enterRetirementMode} disabled={enteringRetirement} style={{
             background: "transparent",
-            border: "none", cursor: "pointer",
+            border: "none", cursor: enteringRetirement ? "default" : "pointer",
             color: "var(--text-muted)",
+            opacity: enteringRetirement ? 0.5 : 1,
             fontSize: isMobile ? "0.75rem" : "0.85rem",
             fontFamily: "'DM Sans', system-ui, sans-serif",
             fontWeight: 500,
@@ -334,7 +343,7 @@ function AppInner() {
               )}
             </div>
           )}
-          <UserMenu getToken={getToken} dripEnabled={dripEnabled} toggleDrip={toggleDrip} onShowTour={() => { resetTour(); setShowTour(true); }} retirementMode={retirementMode} onToggleRetirement={async () => { await updateRetirementMode(getToken, 1); setRetirementMode(1); }} />
+          <UserMenu getToken={getToken} dripEnabled={dripEnabled} toggleDrip={toggleDrip} onShowTour={() => { resetTour(); setShowTour(true); }} retirementMode={retirementMode} onToggleRetirement={enterRetirementMode} />
         </div>
       </nav>
 
