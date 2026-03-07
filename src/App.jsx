@@ -18,7 +18,7 @@ import LegalFooter from './components/LegalFooter';
 import RetirementGate from './components/RetirementGate';
 import RetirementForm from './screens/RetirementForm';
 import RetirementDashboard from './screens/RetirementDashboard';
-import { updateRetirementMode, saveRetirementPlan } from './api/retirement';
+import { updateRetirementMode, saveRetirementPlan, getRetirementPlan as fetchRetirementPlan } from './api/retirement';
 import useTheme from './hooks/useTheme';
 import { formatCurrency, shortMoney } from './utils/format';
 
@@ -269,6 +269,29 @@ function AppInner() {
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
+          <button onClick={async () => {
+            try {
+              await updateRetirementMode(getToken, 1);
+              setRetirementMode(1);
+              if (!retirementPlan) {
+                const plan = await fetchRetirementPlan(getToken);
+                if (plan) setRetirementPlan(plan);
+              }
+            } catch (e) {
+              console.warn('Failed to enter retirement mode:', e.message);
+            }
+          }} style={{
+            background: "transparent",
+            border: "none", cursor: "pointer",
+            color: "var(--text-muted)",
+            fontSize: isMobile ? "0.75rem" : "0.85rem",
+            fontFamily: "'DM Sans', system-ui, sans-serif",
+            fontWeight: 500,
+            padding: "6px 12px", borderRadius: 8,
+            transition: "all 0.2s",
+          }}>
+            Retirement
+          </button>
           <button onClick={() => setShowConfirm(true)} style={{
             background: "transparent", border: "none", cursor: "pointer",
             color: "var(--text-dim)", fontSize: "0.75rem",
