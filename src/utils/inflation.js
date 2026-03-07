@@ -68,7 +68,9 @@ export function adjustForInflation(amount, fromYear, toYear) {
  * @returns {number} real growth rate as decimal
  */
 export function calcRealGrowthRate(nominalRate, inflationRate) {
-  if (inflationRate === -1) return nominalRate; // avoid division by zero
+  // MATH AUDIT FIX: guard null/undefined inputs and near-zero denominator
+  if (nominalRate == null || inflationRate == null) return 0;
+  if (Math.abs(1 + inflationRate) < 1e-10) return nominalRate;
   return ((1 + nominalRate) / (1 + inflationRate)) - 1;
 }
 

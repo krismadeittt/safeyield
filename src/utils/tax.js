@@ -85,6 +85,8 @@ export function getQualifiedBrackets(filingStatus) {
  * Calculate marginal federal tax on ordinary income
  */
 export function calcFederalTax(taxableIncome, filingStatus) {
+  // MATH AUDIT FIX: negative/null income should return 0 tax, not negative
+  if (!taxableIncome || taxableIncome <= 0) return 0;
   var brackets = getFederalBrackets(filingStatus);
   var tax = 0;
   var prev = 0;

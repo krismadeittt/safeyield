@@ -29,8 +29,11 @@ export function validateDate(val, fieldName) {
   if (typeof val !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(val)) {
     return { valid: false, error: fieldName + ' must be YYYY-MM-DD format' };
   }
+  // MATH AUDIT FIX: reject impossible dates (e.g. Feb 30) by round-tripping through Date
   var d = new Date(val + 'T00:00:00Z');
   if (isNaN(d.getTime())) return { valid: false, error: fieldName + ' is not a valid date' };
+  var roundTrip = d.toISOString().slice(0, 10);
+  if (roundTrip !== val) return { valid: false, error: fieldName + ' is not a valid calendar date' };
   return { valid: true, value: val };
 }
 

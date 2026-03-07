@@ -14,7 +14,8 @@ export default function FIREChart({ projections, crossoverYear, isMobile }) {
     return function() { ro.disconnect(); };
   }, []);
 
-  if (!projections || projections.length === 0) return null;
+  // MATH AUDIT FIX: guard against single-element array (divides by length-1)
+  if (!projections || projections.length < 2) return null;
 
   var padL = 60, padR = 16, padTop = 24, padBot = 44;
   var chartH = isMobile ? 180 : 240;

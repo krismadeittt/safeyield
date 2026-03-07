@@ -147,8 +147,8 @@ export async function handleExtremeRoute(path, method, request, env, auth, origi
       return errResp("Missing CSV content", origin, 400);
     }
 
-    // Size check (10MB plain-text CSV)
-    if (csvBody.content.length > 14 * 1024 * 1024) {
+    // MATH AUDIT FIX: limit was 14MB but error said 10MB — align to 10MB
+    if (csvBody.content.length > 10 * 1024 * 1024) {
       return errResp("File exceeds 10MB limit", origin, 400);
     }
 
@@ -325,10 +325,11 @@ export async function handleExtremeRoute(path, method, request, env, auth, origi
       if (!atv.valid) return errResp(atv.error, origin, 400);
     }
 
+    // MATH AUDIT FIX: use validated values instead of raw cBody
     var updated = await confirmReconciliation(
       db, userId, recId,
-      cBody.actual_amount !== undefined ? cBody.actual_amount : null,
-      cBody.actual_total !== undefined ? cBody.actual_total : null,
+      cBody.actual_amount !== undefined ? av.value : null,
+      cBody.actual_total !== undefined ? atv.value : null,
       cBody.notes ? sanitizeText(cBody.notes) : null
     );
     if (!updated) return errResp("Record not found", origin, 404);
@@ -345,14 +346,26 @@ export async function handleExtremeRoute(path, method, request, env, auth, origi
       return errResp("confirmations array required", origin, 400);
     }
 
+    // MATH AUDIT FIX: validate bulk confirm amounts like single confirm
     var bulkResults = [];
     for (var bi = 0; bi < bulkBody.confirmations.length && bi < 500; bi++) {
       var c = bulkBody.confirmations[bi];
       if (!c.id) continue;
+      var bulkAmt = null;
+      var bulkTotal = null;
+      if (c.actual_amount !== undefined) {
+        var bav = validateNumber(c.actual_amount, 'actual_amount', { min: 0, max: 1e9 });
+        if (!bav.valid) { bulkResults.push({ id: c.id, updated: false, error: bav.error }); continue; }
+        bulkAmt = bav.value;
+      }
+      if (c.actual_total !== undefined) {
+        var btv = validateNumber(c.actual_total, 'actual_total', { min: 0, max: 1e12 });
+        if (!btv.valid) { bulkResults.push({ id: c.id, updated: false, error: btv.error }); continue; }
+        bulkTotal = btv.value;
+      }
       var result = await confirmReconciliation(
         db, userId, c.id,
-        c.actual_amount !== undefined ? c.actual_amount : null,
-        c.actual_total !== undefined ? c.actual_total : null,
+        bulkAmt, bulkTotal,
         c.notes ? sanitizeText(c.notes) : null
       );
       bulkResults.push({ id: c.id, updated: !!result });
