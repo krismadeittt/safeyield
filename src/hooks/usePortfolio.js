@@ -130,8 +130,14 @@ export default function usePortfolio(getToken) {
         if (retMode === 0) {
           setShowRetirementGate(true);
         } else if (retMode === 1) {
-          const plan = await fetchRetirementPlan(getToken).catch(() => null);
-          if (!cancelled) setRetirementPlan(plan);
+          try {
+            const plan = await fetchRetirementPlan(getToken);
+            if (!cancelled) setRetirementPlan(plan || null);
+          } catch (e) {
+            console.warn('Failed to load retirement plan:', e.message);
+            // On fetch failure, fall back to showing the form so user can re-enter
+            if (!cancelled) setRetirementPlan(null);
+          }
         }
 
         if (saved && saved.length > 0) {

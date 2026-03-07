@@ -5,13 +5,14 @@ import useIsMobile from '../hooks/useIsMobile';
 export default function RetirementSummary({ successRate, medianAtRetirement, medianAtEnd, monthlyIncome, retirementAge, endAge, numSims }) {
   const isMobile = useIsMobile();
 
-  const rateColor = successRate >= 90 ? 'var(--green)'
-    : successRate >= 70 ? 'var(--warning)'
+  const rate = successRate ?? 0;
+  const rateColor = rate >= 90 ? 'var(--green)'
+    : rate >= 70 ? 'var(--warning)'
     : 'var(--red)';
 
-  const interpretation = successRate >= 90
+  const interpretation = rate >= 90
     ? 'Your plan looks strong.'
-    : successRate >= 70
+    : rate >= 70
     ? 'Your plan is reasonable but has some risk. Consider adjusting.'
     : 'Your plan has significant risk of running out of money. Consider increasing savings or reducing withdrawal.';
 
@@ -42,7 +43,7 @@ export default function RetirementSummary({ successRate, medianAtRetirement, med
           fontFamily: "'JetBrains Mono', monospace",
           lineHeight: 1,
         }}>
-          {successRate.toFixed(1)}%
+          {(successRate ?? 0).toFixed(1)}%
         </div>
         <div style={{
           fontSize: '0.72rem',
@@ -96,7 +97,7 @@ export default function RetirementSummary({ successRate, medianAtRetirement, med
           fontStyle: 'italic',
           fontFamily: "'DM Sans', system-ui, sans-serif",
         }}>
-          Based on {numSims.toLocaleString()} Monte Carlo simulations · GBM with correlated returns · DRIP during growth phase
+          Based on {(numSims ?? 0).toLocaleString()} Monte Carlo simulations · GBM with correlated returns · DRIP during growth phase
         </span>
       </div>
     </div>

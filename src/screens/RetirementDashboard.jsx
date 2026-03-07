@@ -180,7 +180,7 @@ export default function RetirementDashboard({
             fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
             background: 'var(--bg-pill, var(--bg-dark))', padding: '4px 10px', borderRadius: 8,
           }}>
-            {formatCurrency(summary.portfolioValue)}
+            {formatCurrency(summary?.portfolioValue ?? 0)}
           </span>
         </div>
       </nav>

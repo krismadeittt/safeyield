@@ -31,6 +31,11 @@ export default function useRetirementMC() {
         setRunning(false);
         worker.terminate();
         workerRef.current = null;
+      } else if (e.data.type === 'error') {
+        console.warn('MC simulation error:', e.data.error);
+        setRunning(false);
+        worker.terminate();
+        workerRef.current = null;
       }
     };
 

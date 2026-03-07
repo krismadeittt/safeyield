@@ -58,6 +58,8 @@ export default function RetirementForm({ onSave, onBack, existingPlan }) {
     const lifeAgeNum = parseInt(lifeAge, 10);
     if (!lifeAge || isNaN(lifeAgeNum)) {
       errs.lifeAge = 'Required';
+    } else if (lifeAgeNum > 120) {
+      errs.lifeAge = 'Must be 120 or less';
     } else if (retirementAge !== null && lifeAgeNum <= retirementAge) {
       errs.lifeAge = 'Must be greater than retirement age';
     }

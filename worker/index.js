@@ -837,6 +837,9 @@ export default {
       // PUT /user/retirement — upsert plan
       if (path === "/user/retirement" && method === "PUT") {
         var rpBody = await request.json();
+        if (!rpBody.date_of_birth || !rpBody.retirement_date || !rpBody.life_expectancy_age) {
+          return json({ error: "Missing required fields: date_of_birth, retirement_date, life_expectancy_age" }, origin, 400, 0);
+        }
         var saved = await upsertRetirementPlan(db, auth.userId, rpBody);
         return json({ result: saved }, origin, 200, 0);
       }

@@ -104,14 +104,22 @@ function AppInner() {
     return (
       <RetirementGate
         onYes={async () => {
-          await updateRetirementMode(getToken, 1);
-          setRetirementMode(1);
-          setShowRetirementGate(false);
+          try {
+            await updateRetirementMode(getToken, 1);
+            setRetirementMode(1);
+            setShowRetirementGate(false);
+          } catch (e) {
+            console.warn('Failed to set retirement mode:', e.message);
+          }
         }}
         onNo={async () => {
-          await updateRetirementMode(getToken, 2);
-          setRetirementMode(2);
-          setShowRetirementGate(false);
+          try {
+            await updateRetirementMode(getToken, 2);
+            setRetirementMode(2);
+            setShowRetirementGate(false);
+          } catch (e) {
+            console.warn('Failed to set retirement mode:', e.message);
+          }
         }}
       />
     );
