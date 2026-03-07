@@ -15,6 +15,10 @@ import { ToastProvider, useToast } from './components/Toast';
 import Tour, { shouldShowTour, resetTour } from './components/Tour';
 import MethodologyDisclosure from './components/MethodologyDisclosure';
 import LegalFooter from './components/LegalFooter';
+import RetirementGate from './components/RetirementGate';
+import RetirementForm from './screens/RetirementForm';
+import RetirementDashboard from './screens/RetirementDashboard';
+import { updateRetirementMode, saveRetirementPlan } from './api/retirement';
 import useTheme from './hooks/useTheme';
 import { formatCurrency, shortMoney } from './utils/format';
 
@@ -59,6 +63,9 @@ function AppInner() {
     mergeLiveData,
     refreshAll, refreshing,
     snapshots, inceptionDate,
+    retirementMode, setRetirementMode,
+    retirementPlan, setRetirementPlan,
+    showRetirementGate, setShowRetirementGate,
   } = usePortfolio(getToken);
 
   const sharesInputRef = useRef(null);
@@ -92,9 +99,77 @@ function AppInner() {
     );
   }
 
-  // Onboarding screen
+  // Retirement gate (user never answered yet)
+  if (showRetirementGate) {
+    return (
+      <RetirementGate
+        onYes={async () => {
+          try {
+            await updateRetirementMode(getToken, 1);
+            setRetirementMode(1);
+            setShowRetirementGate(false);
+          } catch (e) {
+            console.warn('Failed to set retirement mode:', e.message);
+          }
+        }}
+        onNo={async () => {
+          try {
+            await updateRetirementMode(getToken, 2);
+            setRetirementMode(2);
+            setShowRetirementGate(false);
+          } catch (e) {
+            console.warn('Failed to set retirement mode:', e.message);
+          }
+        }}
+      />
+    );
+  }
+
+  // Retirement form (opted in but no plan yet)
+  if (retirementMode === 1 && !retirementPlan) {
+    return (
+      <RetirementForm
+        onSave={async (plan) => {
+          const saved = await saveRetirementPlan(getToken, plan);
+          setRetirementPlan(saved);
+        }}
+        onBack={() => {
+          // Go back to gate — let them change their mind
+          setShowRetirementGate(true);
+          setRetirementMode(0);
+        }}
+      />
+    );
+  }
+
+  // Onboarding screen (portfolio entry)
   if (isOnboarding) {
     return <Onboarding onLoad={handleLoad} prePrices={prePrices} preLoading={pricesLoading} preloadPrices={preloadStrategyPrices} setVizType={updateVizType} />;
+  }
+
+  // Retirement dashboard (opted in + has plan + has holdings)
+  if (retirementMode === 1 && retirementPlan) {
+    return (
+      <RetirementDashboard
+        retirementPlan={retirementPlan}
+        holdings={holdings}
+        liveData={liveData}
+        cashBalance={cashBalance}
+        cashApy={cashApy}
+        cashCompounding={cashCompounding}
+        dripEnabled={dripEnabled}
+        summary={summary}
+        getToken={getToken}
+        onEditPlan={() => setRetirementPlan(null)}
+        onExitRetirement={async () => {
+          await updateRetirementMode(getToken, 2);
+          setRetirementMode(2);
+        }}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        isMobile={isMobile}
+      />
+    );
   }
 
   // Stock detail view
@@ -236,7 +311,7 @@ function AppInner() {
               )}
             </div>
           )}
-          <UserMenu getToken={getToken} dripEnabled={dripEnabled} toggleDrip={toggleDrip} onShowTour={() => { resetTour(); setShowTour(true); }} />
+          <UserMenu getToken={getToken} dripEnabled={dripEnabled} toggleDrip={toggleDrip} onShowTour={() => { resetTour(); setShowTour(true); }} retirementMode={retirementMode} onToggleRetirement={async () => { await updateRetirementMode(getToken, 1); setRetirementMode(1); }} />
         </div>
       </nav>
 

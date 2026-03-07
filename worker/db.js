@@ -11,7 +11,7 @@ export async function getOrCreateUser(db, userId, email) {
   return user;
 }
 
-export async function updateUserProfile(db, userId, { displayName, defaultStrategy, targetBalance, cashBalance, dripEnabled, lastProcessedAt, vizType, cashApy, cashCompounding } = {}) {
+export async function updateUserProfile(db, userId, { displayName, defaultStrategy, targetBalance, cashBalance, dripEnabled, lastProcessedAt, vizType, cashApy, cashCompounding, retirementMode } = {}) {
   // Build partial update — only SET fields that were actually provided
   var sets = [];
   var vals = [];
@@ -24,6 +24,7 @@ export async function updateUserProfile(db, userId, { displayName, defaultStrate
   if (vizType !== undefined) { sets.push('viz_type = ?'); vals.push(vizType); }
   if (cashApy !== undefined) { sets.push('cash_apy = ?'); vals.push(cashApy || 0); }
   if (cashCompounding !== undefined) { sets.push('cash_compounding = ?'); vals.push(cashCompounding || 'none'); }
+  if (retirementMode !== undefined) { sets.push('retirement_mode = ?'); vals.push(retirementMode); }
   if (sets.length === 0) {
     return db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   }
@@ -275,4 +276,36 @@ export async function getAllHoldingsGrouped(db) {
     grouped[r.user_id].push({ ticker: r.ticker, shares: r.shares });
   }
   return grouped;
+}
+
+// ── Retirement plan helpers ──
+
+export async function getRetirementPlan(db, userId) {
+  return db.prepare(
+    'SELECT * FROM retirement_plans WHERE user_id = ?'
+  ).bind(userId).first();
+}
+
+export async function upsertRetirementPlan(db, userId, plan) {
+  await db.prepare(
+    `INSERT INTO retirement_plans (user_id, date_of_birth, retirement_date, life_expectancy_age, monthly_income_needed)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       date_of_birth = excluded.date_of_birth,
+       retirement_date = excluded.retirement_date,
+       life_expectancy_age = excluded.life_expectancy_age,
+       monthly_income_needed = excluded.monthly_income_needed,
+       updated_at = datetime('now')`
+  ).bind(
+    userId,
+    plan.date_of_birth,
+    plan.retirement_date,
+    plan.life_expectancy_age,
+    plan.monthly_income_needed
+  ).run();
+  return getRetirementPlan(db, userId);
+}
+
+export async function deleteRetirementPlan(db, userId) {
+  await db.prepare('DELETE FROM retirement_plans WHERE user_id = ?').bind(userId).run();
 }

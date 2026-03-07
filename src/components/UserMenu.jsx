@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { UserButton, useUser } from '@clerk/clerk-react';
 import ProfileModal from './ProfileModal';
 
-export default function UserMenu({ getToken, dripEnabled, toggleDrip, onShowTour }) {
+export default function UserMenu({ getToken, dripEnabled, toggleDrip, onShowTour, retirementMode, onToggleRetirement }) {
   const { user } = useUser();
   const [showProfile, setShowProfile] = useState(false);
 
@@ -38,6 +38,8 @@ export default function UserMenu({ getToken, dripEnabled, toggleDrip, onShowTour
           dripEnabled={dripEnabled}
           toggleDrip={toggleDrip}
           onShowTour={onShowTour}
+          retirementMode={retirementMode}
+          onToggleRetirement={onToggleRetirement}
         />
       )}
     </>

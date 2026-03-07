@@ -98,11 +98,16 @@ export default function HistoricalProjectedChart({
   }, [historyMap, holdings, granularity]);
 
   // Derive payment patterns for projections
-  const { projMonthlyPattern, projWeeklyPattern } = useMemo(() => {
+  const { projMonthlyPattern, projWeeklyPattern, projDailySchedule, projDailyTotal, projDailyDetail } = useMemo(() => {
     const monthly = new Array(12).fill(0);
     const weekly = new Array(52).fill(0);
+    const dailySchedule = new Map(); // tradingDayIndex -> aggregate income
+    let dailyTotal = 0;
+    const dailyDetail = []; // for logging: [{tradingDay, month, dayOfMonth, ticker, income}]
+    const daysInMonthArr = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
     if (!holdings?.length || Object.keys(historyMap).length === 0) {
-      return { projMonthlyPattern: monthly, projWeeklyPattern: weekly };
+      return { projMonthlyPattern: monthly, projWeeklyPattern: weekly, projDailySchedule: dailySchedule, projDailyTotal: 0, projDailyDetail: [] };
     }
 
     holdings.forEach(h => {
@@ -134,9 +139,34 @@ export default function HistoricalProjectedChart({
       monthToWeekEntry.forEach(({ week, amount }) => {
         weekly[week] += amount;
       });
+
+      // Daily payment schedule: exact day-of-month from last 8 dividends per ticker
+      const recentForDaily = recent.slice(-8);
+      const monthDays = new Map(); // month -> { days: [], amounts: [] }
+      recentForDaily.forEach(div => {
+        const m = parseInt(div.d.substring(5, 7)) - 1;
+        const d = parseInt(div.d.substring(8, 10));
+        if (!monthDays.has(m)) monthDays.set(m, { days: [], amounts: [] });
+        monthDays.get(m).days.push(d);
+        monthDays.get(m).amounts.push(div.v * h.shares);
+      });
+      monthDays.forEach(({ days, amounts }, month) => {
+        const typicalDay = Math.round(days.reduce((s, d) => s + d, 0) / days.length);
+        const avgIncome = amounts.reduce((s, a) => s + a, 0) / amounts.length;
+        // Convert (month, typicalDay) to trading day index using same formula as bar generation
+        let calDayOfYear = typicalDay - 1; // 0-indexed (Jan 1 = 0)
+        for (let m = 0; m < month; m++) calDayOfYear += daysInMonthArr[m];
+        const tradingDay = Math.min(251, Math.max(0, Math.floor(calDayOfYear * 252 / 365)));
+        const existing = dailySchedule.get(tradingDay) || 0;
+        dailySchedule.set(tradingDay, existing + avgIncome);
+        dailyTotal += avgIncome;
+        dailyDetail.push({ tradingDay, month, dayOfMonth: typicalDay, ticker: h.ticker, income: Math.round(avgIncome) });
+      });
     });
 
-    return { projMonthlyPattern: monthly, projWeeklyPattern: weekly };
+    dailyDetail.sort((a, b) => a.tradingDay - b.tradingDay);
+
+    return { projMonthlyPattern: monthly, projWeeklyPattern: weekly, projDailySchedule: dailySchedule, projDailyTotal: dailyTotal, projDailyDetail: dailyDetail };
   }, [holdings, historyMap]);
 
   // Stat card values
@@ -168,8 +198,6 @@ export default function HistoricalProjectedChart({
     const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const periodsPerYear = granularity === 'daily' ? 252 : granularity === 'weekly' ? 52 : granularity === 'monthly' ? 12 : 1;
     const result = [];
-
-    let nowNoDrip = portfolioValue;
 
     if (effectiveHistYears > 0 && effectiveHistData) {
       for (let i = 0; i < effectiveHistData.length; i++) {
@@ -210,15 +238,13 @@ export default function HistoricalProjectedChart({
           yearsFromNow: year - currentYear,
         });
       }
-      const lastHist = effectiveHistData[effectiveHistData.length - 1];
-      nowNoDrip = lastHist?.noDripValue || portfolioValue;
     }
 
     result.push({
       label: "Now", axisLabel: "Now",
       fullLabel: `${currentYear} (current)`,
-      total: portfolioValue, noDrip: nowNoDrip,
-      dripBonus: Math.max(0, portfolioValue - nowNoDrip),
+      total: portfolioValue, noDrip: portfolioValue,
+      dripBonus: 0,
       isHistorical: true, isCurrent: true,
       year: currentYear, periodIndex: 0, yearsFromNow: 0,
     });
@@ -364,21 +390,18 @@ export default function HistoricalProjectedChart({
     const distributeByPeriod = (annual, periodIndex) => {
       if (granularity === 'monthly' && monthlyTotal > 0) {
         return annual * (projMonthlyPattern[periodIndex] / monthlyTotal);
-      } else if ((granularity === 'weekly' || granularity === 'daily') && weeklyTotal > 0) {
-        // For daily: map to week, then distribute within that week
-        const weekIdx = granularity === 'daily' ? Math.min(51, Math.floor(periodIndex / (252 / 52))) : periodIndex;
-        const weeklyShare = projWeeklyPattern[weekIdx] / weeklyTotal;
-        if (granularity === 'daily') {
-          // Only place income on one day per week (the first day of that week)
-          const weekStart = Math.floor(weekIdx * (252 / 52));
-          return periodIndex === weekStart ? annual * weeklyShare : 0;
-        }
-        return annual * weeklyShare;
+      } else if (granularity === 'daily' && projDailyTotal > 0) {
+        // Place dividend on exact historical payment days per ticker
+        const schedIncome = projDailySchedule.get(periodIndex);
+        if (!schedIncome) return 0;
+        return annual * (schedIncome / projDailyTotal);
+      } else if (granularity === 'weekly' && weeklyTotal > 0) {
+        return annual * (projWeeklyPattern[periodIndex] / weeklyTotal);
       }
       return annual / displayPeriodsPerYear;
     };
 
-    return barData.map(bar => {
+    const result = barData.map(bar => {
       let divIncome;
 
       // For tracked mode, use snapshot dividend data
@@ -415,7 +438,26 @@ export default function HistoricalProjectedChart({
 
       return { ...bar, value: Math.max(0, Math.round(divIncome)) };
     });
-  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern, projWeeklyPattern, dataSource, snapshots]);
+
+    // Log first 10 projected daily dividend entries for verification
+    if (granularity === 'daily' && projDailyDetail.length > 0) {
+      const projected = result.filter(b => !b.isHistorical && !b.isCurrent && b.value > 0).slice(0, 10);
+      if (projected.length > 0) {
+        console.log('[SafeYield] First 10 projected daily dividends:');
+        projected.forEach(b => {
+          const approxDate = new Date(Date.UTC(b.year, 0, 1 + Math.round(b.periodIndex * 365 / 252)));
+          const dateStr = approxDate.toISOString().substring(0, 10);
+          const tickers = projDailyDetail
+            .filter(d => d.tradingDay === b.periodIndex)
+            .map(d => `${d.ticker}($${d.income})`)
+            .join(', ');
+          console.log(`  ${dateStr} | periodIdx=${b.periodIndex} | $${b.value} | ${tickers}`);
+        });
+      }
+    }
+
+    return result;
+  }, [barData, monthlyData, growth, granularity, realDivByPeriod, realDivByYear, currentYear, divIncomePerYear, projMonthlyPattern, projWeeklyPattern, projDailySchedule, projDailyTotal, projDailyDetail, dataSource, snapshots]);
 
   // Chart layout
   const padL = isMobile ? 35 : 55;
@@ -502,8 +544,7 @@ export default function HistoricalProjectedChart({
 
         {/* Legend */}
         <div style={{ display: "flex", gap: isMobile ? 10 : 16, alignItems: "center", margin: "0.8rem 0 0.6rem", flexWrap: "wrap" }}>
-          <LegendItem color="var(--chart-hist-bright)" label="Div Return" />
-          <LegendItem color="var(--chart-hist)" label="Price" />
+          <LegendItem color="var(--chart-hist)" label="Historical" />
           <LegendItem color="var(--chart-proj-bright)" label="Proj DRIP" />
           <LegendItem color="var(--chart-proj)" label="Proj Base" />
         </div>
@@ -514,7 +555,7 @@ export default function HistoricalProjectedChart({
             label={dataSource === 'tracked' && inceptionDate ? `TRACKING START (${inceptionDate.substring(0, 4)})` : `BACKTEST START (${startingYear})`}
             value={formatCurrency(startingValue)} color="var(--text-sub)" compact={isMobile} borderColor="var(--text-sub)"
           />
-          <StatCard label="CURRENT (DRIP)" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="var(--primary)" compact={isMobile} borderColor="var(--primary)" />
+          <StatCard label="CURRENT" value={formatCurrency(portfolioValue)} sub={`+${growthPct}%`} color="var(--primary)" compact={isMobile} borderColor="var(--primary)" />
           <StatCard label="DRIP ADVANTAGE" value={`+${shortMoney(dripAdvantage)}`} sub={`at ${horizon}Y`} color="var(--green)" compact={isMobile} borderColor="var(--green)" />
           <StatCard label={`INCOME AT ${horizon}Y`} value={`${shortMoney(incomeAtHorizon)}/yr`} sub={`from ${shortMoney(totalIncome)} today`} color="var(--warning)" compact={isMobile} borderColor="var(--warning)" />
         </div>
@@ -658,9 +699,11 @@ export default function HistoricalProjectedChart({
               <span style={{ fontSize: "1rem", color: "var(--primary)", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>
                 {formatCurrency(hovBar.total)}
               </span>
-              <span style={{ fontSize: "0.68rem", color: "var(--text-sub)", fontFamily: "'JetBrains Mono', monospace" }}>
-                No DRIP: {formatCurrency(hovBar.noDrip)} | DRIP +{formatCurrency(hovBar.dripBonus)}
-              </span>
+              {!hovBar.isHistorical && (
+                <span style={{ fontSize: "0.68rem", color: "var(--text-sub)", fontFamily: "'JetBrains Mono', monospace" }}>
+                  No DRIP: {formatCurrency(hovBar.noDrip)} | DRIP +{formatCurrency(hovBar.dripBonus)}
+                </span>
+              )}
             </div>
           ) : (
             <span style={{ fontSize: "0.5rem", color: "var(--text-sub)", letterSpacing: "0.15em", textTransform: "uppercase", fontFamily: "'DM Sans', system-ui, sans-serif" }}>

@@ -6,6 +6,7 @@ import { searchTickers } from '../api/search';
 import { REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE } from '../data/portfolioTemplates';
 import { NOBL_HOLDINGS } from '../data/aristocrats';
 import { getUserHoldings, saveUserHoldings, getUserProfile, updateUserProfile, getUserWatchlist, addToUserWatchlist, removeFromUserWatchlist, saveProcessedState } from '../api/user';
+import { getRetirementPlan as fetchRetirementPlan } from '../api/retirement';
 import { fetchBatchHistory, fetchDivHistoryBatch } from '../api/history';
 import { processCatchUp } from '../utils/catchUp';
 import { calcMonthlyIncome, deriveDividendSchedule } from '../utils/dividends';
@@ -64,6 +65,11 @@ export default function usePortfolio(getToken) {
   const [snapshots, setSnapshots] = useState([]);
   const [inceptionDate, setInceptionDate] = useState(null);
 
+  // Retirement state
+  const [retirementMode, setRetirementMode] = useState(null); // null=loading, 0=not asked, 1=opted in, 2=opted out
+  const [retirementPlan, setRetirementPlan] = useState(null);
+  const [showRetirementGate, setShowRetirementGate] = useState(false);
+
   // Watchlist state
   const [watchlist, setWatchlist] = useState([]);
 
@@ -117,6 +123,22 @@ export default function usePortfolio(getToken) {
         setCashApy(profile?.cash_apy || 0);
         setCashCompounding(profile?.cash_compounding || 'none');
         setDripEnabled(profileDrip);
+
+        // Load retirement state
+        const retMode = profile?.retirement_mode ?? 0;
+        setRetirementMode(retMode);
+        if (retMode === 0) {
+          setShowRetirementGate(true);
+        } else if (retMode === 1) {
+          try {
+            const plan = await fetchRetirementPlan(getToken);
+            if (!cancelled) setRetirementPlan(plan || null);
+          } catch (e) {
+            console.warn('Failed to load retirement plan:', e.message);
+            // On fetch failure, fall back to showing the form so user can re-enter
+            if (!cancelled) setRetirementPlan(null);
+          }
+        }
 
         if (saved && saved.length > 0) {
           // Convert D1 format to app format
@@ -789,5 +811,9 @@ export default function usePortfolio(getToken) {
     mergeLiveData,
     // Portfolio snapshots (real tracked data)
     snapshots, inceptionDate,
+    // Retirement
+    retirementMode, setRetirementMode,
+    retirementPlan, setRetirementPlan,
+    showRetirementGate, setShowRetirementGate,
   };
 }

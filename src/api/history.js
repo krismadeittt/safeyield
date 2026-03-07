@@ -183,9 +183,10 @@ function computeSplitAdjustedClose(prices) {
   if (n === 0) return [];
 
   // Work backward from the most recent price.
-  // Post-all-splits basis: most recent c is already correct (factor = 1).
-  // When we detect a split going backward, pre-split c values are too high
-  // and need to be divided by the split ratio.
+  // Use ac (adjusted close) as ground truth: on a split day, c jumps by the
+  // split factor while ac stays smooth. The implied split factor is:
+  //   impliedFactor = (cPrev/cCurr) / (acPrev/acCurr)
+  // Normal day: ~1.0. Forward split (e.g. 20:1): ~20. Reverse split: ~0.5.
   const adjustedC = new Array(n);
   let factor = 1;
   adjustedC[n - 1] = prices[n - 1].c;
@@ -195,24 +196,17 @@ function computeSplitAdjustedClose(prices) {
     const cCurr = prices[i].c;
     if (!cPrev || !cCurr) { adjustedC[i - 1] = cPrev / factor; continue; }
 
-    const cRatio = cCurr / cPrev;
     const acCurr = prices[i].ac || cCurr;
     const acPrev = prices[i - 1].ac || cPrev;
-    const acRatio = acCurr / acPrev;
+    if (!acPrev || !acCurr) { adjustedC[i - 1] = cPrev / factor; continue; }
 
-    // Forward split: c drops significantly but ac is roughly stable
-    if (cRatio < 0.7 && cRatio > 0.05 && acRatio > 0.85 && acRatio < 1.15) {
-      const splitRatio = Math.round(1 / cRatio);
-      if (splitRatio >= 2 && splitRatio <= 10) {
-        factor *= splitRatio;
-      }
-    }
-    // Reverse split: c jumps significantly but ac is roughly stable
-    else if (cRatio > 1.5 && acRatio > 0.85 && acRatio < 1.15) {
-      const reverseSplitRatio = Math.round(cRatio);
-      if (reverseSplitRatio >= 2 && reverseSplitRatio <= 10) {
-        factor /= reverseSplitRatio;
-      }
+    const impliedFactor = (cPrev / cCurr) / (acPrev / acCurr);
+
+    // Apply raw impliedFactor for splits (no rounding — handles fractional
+    // splits like 3:2 correctly). Thresholds >1.3/<0.75 avoid false positives
+    // from dividends (a 10% special dividend gives ~1.11, well below 1.3).
+    if (impliedFactor > 1.3 || impliedFactor < 0.75) {
+      factor *= impliedFactor;
     }
 
     adjustedC[i - 1] = cPrev / factor;
@@ -241,15 +235,15 @@ function periodKey(dateStr, granularity) {
 /**
  * Get portfolio values from real historical price data at the requested granularity.
  *
- * Uses growth-ratio approach: for each ticker, group daily prices by period
- * (weekly/monthly/yearly), take the last closing price per period, then compute
- * weighted total return (adjusted close) and price-only return (split-adjusted close).
+ * Uses price-only growth ratios: for each ticker, group daily prices by period,
+ * compute weighted price-only return (split-adjusted close, no DRIP), then anchor
+ * the last period to the current portfolioValue.
  *
  * @param {Object} historyMap - { ticker: { p: [...], d: [...] }, ... }
  * @param {Array} holdings - [{ ticker, shares, ... }, ...]
- * @param {number} portfolioValue - Current portfolio value (for anchoring)
+ * @param {number} portfolioValue - Current portfolio value (anchor point)
  * @param {number} [maxYearsBack=20] - How many years of history to compute
- * @param {string} [granularity='monthly'] - 'weekly', 'monthly', or 'yearly'
+ * @param {string} [granularity='monthly'] - 'daily', 'weekly', 'monthly', or 'yearly'
  * @returns {Array} - [{ date, year, value, noDripValue }, ...]
  */
 export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioValue, maxYearsBack = 20, granularity = 'monthly') {
@@ -296,38 +290,50 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
   const sortedPeriods = [...allPeriods].sort();
   if (sortedPeriods.length < 2) return [];
 
-  const startPeriod = sortedPeriods[0];
-
-  // Only use tickers that have data at the start period
+  // Per-ticker base: first period where each ticker has valid data
   const basePrices = {};
-  const validHoldings = holdings.filter(h => {
-    const p = tickerGroups[h.ticker]?.[startPeriod];
-    if (p && p.ac > 0 && p.c > 0) { basePrices[h.ticker] = p; return true; }
-    return false;
+  const holdingsWithData = [];
+  holdings.forEach(h => {
+    const groups = tickerGroups[h.ticker];
+    if (!groups) return;
+    for (const period of sortedPeriods) {
+      const p = groups[period];
+      if (p && p.c > 0) {
+        basePrices[h.ticker] = p;
+        holdingsWithData.push(h);
+        break;
+      }
+    }
   });
-  if (validHoldings.length === 0) return [];
+  if (holdingsWithData.length === 0) return [];
 
-  // For each period, compute weighted growth ratios
+  // For each period, compute weighted price-only growth ratios.
+  // Carry forward last known price per ticker for gaps.
+  const lastKnown = {}; // { ticker: { c, date } }
   const results = [];
   for (const period of sortedPeriods) {
-    let weightedTotal = 0;
     let weightedPrice = 0;
     let totalWeight = 0;
     let latestDate = '';
 
-    validHoldings.forEach(h => {
+    holdingsWithData.forEach(h => {
       const base = basePrices[h.ticker];
       const periodP = tickerGroups[h.ticker]?.[period];
-      if (!periodP || !base.ac || !base.c) return;
+
+      // Update carry-forward if we have data this period
+      if (periodP && periodP.c > 0) {
+        lastKnown[h.ticker] = periodP;
+      }
+
+      const current = lastKnown[h.ticker];
+      if (!current || !base.c) return; // ticker hasn't appeared yet
 
       const weight = (h.shares || 0) * base.c;
-      const totalRatio = periodP.ac / base.ac;
-      const priceRatio = periodP.c / base.c;
-      if (!isFinite(totalRatio) || !isFinite(priceRatio)) return;
-      weightedTotal += weight * totalRatio;
+      const priceRatio = current.c / base.c;
+      if (!isFinite(priceRatio)) return;
       weightedPrice += weight * priceRatio;
       totalWeight += weight;
-      if (periodP.date > latestDate) latestDate = periodP.date;
+      if (current.date > latestDate) latestDate = current.date;
     });
 
     if (totalWeight > 0) {
@@ -335,7 +341,6 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
         period,
         date: latestDate,
         year: parseInt(latestDate.substring(0, 4)),
-        totalGrowth: weightedTotal / totalWeight,
         priceGrowth: weightedPrice / totalWeight,
       });
     }
@@ -343,14 +348,17 @@ export function calcHistoricalPortfolioValues(historyMap, holdings, portfolioVal
 
   if (results.length === 0) return [];
 
-  // Anchor: last period's DRIP value = portfolioValue
+  // Anchor: last period's price-only value = portfolioValue
   const last = results[results.length - 1];
-  const startValue = last.totalGrowth > 0 ? portfolioValue / last.totalGrowth : portfolioValue;
+  const startValue = last.priceGrowth > 0 ? portfolioValue / last.priceGrowth : portfolioValue;
 
-  return results.map(r => ({
-    date: r.date,
-    year: r.year,
-    value: Math.round(startValue * r.totalGrowth),
-    noDripValue: Math.round(startValue * r.priceGrowth),
-  }));
+  return results.map(r => {
+    const val = Math.round(startValue * r.priceGrowth);
+    return {
+      date: r.date,
+      year: r.year,
+      value: val,
+      noDripValue: val,
+    };
+  });
 }

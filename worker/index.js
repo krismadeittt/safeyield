@@ -16,6 +16,7 @@ import {
   getSnapshots, getLatestSnapshot, saveSnapshots, deleteSnapshots,
   getDailyPrices, saveDailyPrices, getCachedPriceDates,
   getAllUsersWithHoldings, getAllHoldingsGrouped,
+  getRetirementPlan, upsertRetirementPlan, deleteRetirementPlan,
 } from './db.js';
 import { parseFundamentals, sf, round, quarterly, annual, computeG5, computeStreak, buildAnnualHistory } from './parse.js';
 
@@ -815,6 +816,53 @@ export default {
       if (path === "/user/snapshots" && method === "DELETE") {
         await deleteSnapshots(db, auth.userId);
         return json({ ok: true }, origin, 200, 0);
+      }
+
+      // ── Retirement planning routes ──
+
+      // PUT /user/retirement-mode — set retirement opt-in/out
+      if (path === "/user/retirement-mode" && method === "PUT") {
+        var rmBody = await request.json();
+        var mode = [0, 1, 2].includes(rmBody.retirement_mode) ? rmBody.retirement_mode : 0;
+        await updateUserProfile(db, auth.userId, { retirementMode: mode });
+        return json({ ok: true, retirement_mode: mode }, origin, 200, 0);
+      }
+
+      // GET /user/retirement — fetch plan
+      if (path === "/user/retirement" && method === "GET") {
+        var plan = await getRetirementPlan(db, auth.userId);
+        return json({ result: plan || null }, origin, 200, 0);
+      }
+
+      // PUT /user/retirement — upsert plan
+      if (path === "/user/retirement" && method === "PUT") {
+        var rpBody = await request.json();
+        if (!rpBody.date_of_birth || !rpBody.retirement_date || !rpBody.life_expectancy_age) {
+          return json({ error: "Missing required fields: date_of_birth, retirement_date, life_expectancy_age" }, origin, 400, 0);
+        }
+        var saved = await upsertRetirementPlan(db, auth.userId, rpBody);
+        return json({ result: saved }, origin, 200, 0);
+      }
+
+      // DELETE /user/retirement — delete plan
+      if (path === "/user/retirement" && method === "DELETE") {
+        await deleteRetirementPlan(db, auth.userId);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      // POST /user/retirement/mc-cache — store MC simulation results in KV
+      if (path === "/user/retirement/mc-cache" && method === "POST") {
+        var mcBody = await request.json();
+        var mcKey = "mc:" + auth.userId;
+        await kvPut(env, mcKey, mcBody, 86400);
+        return json({ ok: true }, origin, 200, 0);
+      }
+
+      // GET /user/retirement/mc-cache — retrieve cached MC results
+      if (path === "/user/retirement/mc-cache" && method === "GET") {
+        var mcKey2 = "mc:" + auth.userId;
+        var mcCached = await kvGet(env, mcKey2);
+        return json({ result: mcCached || null }, origin, 200, 0);
       }
 
       return err("Not found", origin, 404);

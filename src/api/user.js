@@ -16,6 +16,7 @@ export async function updateUserProfile(getToken, updates = {}) {
     vizType: 'viz_type',
     cashApy: 'cash_apy',
     cashCompounding: 'cash_compounding',
+    retirementMode: 'retirement_mode',
   };
   const body = {};
   for (const [jsKey, apiKey] of Object.entries(FIELD_MAP)) {

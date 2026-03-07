@@ -90,11 +90,10 @@ describe('calcHistoricalDividendsByYear', () => {
 });
 
 // =============================================================================
-// calcHistoricalPortfolioValues — growth-ratio based portfolio valuation
+// calcHistoricalPortfolioValues — price-only ratio-based portfolio valuation
 // =============================================================================
 describe('calcHistoricalPortfolioValues', () => {
   it('returns values anchored to current portfolio value', () => {
-    // Two periods of price data — result should be anchored to portfolioValue
     const historyMap = {
       KO: {
         p: [
@@ -112,6 +111,38 @@ describe('calcHistoricalPortfolioValues', () => {
     expect(last.value).toBe(6000);
   });
 
+  it('noDripValue equals value (no DRIP in historical)', () => {
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-01-15', c: 50, ac: 50 },
+          { d: '2024-01-15', c: 52, ac: 56 }, // ac differs but ignored for value
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
+    result.forEach(r => {
+      expect(r.noDripValue).toBe(r.value);
+    });
+  });
+
+  it('historical values scale correctly by price ratio', () => {
+    // Price doubles from 50→100, so historical should be half of portfolioValue
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2023-01-15', c: 50, ac: 50 },
+          { d: '2025-01-15', c: 100, ac: 100 },
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'KO', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 10000, 20, 'yearly');
+    expect(result[0].value).toBe(5000); // 50/100 * 10000
+    expect(result[1].value).toBe(10000); // 100/100 * 10000
+  });
+
   it('returns empty for insufficient data (< 2 periods)', () => {
     const historyMap = {
       KO: { p: [{ d: '2024-01-15', c: 50, ac: 50 }] },
@@ -126,8 +157,7 @@ describe('calcHistoricalPortfolioValues', () => {
     expect(result).toEqual([]);
   });
 
-  it('returns empty when all base prices are zero', () => {
-    // Zero base prices → can't compute growth ratios
+  it('skips periods with zero prices, uses first valid as base', () => {
     const historyMap = {
       KO: {
         p: [
@@ -138,8 +168,9 @@ describe('calcHistoricalPortfolioValues', () => {
     };
     const holdings = [{ ticker: 'KO', shares: 100 }];
     const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
-    // Base prices are 0 → ticker is filtered out → empty
-    expect(result).toEqual([]);
+    // Per-ticker base skips c=0 entry, uses c=50 as base → 1 result
+    expect(result.length).toBe(1);
+    expect(result[0].value).toBe(5000);
   });
 
   it('all values are finite (no NaN from division)', () => {
@@ -162,24 +193,6 @@ describe('calcHistoricalPortfolioValues', () => {
     });
   });
 
-  it('noDripValue is less than or equal to value (dividends add value)', () => {
-    // When ac grows faster than c (because ac includes dividends), value > noDripValue
-    const historyMap = {
-      KO: {
-        p: [
-          { d: '2023-01-15', c: 50, ac: 50 },
-          { d: '2024-01-15', c: 52, ac: 56 }, // ac grew more (div reinvested)
-        ],
-      },
-    };
-    const holdings = [{ ticker: 'KO', shares: 100 }];
-    const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
-    if (result.length >= 2) {
-      const last = result[result.length - 1];
-      expect(last.value).toBeGreaterThanOrEqual(last.noDripValue);
-    }
-  });
-
   it('handles missing ticker in historyMap gracefully', () => {
     const historyMap = {
       KO: {
@@ -195,8 +208,59 @@ describe('calcHistoricalPortfolioValues', () => {
       { ticker: 'PEP', shares: 50 },
     ];
     const result = calcHistoricalPortfolioValues(historyMap, holdings, 5000, 20, 'yearly');
-    // Should still produce results from KO
     expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('handles 20:1 forward split correctly via ac-based detection', () => {
+    // Stock has a 20:1 split: pre-split c=$2000, post-split c=$100
+    // ac stays smooth across the split (data provider handles it)
+    const historyMap = {
+      AMZN: {
+        p: [
+          { d: '2021-01-15', c: 1800, ac: 90 },  // pre-split, ac adjusted
+          { d: '2022-01-15', c: 2000, ac: 100 },  // pre-split, ac adjusted
+          { d: '2022-07-15', c: 100,  ac: 100 },  // post-split day (20:1)
+          { d: '2023-01-15', c: 120,  ac: 120 },  // post-split
+          { d: '2024-01-15', c: 150,  ac: 150 },  // latest
+        ],
+      },
+    };
+    const holdings = [{ ticker: 'AMZN', shares: 100 }];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 15000, 20, 'yearly');
+    expect(result.length).toBeGreaterThan(0);
+    const last = result[result.length - 1];
+    expect(last.value).toBe(15000); // anchored
+    // First value should be LESS than current (stock grew from 90→150)
+    expect(result[0].value).toBeLessThan(15000);
+    // Should NOT show an inflated value like 180000 from undetected split
+    expect(result[0].value).toBeLessThan(20000);
+  });
+
+  it('includes tickers with later start dates (partial history)', () => {
+    // KO has full history, NEW only has 2024 data
+    const historyMap = {
+      KO: {
+        p: [
+          { d: '2022-01-15', c: 40, ac: 40 },
+          { d: '2023-01-15', c: 50, ac: 50 },
+          { d: '2024-01-15', c: 60, ac: 60 },
+        ],
+      },
+      NEW: {
+        p: [
+          { d: '2024-01-15', c: 20, ac: 20 },
+        ],
+      },
+    };
+    const holdings = [
+      { ticker: 'KO', shares: 100 },
+      { ticker: 'NEW', shares: 50 },
+    ];
+    const result = calcHistoricalPortfolioValues(historyMap, holdings, 7000, 20, 'yearly');
+    expect(result.length).toBe(3); // 2022, 2023, 2024
+    // NEW should contribute from 2024 onward (its base period)
+    // Last value anchored to portfolioValue
+    expect(result[result.length - 1].value).toBe(7000);
   });
 
   it('handles multiple tickers with overlapping dates', () => {
@@ -220,6 +284,8 @@ describe('calcHistoricalPortfolioValues', () => {
     ];
     const result = calcHistoricalPortfolioValues(historyMap, holdings, 15500, 20, 'yearly');
     expect(result.length).toBeGreaterThan(0);
+    // Last value = portfolioValue
+    expect(result[result.length - 1].value).toBe(15500);
     result.forEach(r => {
       expect(isFinite(r.value)).toBe(true);
     });

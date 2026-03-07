@@ -282,3 +282,228 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
 
   return { noDripVals: noDrip.vals, dripVals: drip.vals, contribVals: contrib?.vals ?? null, divIncomePerYear: divSource.divIncomePerYear, simPeriodsPerYear: simPPY };
 }
+
+// ── Retirement Monte Carlo ──
+
+const MARKET_VOL = 0.20;
+
+/**
+ * Build initial per-stock state from holdings + liveData.
+ * Shared between existing engine and retirement simulation.
+ */
+function buildStockState(holdings, liveData) {
+  return holdings.map(h => {
+    const live = liveData?.[h.ticker];
+    const price = (live?.price > 0 ? live.price : null) || h.price || 0;
+    const yld = (live?.divYield ?? h.yld ?? 0) / 100;
+    const divPerShare = live?.annualDiv ?? h.div ?? 0;
+    const g5 = Math.max(0, Math.min((h.g5 ?? 5), 10)) / 100;
+    const beta = live?.beta ?? 1.0;
+    const sigma = Math.max(0.18, Math.abs(beta) * MARKET_VOL);
+    const expectedReturn = Math.max(0.02, Math.min(yld + g5, 0.15));
+    const priceGrowthRate = Math.max(0, expectedReturn - yld);
+    const idioSigma = Math.sqrt(Math.max(0, sigma * sigma - beta * beta * MARKET_VOL * MARKET_VOL));
+
+    return { shares: h.shares || 0, price, divPerShare, g5, priceGrowthRate, sigma, beta, idioSigma };
+  });
+}
+
+/**
+ * Generate correlated GBM price returns for N months.
+ */
+function generateMonthlyReturns(stockTemplate, totalMonths, rng) {
+  const periodMarketVol = MARKET_VOL / Math.sqrt(12);
+  const matrix = [];
+  for (let t = 0; t < totalMonths; t++) {
+    const marketZ = boxMuller(rng);
+    const periodReturns = stockTemplate.map(st => {
+      const annualDrift = Math.log(1 + st.priceGrowthRate) - 0.5 * st.sigma * st.sigma;
+      const periodDrift = annualDrift / 12;
+      const periodBetaVol = st.beta * periodMarketVol;
+      const periodIdioVol = st.idioSigma / Math.sqrt(12);
+      const idioZ = boxMuller(rng);
+      const totalShock = periodBetaVol * marketZ + periodIdioVol * idioZ;
+      return Math.max(Math.exp(periodDrift + totalShock) - 1, -0.70);
+    });
+    matrix.push(periodReturns);
+  }
+  return matrix;
+}
+
+/**
+ * Run a single two-phase retirement simulation.
+ *
+ * Phase 1 (Growth): DRIP reinvestment, no withdrawals
+ * Phase 2 (Withdrawal): monthly withdrawal, sell shares proportionally if dividends insufficient
+ *
+ * @param {Object} params
+ * @param {number} params.growthMonths
+ * @param {number} params.withdrawalMonths
+ * @param {Array} params.holdings
+ * @param {Object} params.liveData
+ * @param {number} params.monthlyWithdrawal - dollars
+ * @param {number} params.cashBalance
+ * @param {number} params.seed
+ * @returns {{ values: number[], ruined: boolean, ruinMonth: number|null }}
+ */
+export function simulateRetirementPath({ growthMonths, withdrawalMonths, holdings, liveData, monthlyWithdrawal, cashBalance = 0, seed }) {
+  if (!holdings?.length) {
+    const totalMonths = growthMonths + withdrawalMonths;
+    const values = [Math.round(cashBalance)];
+    let pool = cashBalance;
+    for (let t = 0; t < totalMonths; t++) {
+      if (t >= growthMonths) pool -= monthlyWithdrawal;
+      if (pool <= 0) {
+        values.push(0);
+        return { values: values.concat(new Array(totalMonths - t - 1).fill(0)), ruined: true, ruinMonth: t };
+      }
+      values.push(Math.round(pool));
+    }
+    return { values, ruined: false, ruinMonth: null };
+  }
+
+  const rng = seededPRNG(seed);
+  const totalMonths = growthMonths + withdrawalMonths;
+  const template = buildStockState(holdings, liveData);
+  const returnsMatrix = generateMonthlyReturns(template, totalMonths, rng);
+
+  // Clone stock state for this simulation
+  const stocks = template.map(st => ({ ...st }));
+  let cash = cashBalance || 0;
+
+  function portfolioValue() {
+    return Math.round(stocks.reduce((s, st) => s + st.shares * st.price, 0) + cash);
+  }
+
+  const values = [portfolioValue()];
+  let ruined = false;
+  let ruinMonth = null;
+
+  for (let t = 0; t < totalMonths; t++) {
+    const isWithdrawalPhase = t >= growthMonths;
+
+    // Apply price returns
+    const returns = returnsMatrix[t];
+    stocks.forEach((st, i) => {
+      st.price = Math.max(0, st.price * (1 + returns[i]));
+    });
+
+    // Pay dividends (monthly)
+    let monthDivs = 0;
+    stocks.forEach(st => {
+      if (st.price > 0 && st.divPerShare > st.price * 0.15) {
+        st.divPerShare = st.price * 0.15;
+      }
+      const div = st.shares * st.divPerShare / 12;
+      monthDivs += div;
+
+      if (!isWithdrawalPhase) {
+        // Growth phase: DRIP
+        if (st.price > 0) st.shares += div / st.price;
+      }
+      // Grow dividend per share
+      st.divPerShare *= Math.pow(1 + st.g5, 1 / 12);
+    });
+
+    if (isWithdrawalPhase) {
+      // Dividends go to cash, then withdraw from cash
+      cash += monthDivs;
+      let deficit = monthlyWithdrawal;
+
+      // First use cash
+      if (cash >= deficit) {
+        cash -= deficit;
+        deficit = 0;
+      } else {
+        deficit -= cash;
+        cash = 0;
+      }
+
+      // If still deficit, sell shares proportionally
+      if (deficit > 0) {
+        const stocksValue = stocks.reduce((s, st) => s + st.shares * st.price, 0);
+        if (stocksValue <= 0) {
+          ruined = true;
+          ruinMonth = t;
+          values.push(0);
+          // Fill remaining with zeros
+          for (let r = t + 1; r < totalMonths; r++) values.push(0);
+          break;
+        }
+        const sellFraction = Math.min(1, deficit / stocksValue);
+        stocks.forEach(st => {
+          st.shares *= (1 - sellFraction);
+        });
+      }
+    }
+
+    const val = portfolioValue();
+    if (val <= 0 && isWithdrawalPhase) {
+      ruined = true;
+      ruinMonth = t;
+      values.push(0);
+      for (let r = t + 1; r < totalMonths; r++) values.push(0);
+      break;
+    }
+    values.push(Math.max(0, val));
+  }
+
+  return { values, ruined, ruinMonth };
+}
+
+/**
+ * Run N retirement simulations and compute percentile bands + success rate.
+ * Designed for use in a Web Worker.
+ *
+ * @param {Object} params - Same as simulateRetirementPath plus:
+ * @param {number} params.numSims - Number of simulations (default 10000)
+ * @param {Function} [params.onProgress] - Progress callback (fraction 0-1)
+ * @returns {{ months: number[], bands: { p10, p25, p50, p75, p90 }[], successRate: number, numSims: number,
+ *             retirementMonthIdx: number, medianAtRetirement: number, medianAtEnd: number }}
+ */
+export function runRetirementMonteCarlo(params) {
+  const { numSims = 10000, onProgress, growthMonths, withdrawalMonths, ...simBase } = params;
+  const totalMonths = growthMonths + withdrawalMonths;
+
+  // Collect values at each time step
+  const allValues = Array.from({ length: totalMonths + 1 }, () => []);
+  let ruinCount = 0;
+
+  for (let i = 0; i < numSims; i++) {
+    const result = simulateRetirementPath({
+      ...simBase,
+      growthMonths,
+      withdrawalMonths,
+      seed: i * 7 + 13,
+    });
+    // Ensure values array matches expected length
+    for (let t = 0; t <= totalMonths; t++) {
+      allValues[t].push(result.values[t] ?? 0);
+    }
+    if (result.ruined) ruinCount++;
+    if (onProgress && i % 200 === 0) onProgress(i / numSims);
+  }
+
+  // Compute percentiles at each time step
+  const bands = allValues.map(vals => {
+    vals.sort((a, b) => a - b);
+    const n = vals.length;
+    return {
+      p10: vals[Math.floor(n * 0.10)],
+      p25: vals[Math.floor(n * 0.25)],
+      p50: vals[Math.floor(n * 0.50)],
+      p75: vals[Math.floor(n * 0.75)],
+      p90: vals[Math.floor(n * 0.90)],
+    };
+  });
+
+  const months = Array.from({ length: totalMonths + 1 }, (_, i) => i);
+  const successRate = ((numSims - ruinCount) / numSims) * 100;
+  const retirementMonthIdx = growthMonths;
+  const medianAtRetirement = bands[growthMonths]?.p50 ?? 0;
+  const medianAtEnd = bands[totalMonths]?.p50 ?? 0;
+
+  if (onProgress) onProgress(1);
+
+  return { months, bands, successRate, numSims, retirementMonthIdx, medianAtRetirement, medianAtEnd };
+}
