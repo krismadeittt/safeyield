@@ -1,0 +1,21 @@
+// CPI-U Annual Averages (Bureau of Labor Statistics)
+// Used for inflation-adjusted income calculations
+
+var CPI_DATA = {
+  2014: 236.7,
+  2015: 237.0,
+  2016: 240.0,
+  2017: 245.1,
+  2018: 251.1,
+  2019: 255.7,
+  2020: 258.8,
+  2021: 271.0,
+  2022: 292.7,
+  2023: 304.7,
+  2024: 314.2,
+  2025: 321.0,
+};
+
+var LATEST_CPI_YEAR = 2025;
+
+export { CPI_DATA, LATEST_CPI_YEAR };

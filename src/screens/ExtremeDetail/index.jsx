@@ -3,39 +3,26 @@ import { TABS } from './tabs';
 import TaxProfileForm from './components/TaxProfileForm';
 import CSVUpload from './components/CSVUpload';
 import ReconciliationDashboard from './components/ReconciliationDashboard';
+import AfterTaxIncome from './components/AfterTaxIncome';
+import SafetyDashboard from './components/SafetyDashboard';
+import InflationDashboard from './components/InflationDashboard';
+import FIREDashboard from './components/FIREDashboard';
+import WhatIfBuilder from './components/WhatIfBuilder';
+import TLHDashboard from './components/TLHDashboard';
+import IntlTaxDashboard from './components/IntlTaxDashboard';
+import REITDashboard from './components/REITDashboard';
 import useTaxProfile from '../../hooks/extreme/useTaxProfile';
 import useCSVUpload from '../../hooks/extreme/useCSVUpload';
 import useReconciliation from '../../hooks/extreme/useReconciliation';
-
-function ComingSoon({ label }) {
-  return (
-    <div style={{
-      textAlign: 'center', padding: '4rem 2rem',
-      color: 'var(--text-dim)', fontSize: '0.9rem',
-    }}>
-      <div style={{ fontSize: '2rem', marginBottom: '1rem', opacity: 0.3 }}>
-        {label === 'Safety' ? '\u{1F6E1}' :
-         label === 'FIRE' ? '\u{1F525}' :
-         label === 'What-If' ? '\u{1F52E}' :
-         label === 'TLH' ? '\u{1F4B0}' :
-         label === 'International' ? '\u{1F30D}' :
-         label === 'Inflation' ? '\u{1F4C8}' :
-         label === 'REITs' ? '\u{1F3E2}' : '\u{2699}'}
-      </div>
-      <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{label}</div>
-      <div>Coming in a future phase</div>
-    </div>
-  );
-}
 
 export default function ExtremeDetailPage({
   holdings, liveData, summary, getToken, theme, toggleTheme,
   isMobile, divScheduleMap, dripEnabled, cashBalance, cashApy, onBack,
 }) {
-  const [activeTab, setActiveTab] = useState('reconciliation');
-  const taxProfile = useTaxProfile(getToken);
-  const csvUpload = useCSVUpload(getToken);
-  const reconciliation = useReconciliation(getToken, holdings, divScheduleMap);
+  var [activeTab, setActiveTab] = useState('reconciliation');
+  var taxProfile = useTaxProfile(getToken);
+  var csvUpload = useCSVUpload(getToken);
+  var reconciliation = useReconciliation(getToken, holdings, divScheduleMap);
 
   function renderTab() {
     switch (activeTab) {
@@ -51,12 +38,20 @@ export default function ExtremeDetailPage({
         );
       case 'tax':
         return (
-          <TaxProfileForm
-            taxProfile={taxProfile}
-            holdings={holdings}
-            liveData={liveData}
-            isMobile={isMobile}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <TaxProfileForm
+              taxProfile={taxProfile}
+              holdings={holdings}
+              liveData={liveData}
+              isMobile={isMobile}
+            />
+            <AfterTaxIncome
+              holdings={holdings}
+              liveData={liveData}
+              taxProfile={taxProfile.profile}
+              isMobile={isMobile}
+            />
+          </div>
         );
       case 'csv':
         return (
@@ -65,10 +60,68 @@ export default function ExtremeDetailPage({
             isMobile={isMobile}
           />
         );
-      default: {
-        var tab = TABS.find(function(t) { return t.id === activeTab; });
-        return <ComingSoon label={tab ? tab.label : activeTab} />;
-      }
+      case 'safety':
+        return (
+          <SafetyDashboard
+            holdings={holdings}
+            liveData={liveData}
+            isMobile={isMobile}
+          />
+        );
+      case 'inflation':
+        return (
+          <InflationDashboard
+            holdings={holdings}
+            liveData={liveData}
+            summary={summary}
+            isMobile={isMobile}
+          />
+        );
+      case 'fire':
+        return (
+          <FIREDashboard
+            holdings={holdings}
+            liveData={liveData}
+            summary={summary}
+            isMobile={isMobile}
+          />
+        );
+      case 'whatif':
+        return (
+          <WhatIfBuilder
+            holdings={holdings}
+            liveData={liveData}
+            summary={summary}
+            isMobile={isMobile}
+          />
+        );
+      case 'tlh':
+        return (
+          <TLHDashboard
+            holdings={holdings}
+            liveData={liveData}
+            taxProfile={taxProfile.profile}
+            isMobile={isMobile}
+          />
+        );
+      case 'international':
+        return (
+          <IntlTaxDashboard
+            holdings={holdings}
+            liveData={liveData}
+            isMobile={isMobile}
+          />
+        );
+      case 'reits':
+        return (
+          <REITDashboard
+            holdings={holdings}
+            liveData={liveData}
+            isMobile={isMobile}
+          />
+        );
+      default:
+        return null;
     }
   }
 
@@ -101,7 +154,7 @@ export default function ExtremeDetailPage({
             fontFamily: "'DM Sans', system-ui, sans-serif",
             borderRadius: 8,
           }}>
-            \u2190 Back
+            {'\u2190'} Back
           </button>
           <span style={{
             fontSize: isMobile ? '0.7rem' : '0.8rem',
@@ -140,7 +193,7 @@ export default function ExtremeDetailPage({
           {TABS.map(function(tab) {
             var isActive = activeTab === tab.id;
             return (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+              <button key={tab.id} onClick={function() { setActiveTab(tab.id); }} style={{
                 background: isActive ? 'var(--accent-bg)' : 'transparent',
                 border: 'none', cursor: 'pointer',
                 color: isActive ? 'var(--primary)' : 'var(--text-muted)',
@@ -151,7 +204,6 @@ export default function ExtremeDetailPage({
                 borderRadius: 8,
                 transition: 'all 0.2s',
                 whiteSpace: 'nowrap',
-                opacity: tab.phase ? 0.5 : 1,
               }}>
                 {tab.label}
               </button>
