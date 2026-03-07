@@ -55,8 +55,11 @@ export default function FIREChart({ projections, crossoverYear, isMobile }) {
     linePath += ' L ' + xFor(b) + ' ' + yFor(projections[b].dividendIncome);
   }
 
-  // Expenses line Y
-  var expensesY = yFor(projections[0].expenses);
+  // MATH AUDIT FIX: draw expenses as ascending line (inflation-adjusted), not flat
+  var expensesPath = 'M ' + xFor(0) + ' ' + yFor(projections[0].expenses);
+  for (var ep = 1; ep < projections.length; ep++) {
+    expensesPath += ' L ' + xFor(ep) + ' ' + yFor(projections[ep].expenses);
+  }
 
   // Crossover X
   var crossoverX = crossoverYear !== null ? xFor(crossoverYear) : null;
@@ -96,13 +99,9 @@ export default function FIREChart({ projections, crossoverYear, isMobile }) {
         {/* Dividend income line */}
         <path d={linePath} fill="none" stroke="var(--green)" strokeWidth={2} />
 
-        {/* Expenses dashed line */}
-        <line
-          x1={padL} y1={expensesY}
-          x2={width - padR} y2={expensesY}
-          stroke="var(--red)" strokeWidth={1.5} strokeDasharray="6,4"
-        />
-        <text x={width - padR - 2} y={expensesY - 6} textAnchor="end" fill="var(--red)" fontSize={8} fontFamily="'JetBrains Mono', monospace">
+        {/* Expenses dashed line (ascending with inflation) */}
+        <path d={expensesPath} fill="none" stroke="var(--red)" strokeWidth={1.5} strokeDasharray="6,4" />
+        <text x={width - padR - 2} y={yFor(projections[projections.length - 1].expenses) - 6} textAnchor="end" fill="var(--red)" fontSize={8} fontFamily="'JetBrains Mono', monospace">
           Expenses
         </text>
 
