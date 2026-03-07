@@ -9,6 +9,23 @@ export async function getTaxProfile(db, userId) {
 }
 
 export async function upsertTaxProfile(db, userId, profile) {
+  // MATH AUDIT FIX: merge with existing profile so partial updates don't zero omitted fields
+  var existing = await getTaxProfile(db, userId) || {};
+  var merged = {
+    profile_name: profile.profile_name !== undefined ? profile.profile_name : (existing.profile_name || 'Default'),
+    federal_rate: profile.federal_rate !== undefined ? profile.federal_rate : (existing.federal_rate || 0),
+    state_rate: profile.state_rate !== undefined ? profile.state_rate : (existing.state_rate || 0),
+    local_rate: profile.local_rate !== undefined ? profile.local_rate : (existing.local_rate || 0),
+    qualified_rate: profile.qualified_rate !== undefined ? profile.qualified_rate : (existing.qualified_rate || 0),
+    ordinary_rate: profile.ordinary_rate !== undefined ? profile.ordinary_rate : (existing.ordinary_rate || 0),
+    reit_rate: profile.reit_rate !== undefined ? profile.reit_rate : (existing.reit_rate || 0),
+    ltcg_rate: profile.ltcg_rate !== undefined ? profile.ltcg_rate : (existing.ltcg_rate || 0),
+    stcg_rate: profile.stcg_rate !== undefined ? profile.stcg_rate : (existing.stcg_rate || 0),
+    filing_status: profile.filing_status !== undefined ? profile.filing_status : (existing.filing_status || 'single'),
+    country: profile.country !== undefined ? profile.country : (existing.country || 'US'),
+    state_code: profile.state_code !== undefined ? profile.state_code : (existing.state_code || null),
+  };
+
   await db.prepare(
     `INSERT INTO user_tax_profiles (id, user_id, profile_name, federal_rate, state_rate, local_rate, qualified_rate, ordinary_rate, reit_rate, ltcg_rate, stcg_rate, filing_status, country, state_code)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -28,18 +45,18 @@ export async function upsertTaxProfile(db, userId, profile) {
   ).bind(
     crypto.randomUUID().replace(/-/g, ''),
     userId,
-    profile.profile_name || 'Default',
-    profile.federal_rate || 0,
-    profile.state_rate || 0,
-    profile.local_rate || 0,
-    profile.qualified_rate || 0,
-    profile.ordinary_rate || 0,
-    profile.reit_rate || 0,
-    profile.ltcg_rate || 0,
-    profile.stcg_rate || 0,
-    profile.filing_status || 'single',
-    profile.country || 'US',
-    profile.state_code || null
+    merged.profile_name,
+    merged.federal_rate,
+    merged.state_rate,
+    merged.local_rate,
+    merged.qualified_rate,
+    merged.ordinary_rate,
+    merged.reit_rate,
+    merged.ltcg_rate,
+    merged.stcg_rate,
+    merged.filing_status,
+    merged.country,
+    merged.state_code
   ).run();
   return getTaxProfile(db, userId);
 }

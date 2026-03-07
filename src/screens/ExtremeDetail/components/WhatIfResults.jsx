@@ -20,10 +20,11 @@ export default function WhatIfResults({ currentSummary, scenarioResults, isMobil
     return diff;
   }
 
+  // MATH AUDIT FIX: handle negative currency deltas (-$500 not $-500)
   function formatDelta(val, formatFn) {
     if (val === null) return '';
-    var prefix = val > 0 ? '+' : '';
-    return prefix + formatFn(val);
+    var sign = val > 0 ? '+' : val < 0 ? '-' : '';
+    return sign + formatFn(Math.abs(val));
   }
 
   return (

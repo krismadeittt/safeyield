@@ -51,7 +51,7 @@ export default function FIREDashboard({ holdings, liveData, summary, isMobile })
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           }}>
             <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', fontFamily: "'JetBrains Mono', monospace" }}>
-              {fire.progressPct}%
+              {isFinite(fire.progressPct) ? fire.progressPct : 100}%
             </span>
             <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>to FIRE</span>
           </div>

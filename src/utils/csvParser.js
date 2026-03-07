@@ -54,15 +54,27 @@ function parseCSVLine(line) {
 function normalizeDate(val) {
   if (!val) return null;
   val = val.trim();
+  var month, day, year;
   // MM/DD/YYYY
   var mdy = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (mdy) return mdy[3] + '-' + mdy[1].padStart(2, '0') + '-' + mdy[2].padStart(2, '0');
-  // YYYY-MM-DD (already correct)
-  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+  if (mdy) { month = parseInt(mdy[1], 10); day = parseInt(mdy[2], 10); year = mdy[3]; }
+  // YYYY-MM-DD
+  if (!year) {
+    var ymd = val.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (ymd) { year = ymd[1]; month = parseInt(ymd[2], 10); day = parseInt(ymd[3], 10); }
+  }
   // M-D-YYYY
-  var mdy2 = val.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-  if (mdy2) return mdy2[3] + '-' + mdy2[1].padStart(2, '0') + '-' + mdy2[2].padStart(2, '0');
-  return null;
+  if (!year) {
+    var mdy2 = val.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    if (mdy2) { month = parseInt(mdy2[1], 10); day = parseInt(mdy2[2], 10); year = mdy2[3]; }
+  }
+  if (!year) return null;
+  // MATH AUDIT FIX: reject semantically invalid dates (month 13, day 32, Feb 30)
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  var isoStr = year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  var d = new Date(isoStr + 'T00:00:00Z');
+  if (isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== isoStr) return null;
+  return isoStr;
 }
 
 function parseAmount(val) {

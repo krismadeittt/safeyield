@@ -10,12 +10,12 @@ var WITHHOLDING_RATES = {
   JP: 10,
   AU: 0,
   CH: 15,
-  IE: 25,
+  IE: 15, // MATH AUDIT FIX: US-Ireland treaty rate is 15%, not 25% statutory
   NL: 15,
   HK: 0,
   SG: 0,
   KR: 15, // U.S.–Korea treaty Article 12
-  BR: 15,
+  BR: 0, // MATH AUDIT FIX: Brazil exempts dividends from WHT
   MX: 10,
   IT: 15,
   ES: 15,
@@ -28,9 +28,9 @@ var WITHHOLDING_RATES = {
   NZ: 0,
   IL: 25,
   TW: 21,
-  IN: 25,
+  IN: 20, // MATH AUDIT FIX: India rate is 20% since Finance Act 2020
   CN: 10,
-  ZA: 15,
+  ZA: 20, // MATH AUDIT FIX: South Africa WHT is 20% since Feb 2017
   LU: 15,
 };
 

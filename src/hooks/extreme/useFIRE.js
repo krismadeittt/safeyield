@@ -47,13 +47,17 @@ export default function useFIRE(totalAnnualDividendIncome, holdings, liveData) {
     var growthRate = priceAppreciation / 100;
     var yieldRate = targetYield / 100;
 
+    // MATH AUDIT FIX: inflate expenses annually so FIRE crossover is realistic
+    var inflationRate = 0.03;
+
     for (var y = 0; y <= projectionYears; y++) {
       var dividendIncome = portfolioValue * yieldRate;
+      var yearExpenses = Math.round(annualExpenses * Math.pow(1 + inflationRate, y));
       results.push({
         year: y,
         portfolioValue: Math.round(portfolioValue),
         dividendIncome: Math.round(dividendIncome),
-        expenses: annualExpenses,
+        expenses: yearExpenses,
       });
 
       // Grow portfolio: contributions + dividend reinvestment + price appreciation
