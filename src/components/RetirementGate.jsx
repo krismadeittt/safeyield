@@ -72,7 +72,7 @@ export default function RetirementGate({ onYes, onNo }) {
               fontFamily: "'DM Sans', system-ui, sans-serif",
             }}
           >
-            Yes, plan my retirement
+            Use Retirement Tracker
           </button>
           <button
             onClick={onNo}
@@ -89,7 +89,7 @@ export default function RetirementGate({ onYes, onNo }) {
               fontFamily: "'DM Sans', system-ui, sans-serif",
             }}
           >
-            No, just track dividends
+            No, Just Track Portfolio
           </button>
         </div>
       </div>

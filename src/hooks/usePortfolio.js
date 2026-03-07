@@ -6,7 +6,7 @@ import { searchTickers } from '../api/search';
 import { REIT_TEMPLATE, VIG_TEMPLATE, HIGH_YIELD_TEMPLATE } from '../data/portfolioTemplates';
 import { NOBL_HOLDINGS } from '../data/aristocrats';
 import { getUserHoldings, saveUserHoldings, getUserProfile, updateUserProfile, getUserWatchlist, addToUserWatchlist, removeFromUserWatchlist, saveProcessedState } from '../api/user';
-import { getRetirementPlan as fetchRetirementPlan } from '../api/retirement';
+import { getRetirementPlan as fetchRetirementPlan, updateRetirementMode, deleteRetirementPlan } from '../api/retirement';
 import { fetchBatchHistory, fetchDivHistoryBatch } from '../api/history';
 import { processCatchUp } from '../utils/catchUp';
 import { calcMonthlyIncome, deriveDividendSchedule } from '../utils/dividends';
@@ -622,7 +622,7 @@ export default function usePortfolio(getToken) {
     window.scrollTo(0, 0);
   }
 
-  // Reset portfolio — clear holdings and return to onboarding
+  // Reset portfolio — clear everything and return to retirement gate
   function resetPortfolio() {
     setHoldings([]);
     setLiveData({});
@@ -638,12 +638,22 @@ export default function usePortfolio(getToken) {
     hasLoadedRef.current = false;
     setSnapshots([]);
     setInceptionDate(null);
+    // Reset retirement state — go back to gate
+    setRetirementMode(0);
+    setRetirementPlan(null);
+    setShowRetirementGate(true);
     if (getToken) {
       saveUserHoldings(getToken, []).catch(e =>
         console.warn('Reset save failed:', e.message)
       );
       deleteAllSnapshots(getToken).catch(e =>
         console.warn('Snapshot delete failed:', e.message)
+      );
+      updateRetirementMode(getToken, 0).catch(e =>
+        console.warn('Reset retirement mode failed:', e.message)
+      );
+      deleteRetirementPlan(getToken).catch(e =>
+        console.warn('Reset retirement plan failed:', e.message)
       );
     }
   }

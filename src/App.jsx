@@ -10,7 +10,7 @@ import WatchlistScreen from './screens/WatchlistScreen';
 import HoldingsTable from './components/HoldingsTable';
 import CashSection from './components/CashSection';
 import UserMenu from './components/UserMenu';
-import ConfirmModal from './components/ConfirmModal';
+import ResetConfirmModal from './components/ResetConfirmModal';
 import { ToastProvider, useToast } from './components/Toast';
 import Tour, { shouldShowTour, resetTour } from './components/Tour';
 import MethodologyDisclosure from './components/MethodologyDisclosure';
@@ -552,10 +552,9 @@ function AppInner() {
         </div>
       )}
 
-      {/* Confirm Modal (Reset) */}
+      {/* Reset Confirm Modal (two-step: warning → password) */}
       {showConfirm && (
-        <ConfirmModal
-          message="Reset portfolio and return to strategy selection?"
+        <ResetConfirmModal
           onConfirm={() => {
             setShowConfirm(false);
             resetPortfolio();
