@@ -10,7 +10,7 @@ const STRATEGIES = [
   { id: 'voo', label: 'Broad Market' },
 ];
 
-export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDrip, onShowTour }) {
+export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDrip, onShowTour, retirementMode, onToggleRetirement }) {
   const isMobile = useIsMobile();
   const [displayName, setDisplayName] = useState('');
   const [defaultStrategy, setDefaultStrategy] = useState('');
@@ -121,6 +121,25 @@ export default function ProfileModal({ getToken, onClose, dripEnabled, toggleDri
                 {dripEnabled ? 'ON — Reinvest dividends as shares' : 'OFF — Accumulate as cash'}
               </span>
             </div>
+
+            {retirementMode === 2 && onToggleRetirement && (
+              <>
+                <label style={{ fontSize: '0.7rem', color: 'var(--text-link)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  Retirement Planning
+                </label>
+                <button
+                  onClick={() => { onToggleRetirement(); onClose(); }}
+                  style={{
+                    width: '100%', padding: '8px', cursor: 'pointer', marginBottom: 20,
+                    background: 'none', border: '1px solid var(--border-accent)',
+                    color: 'var(--primary)', fontSize: '0.8rem',
+                    fontFamily: "'DM Sans', system-ui, sans-serif",
+                  }}
+                >
+                  Enable Retirement Planning
+                </button>
+              </>
+            )}
 
             <button onClick={() => { onShowTour?.(); onClose(); }} style={{
               width: '100%', padding: '8px', cursor: 'pointer', marginBottom: 12,

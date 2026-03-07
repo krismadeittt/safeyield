@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   cash_apy REAL DEFAULT 0,
   cash_compounding TEXT DEFAULT 'none',
   drip_enabled INTEGER DEFAULT 1,
+  retirement_mode INTEGER DEFAULT 0,   -- 0=not asked, 1=opted in, 2=opted out
   last_processed_at TEXT DEFAULT NULL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
@@ -85,3 +86,18 @@ CREATE TABLE IF NOT EXISTS daily_prices (
 );
 
 CREATE INDEX IF NOT EXISTS idx_daily_prices_date ON daily_prices(date);
+
+-- Retirement planning
+CREATE TABLE IF NOT EXISTS retirement_plans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date_of_birth TEXT NOT NULL,
+  retirement_date TEXT NOT NULL,
+  life_expectancy_age INTEGER NOT NULL,
+  monthly_income_needed INTEGER NOT NULL DEFAULT 0, -- stored in cents
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_retirement_user ON retirement_plans(user_id);
