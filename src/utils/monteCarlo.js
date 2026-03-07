@@ -75,8 +75,12 @@ export function projectPortfolioPerStock(horizon, holdings, liveData, extraContr
     return holdings.map(h => {
       const live = liveData?.[h.ticker];
       const price = (live?.price > 0 ? live.price : null) || h.price || 0;
-      const yld = (live?.divYield ?? h.yld ?? 0) / 100;
       const divPerShare = live?.annualDiv ?? h.div ?? 0;
+      // Use ACTUAL yield from divPerShare/price for consistency with Gordon model.
+      // Reported divYield can differ from annualDiv/price (forward vs trailing,
+      // special distributions, split adjustments), causing double-counted returns.
+      const reportedYld = (live?.divYield ?? h.yld ?? 0) / 100;
+      const yld = (price > 0 && divPerShare > 0) ? divPerShare / price : reportedYld;
       // Cap g5 at 10% (few companies sustain >10% div growth long-term)
       const g5 = Math.max(0, Math.min((h.g5 ?? 5), 10)) / 100;
       const beta = live?.beta ?? 1.0;
@@ -295,8 +299,10 @@ function buildStockState(holdings, liveData) {
   return holdings.map(h => {
     const live = liveData?.[h.ticker];
     const price = (live?.price > 0 ? live.price : null) || h.price || 0;
-    const yld = (live?.divYield ?? h.yld ?? 0) / 100;
     const divPerShare = live?.annualDiv ?? h.div ?? 0;
+    // Use ACTUAL yield from divPerShare/price for consistency with Gordon model.
+    const reportedYld = (live?.divYield ?? h.yld ?? 0) / 100;
+    const yld = (price > 0 && divPerShare > 0) ? divPerShare / price : reportedYld;
     const g5 = Math.max(0, Math.min((h.g5 ?? 5), 10)) / 100;
     const beta = live?.beta ?? 1.0;
     const sigma = Math.max(0.18, Math.abs(beta) * MARKET_VOL);
