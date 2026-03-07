@@ -865,6 +865,39 @@ export default {
         return json({ result: mcCached || null }, origin, 200, 0);
       }
 
+      // POST /user/verify-password — verify user's password via Clerk Backend API
+      if (path === "/user/verify-password" && method === "POST") {
+        if (!env.CLERK_SECRET_KEY) {
+          return err("Password verification not configured", origin, 500);
+        }
+        var vpBody = await request.json();
+        if (!vpBody.password) {
+          return err("Password required", origin, 400);
+        }
+        try {
+          var clerkResp = await fetch(
+            "https://api.clerk.com/v1/users/" + auth.userId + "/verify_password",
+            {
+              method: "POST",
+              headers: {
+                "Authorization": "Bearer " + env.CLERK_SECRET_KEY,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ password: vpBody.password }),
+            }
+          );
+          if (!clerkResp.ok) {
+            var clerkErr = await clerkResp.json().catch(() => ({}));
+            var msg = clerkErr?.errors?.[0]?.long_message || "Incorrect password";
+            return json({ verified: false, error: msg }, origin, 200, 0);
+          }
+          var clerkResult = await clerkResp.json();
+          return json({ verified: !!clerkResult.verified }, origin, 200, 0);
+        } catch (vpErr) {
+          return err("Verification failed", origin, 500);
+        }
+      }
+
       return err("Not found", origin, 404);
     }
 

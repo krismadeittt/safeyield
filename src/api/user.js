@@ -80,3 +80,11 @@ export async function saveProcessedState(getToken, holdings, cashBalance, lastPr
     body: JSON.stringify({ holdings, cashBalance, lastProcessedAt }),
   });
 }
+
+export async function verifyPassword(getToken, password) {
+  const data = await authFetch(getToken, '/user/verify-password', {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  });
+  return data;
+}

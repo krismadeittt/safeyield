@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useSignIn, useUser } from '@clerk/clerk-react';
+import { useAuth } from '@clerk/clerk-react';
+import { verifyPassword } from '../api/user';
 import useIsMobile from '../hooks/useIsMobile';
 
 export default function ResetConfirmModal({ onConfirm, onCancel }) {
   const isMobile = useIsMobile();
-  const { user } = useUser();
-  const { signIn, setActive } = useSignIn();
+  const { getToken } = useAuth();
   const [step, setStep] = useState('warn'); // 'warn' | 'password'
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -17,18 +17,14 @@ export default function ResetConfirmModal({ onConfirm, onCancel }) {
     setVerifying(true);
     setError('');
     try {
-      const email = user.primaryEmailAddress?.emailAddress;
-      if (!email) throw new Error('No email found');
-      const result = await signIn.create({ identifier: email, password });
-      if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId });
+      const result = await verifyPassword(getToken, password);
+      if (result.verified) {
         onConfirm();
       } else {
-        setError('Verification failed. Please try again.');
+        setError(result.error || 'Incorrect password');
       }
     } catch (err) {
-      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err.message || 'Incorrect password';
-      setError(msg);
+      setError(err.message || 'Verification failed');
     } finally {
       setVerifying(false);
     }
