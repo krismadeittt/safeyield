@@ -27,15 +27,40 @@ function getClientIP(request) {
   return request.headers.get('CF-Connecting-IP') || request.headers.get('X-Real-IP') || null;
 }
 
+// Split a CSV line respecting quoted fields
+function splitCSVLine(line) {
+  var result = [];
+  var current = '';
+  var inQuotes = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
 // Parse CSV text into rows with auto-detected columns
 function parseCSV(text) {
   var lines = text.split(/\r?\n/).filter(function(l) { return l.trim().length > 0; });
   if (lines.length < 2) return { headers: [], rows: [], format: null };
 
-  var headers = lines[0].split(',').map(function(h) { return h.trim().toLowerCase().replace(/['"]/g, ''); });
+  var headers = splitCSVLine(lines[0]).map(function(h) { return h.toLowerCase().replace(/['"]/g, ''); });
   var rows = [];
   for (var i = 1; i < lines.length; i++) {
-    var vals = lines[i].split(',').map(function(v) { return v.trim().replace(/^['"]|['"]$/g, ''); });
+    var vals = splitCSVLine(lines[i]);
     if (vals.length === headers.length) {
       var row = {};
       for (var j = 0; j < headers.length; j++) row[headers[j]] = vals[j];
@@ -122,7 +147,7 @@ export async function handleExtremeRoute(path, method, request, env, auth, origi
       return errResp("Missing CSV content", origin, 400);
     }
 
-    // Size check (10MB base64 ≈ 13.3MB)
+    // Size check (10MB plain-text CSV)
     if (csvBody.content.length > 14 * 1024 * 1024) {
       return errResp("File exceeds 10MB limit", origin, 400);
     }
@@ -302,8 +327,8 @@ export async function handleExtremeRoute(path, method, request, env, auth, origi
 
     var updated = await confirmReconciliation(
       db, userId, recId,
-      cBody.actual_amount || null,
-      cBody.actual_total || null,
+      cBody.actual_amount !== undefined ? cBody.actual_amount : null,
+      cBody.actual_total !== undefined ? cBody.actual_total : null,
       cBody.notes ? sanitizeText(cBody.notes) : null
     );
     if (!updated) return errResp("Record not found", origin, 404);
@@ -326,8 +351,8 @@ export async function handleExtremeRoute(path, method, request, env, auth, origi
       if (!c.id) continue;
       var result = await confirmReconciliation(
         db, userId, c.id,
-        c.actual_amount || null,
-        c.actual_total || null,
+        c.actual_amount !== undefined ? c.actual_amount : null,
+        c.actual_total !== undefined ? c.actual_total : null,
         c.notes ? sanitizeText(c.notes) : null
       );
       bulkResults.push({ id: c.id, updated: !!result });

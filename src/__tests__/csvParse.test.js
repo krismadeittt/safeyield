@@ -106,7 +106,7 @@ describe('parseCSV', () => {
     expect(result.rows[0].ticker).toBe('VOO');
   });
 
-  it('lowercases tickers from input', () => {
+  it('normalizes lowercase tickers to uppercase', () => {
     var csv = 'Ticker,Shares\naapl,10';
     var result = parseCSV(csv);
     expect(result.rows[0].ticker).toBe('AAPL');

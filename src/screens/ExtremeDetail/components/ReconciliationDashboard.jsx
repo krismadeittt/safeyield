@@ -36,7 +36,8 @@ export default function ReconciliationDashboard({ reconciliation, holdings, live
     // Build dividend data from divScheduleMap
     var dividendData = [];
     var now = new Date();
-    var threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString().slice(0, 10);
+    var threeMonthsAgoDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    var threeMonthsAgo = threeMonthsAgoDate.toISOString().slice(0, 10);
 
     for (var i = 0; i < holdings.length; i++) {
       var h = holdings[i];
@@ -53,11 +54,11 @@ export default function ReconciliationDashboard({ reconciliation, holdings, live
       for (var m = 0; m < months.length; m++) {
         var month = months[m];
         var year = now.getFullYear();
-        var exDate = year + '-' + String(month).padStart(2, '0') + '-15';
-        if (exDate < threeMonthsAgo) {
-          // Try next year
-          exDate = (year + 1) + '-' + String(month).padStart(2, '0') + '-15';
+        var candidate = new Date(year, month - 1, 15);
+        if (candidate < threeMonthsAgoDate) {
+          candidate = new Date(year + 1, month - 1, 15);
         }
+        var exDate = candidate.getFullYear() + '-' + String(candidate.getMonth() + 1).padStart(2, '0') + '-15';
         dividendData.push({
           ticker: h.ticker,
           ex_date: exDate,

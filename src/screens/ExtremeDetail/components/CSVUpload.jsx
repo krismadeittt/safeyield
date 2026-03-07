@@ -14,19 +14,19 @@ export default function CSVUpload({ csvUpload, isMobile }) {
   function handleDrop(e) {
     e.preventDefault();
     e.stopPropagation();
-    dropRef.current.style.borderColor = 'var(--border)';
+    if (dropRef.current) dropRef.current.style.borderColor = 'var(--border)';
     handleFiles(e.dataTransfer.files);
   }
 
   function handleDragOver(e) {
     e.preventDefault();
     e.stopPropagation();
-    dropRef.current.style.borderColor = 'var(--primary)';
+    if (dropRef.current) dropRef.current.style.borderColor = 'var(--primary)';
   }
 
   function handleDragLeave(e) {
     e.preventDefault();
-    dropRef.current.style.borderColor = 'var(--border)';
+    if (dropRef.current) dropRef.current.style.borderColor = 'var(--border)';
   }
 
   return (

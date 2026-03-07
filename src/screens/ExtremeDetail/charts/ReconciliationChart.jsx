@@ -15,6 +15,7 @@ export default function ReconciliationChart({ records, isMobile }) {
   }, []);
 
   // Aggregate by ticker: sum expected and actual
+  if (!records) return null;
   var byTicker = {};
   for (var i = 0; i < records.length; i++) {
     var r = records[i];

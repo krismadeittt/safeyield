@@ -5,11 +5,15 @@ export default function ConfirmDividendModal({ record, onConfirm, onClose }) {
   var [actualTotal, setActualTotal] = useState(record.expected_total || 0);
   var [notes, setNotes] = useState('');
   var [saving, setSaving] = useState(false);
+  var [localError, setLocalError] = useState(null);
 
   async function handleConfirm() {
     setSaving(true);
+    setLocalError(null);
     try {
       await onConfirm(actualAmount, actualTotal, notes || null);
+    } catch (e) {
+      setLocalError(e.message || 'Failed to confirm');
     } finally {
       setSaving(false);
     }
@@ -73,6 +77,10 @@ export default function ConfirmDividendModal({ record, onConfirm, onClose }) {
           rows={2}
           style={{ ...inputStyle, resize: 'vertical', marginBottom: 16 }}
         />
+
+        {localError && (
+          <div style={{ color: 'var(--red)', fontSize: '0.75rem', marginBottom: 8 }}>{localError}</div>
+        )}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={handleConfirm} disabled={saving} style={{
