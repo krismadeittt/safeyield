@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-export default function InflationChart({ projections, isMobile }) {
+export default function InflationChart({ projections, isMobile, viewMode }) {
   var containerRef = useRef(null);
   var [width, setWidth] = useState(600);
   var [hoverIdx, setHoverIdx] = useState(-1);
@@ -82,10 +82,10 @@ export default function InflationChart({ projections, isMobile }) {
         <path d={areaPath} fill="var(--red)" opacity={0.08} />
 
         {/* Nominal line (blue) */}
-        <path d={nominalPath} fill="none" stroke="var(--chart-proj-bright)" strokeWidth={2} />
+        <path d={nominalPath} fill="none" stroke="var(--chart-proj-bright)" strokeWidth={viewMode === 'nominal' ? 2.5 : 1.5} opacity={viewMode === 'real' ? 0.3 : 1} />
 
         {/* Real line (green) */}
-        <path d={realPath} fill="none" stroke="var(--chart-hist-bright)" strokeWidth={2} />
+        <path d={realPath} fill="none" stroke="var(--chart-hist-bright)" strokeWidth={viewMode === 'real' ? 2.5 : 1.5} opacity={viewMode === 'nominal' ? 0.3 : 1} />
 
         {/* Data points and hover zones */}
         {projections.map(function(d, idx) {

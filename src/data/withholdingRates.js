@@ -14,7 +14,7 @@ var WITHHOLDING_RATES = {
   NL: 15,
   HK: 0,
   SG: 0,
-  KR: 22,
+  KR: 15, // U.S.–Korea treaty Article 12
   BR: 15,
   MX: 10,
   IT: 15,

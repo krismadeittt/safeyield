@@ -188,12 +188,12 @@ function LegendItem({ color, label, dashed }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
       <div style={{
-        width: 14, height: 2, background: color,
-        borderTop: dashed ? '2px dashed ' + color : 'none',
-        background: dashed ? 'transparent' : color,
+        width: 14,
         height: dashed ? 0 : 2,
+        background: dashed ? 'transparent' : color,
+        borderTop: dashed ? '2px dashed ' + color : 'none',
+        borderRadius: dashed ? 0 : 1,
       }} />
-      {!dashed && <div style={{ width: 14, height: 2, background: color, borderRadius: 1 }} />}
       <span style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>{label}</span>
     </div>
   );

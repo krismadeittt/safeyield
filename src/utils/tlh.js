@@ -24,6 +24,7 @@ var SUBSTITUTE_PAIRS = {
  */
 export function findTLHCandidates(holdings, liveData) {
   var candidates = [];
+  liveData = liveData || {};
 
   for (var i = 0; i < holdings.length; i++) {
     var h = holdings[i];

@@ -49,7 +49,7 @@ export default function FIRESensitivity({ baseProjections, crossoverYear, isMobi
 
     return [
       { name: 'Conservative', desc: 'Lower yield, 15% higher expenses', crossover: findCrossover(conserv), color: '#ef4444' },
-      { name: 'Base Case', desc: 'Current assumptions', crossover: crossoverYear, color: 'var(--primary)' },
+      { name: 'Base Case', desc: 'Current assumptions', crossover: findCrossover(base), color: 'var(--primary)' },
       { name: 'Aggressive', desc: '+$' + aggressiveExtra + '/mo contributions, higher yield', crossover: findCrossover(aggr), color: '#3CBFA3' },
     ];
   }, [baseProjections, crossoverYear, contribAdjust]);

@@ -100,7 +100,7 @@ export default function ExtremeDetailPage({
           <TLHDashboard
             holdings={holdings}
             liveData={liveData}
-            taxProfile={taxProfile.profile}
+            taxProfile={taxProfile}
             isMobile={isMobile}
           />
         );

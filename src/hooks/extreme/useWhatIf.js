@@ -11,10 +11,11 @@ export default function useWhatIf() {
   var [results, setResults] = useState({});
 
   var addScenario = useCallback(function(name) {
-    var id = 'scenario_' + (nextId++);
+    var currentId = nextId++;
+    var id = 'scenario_' + currentId;
     setScenarios(function(prev) {
       if (prev.length >= 3) return prev; // Max 3 scenarios
-      return prev.concat([{ id: id, name: name || 'Scenario ' + nextId, changes: [] }]);
+      return prev.concat([{ id: id, name: name || 'Scenario ' + currentId, changes: [] }]);
     });
     return id;
   }, []);

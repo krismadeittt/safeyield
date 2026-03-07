@@ -37,7 +37,7 @@ export default function SafetyAlertBanner({ alerts }) {
             lineHeight: 1,
           }}
         >
-          \u2715
+          {'\u2715'}
         </button>
       </div>
 

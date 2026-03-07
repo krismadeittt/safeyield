@@ -5,6 +5,8 @@ import { formatCurrency } from '../../../utils/format';
 export default function TLHSimulator({ candidates, taxProfile, isMobile }) {
   var [selected, setSelected] = useState({});
 
+  if (!candidates || candidates.length === 0) return null;
+
   var taxRate = 0;
   if (taxProfile && taxProfile.profile) {
     taxRate = (taxProfile.profile.ordinary_rate || 22) + (taxProfile.profile.state_rate || 0);

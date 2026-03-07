@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function REITDetailCard({ ticker, shares, liveData, isMobile }) {
+export default function REITDetailCard({ ticker, liveData, isMobile }) {
   var price = liveData.price || 0;
   var annualDiv = liveData.annualDiv || 0;
   var fundamentals = liveData.fundamentals || {};
@@ -41,7 +41,7 @@ export default function REITDetailCard({ ticker, shares, liveData, isMobile }) {
       {/* Distribution type breakdown estimate */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--text-dim)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-          Est. Distribution Breakdown
+          Est. Distribution Breakdown (Generic Industry Estimate)
         </div>
         <div style={{ display: 'flex', gap: 2, height: 16, borderRadius: 4, overflow: 'hidden', marginBottom: 4 }}>
           <div style={{ flex: estOrdinary, background: 'var(--chart-proj)', borderRadius: '4px 0 0 4px' }} />

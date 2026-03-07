@@ -121,7 +121,7 @@ export default function InflationDashboard({ holdings, liveData, summary, isMobi
           <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 12 }}>
             {viewMode === 'nominal' ? 'Nominal vs Real Income Projection' : 'Real (Inflation-Adjusted) Income'}
           </div>
-          <InflationChart projections={projections} isMobile={isMobile} />
+          <InflationChart projections={projections} isMobile={isMobile} viewMode={viewMode} />
         </div>
       )}
 

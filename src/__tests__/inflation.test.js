@@ -7,7 +7,7 @@ import {
 describe('getCPIForYear', () => {
   it('returns exact CPI for known years', () => {
     expect(getCPIForYear(2020)).toBe(258.8);
-    expect(getCPIForYear(2025)).toBe(321.0);
+    expect(getCPIForYear(2025)).toBe(321.943);
   });
 
   it('returns CPI for first available year', () => {

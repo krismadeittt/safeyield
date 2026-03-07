@@ -35,15 +35,15 @@ export default function useInflation(totalAnnualIncome, holdings, liveData) {
       avgInflation
     );
 
-    // Current real income adjusted from base year to latest CPI year
-    var currentRealIncome = totalAnnualIncome; // already in current dollars
+    // Current real income (already in current dollars, no adjustment needed)
+    var currentRealIncome = totalAnnualIncome;
 
     return {
       projections: projections,
       currentRealIncome: Math.round(currentRealIncome * 100) / 100,
       avgInflation: Math.round(avgInflation * 10000) / 10000,
     };
-  }, [totalAnnualIncome, holdings, liveData]);
+  }, [totalAnnualIncome]);
 
   var loading = totalAnnualIncome == null;
 

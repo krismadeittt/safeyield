@@ -32,10 +32,11 @@ export default function WhatIfBuilder({ holdings, liveData, summary, isMobile })
   }
 
   function handleRemoveScenario(id) {
-    whatIf.removeScenario(id);
+    var remaining = whatIf.scenarios.filter(function(s) { return s.id !== id; });
     if (activeScenarioId === id) {
-      setActiveScenarioId(whatIf.scenarios.length > 1 ? whatIf.scenarios.find(function(s) { return s.id !== id; }).id : null);
+      setActiveScenarioId(remaining.length > 0 ? remaining[0].id : null);
     }
+    whatIf.removeScenario(id);
     setSimulated(false);
   }
 

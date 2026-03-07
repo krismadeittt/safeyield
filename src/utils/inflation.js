@@ -24,8 +24,9 @@ export function getCPIForYear(year) {
   }
 
   if (year > lastYear) {
-    // Extrapolate forward using last two years' avg rate
-    var lateRate = (CPI_DATA[lastYear] - CPI_DATA[lastYear - 1]) / CPI_DATA[lastYear - 1];
+    // Extrapolate forward using last two known years' avg rate
+    var prevYear = years[years.length - 2];
+    var lateRate = (CPI_DATA[lastYear] - CPI_DATA[prevYear]) / CPI_DATA[prevYear] / (lastYear - prevYear);
     var fwdDiff = year - lastYear;
     return CPI_DATA[lastYear] * Math.pow(1 + lateRate, fwdDiff);
   }

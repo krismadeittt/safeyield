@@ -28,12 +28,10 @@ export default function TLHDashboard({ holdings, liveData, taxProfile, isMobile 
     totalSavings += estimateTaxSavings(candidates[i].unrealizedLoss, taxRate);
   }
 
-  // Annual harvest limit: $3,000 vs ordinary income
-  var harvestLimit = 3000;
-  var limitedSavings = Math.min(totalSavings, estimateTaxSavings(harvestLimit, taxRate));
-
-  // Sort candidates
-  var sorted = [...candidates];
+  // Sort candidates — add savings property for sortability
+  var sorted = candidates.map(function(c) {
+    return Object.assign({}, c, { savings: estimateTaxSavings(c.unrealizedLoss, taxRate) });
+  });
   sorted.sort(function(a, b) {
     var va = a[sortKey] || 0;
     var vb = b[sortKey] || 0;
