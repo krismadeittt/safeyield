@@ -8,6 +8,7 @@ import { MONTHLY_PAYERS, QUARTERLY_ETFS } from '../data/dividendCalendar';
 import Fundamentals from './Fundamentals';
 import NaValue from '../components/NaValue';
 import useIsMobile from '../hooks/useIsMobile';
+import { calcSafetyScore, getGradeColor } from '../utils/safety';
 
 const PROJ_YEARS = 10;
 
@@ -94,6 +95,17 @@ function computeAnnualYield(divHistory, priceHistory) {
     .filter(Boolean);
 }
 
+function calcTrendFromHistory(values) {
+  if (!values || !Array.isArray(values) || values.length < 2) return null;
+  var rawFirst = values[0];
+  var rawLast = values[values.length - 1];
+  var first = (rawFirst && typeof rawFirst === 'object') ? rawFirst.value : rawFirst;
+  var last = (rawLast && typeof rawLast === 'object') ? rawLast.value : rawLast;
+  if (!first || first <= 0 || !last || last <= 0) return null;
+  var years = values.length - 1;
+  return Math.pow(last / first, 1 / years) - 1;
+}
+
 export default function StockDetail({ stock, live, loading, onBack, onMergeLiveData }) {
   const isMobile = useIsMobile();
   const [fd, setFd] = useState(null);
@@ -111,6 +123,28 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
     : (fcfPayout != null) ? fcfPayout : rawPayout;
   const g5 = fd?.g5 ?? live?.g5 ?? stock.g5 ?? 0;
   const taxClass = getTaxClass(stock.ticker);
+
+  // Safety score
+  const safetyData = useMemo(() => {
+    const liveObj = live || {};
+    const fdObj = fd || {};
+    const payoutVal = fdObj.payout ?? liveObj.payout;
+    let earningsPayout = null;
+    if (payoutVal != null) earningsPayout = payoutVal / 100;
+    else if (liveObj.annualDiv && liveObj.eps && liveObj.eps > 0) earningsPayout = liveObj.annualDiv / liveObj.eps;
+    const fcfVal = fdObj.fcfPayout ?? liveObj.fcfPayout;
+    const fcfPayoutRatio = fcfVal != null ? fcfVal / 100 : null;
+    const history = liveObj.annualHistory || {};
+    return calcSafetyScore({
+      fcfPayoutRatio,
+      earningsPayoutRatio: earningsPayout,
+      debtToEquity: liveObj.debtToEquity ?? null,
+      interestCoverage: liveObj.interestCoverage ?? null,
+      dividendStreak: fdObj.streak ?? liveObj.streak ?? stock.streak ?? null,
+      fcfTrend: calcTrendFromHistory(history.fcf),
+      revenueTrend: calcTrendFromHistory(history.revenue),
+    });
+  }, [live, fd, stock.streak]);
 
   // Fetch fundamentals + real history in parallel
   useEffect(() => {
@@ -332,6 +366,7 @@ export default function StockDetail({ stock, live, loading, onBack, onMergeLiveD
           { label: "5Y Growth", value: `${g5}%` },
           { label: "Streak", value: stock.streak != null && stock.streak > 0 ? `${stock.streak}yr` : null, reason: "No streak data" },
           { label: "Tax Class", value: taxClass },
+          { label: "Safety", value: safetyData.score != null ? `${Math.round(safetyData.score)} ${safetyData.grade}` : null, reason: "No safety data", color: getGradeColor(safetyData.grade) },
         ].map(m => (
           <div key={m.label} title={m.title} style={{
             background: "var(--bg-card)", border: "1px solid var(--border-dim)", padding: "0.8rem",

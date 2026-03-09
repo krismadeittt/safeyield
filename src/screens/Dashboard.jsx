@@ -6,6 +6,8 @@ import HistoricalProjectedChart from '../components/charts/HistoricalProjectedCh
 import VisualizerToggle from '../components/VisualizerToggle';
 import InfoTooltip from '../components/InfoTooltip';
 import useIsMobile from '../hooks/useIsMobile';
+import useSafetyScores from '../hooks/extreme/useSafetyScores';
+import { getGradeColor } from '../utils/safety';
 
 export default function Dashboard({
   totalIncome, holdings, liveData, portfolioValue, weightedYield, weightedGrowth, cashBalance = 0,
@@ -39,6 +41,18 @@ export default function Dashboard({
   // Monthly income data — uses live dividend rates via liveData
   const monthlyData = useMemo(() => calcMonthlyIncome(holdings, liveData, divScheduleMap), [holdings, liveData, divScheduleMap]);
 
+  // Portfolio safety score
+  const { scores: safetyScores } = useSafetyScores(holdings, liveData);
+  const { avgSafetyScore, safetyGrade, safetyColor } = useMemo(() => {
+    const tickers = Object.keys(safetyScores);
+    if (tickers.length === 0) return { avgSafetyScore: null, safetyGrade: null, safetyColor: '#9ca3af' };
+    let total = 0;
+    for (let i = 0; i < tickers.length; i++) total += safetyScores[tickers[i]].score;
+    const avg = Math.round(total / tickers.length);
+    const grade = avg >= 80 ? 'A' : avg >= 65 ? 'B' : avg >= 50 ? 'C' : avg >= 35 ? 'D' : 'F';
+    return { avgSafetyScore: avg, safetyGrade: grade, safetyColor: getGradeColor(grade) };
+  }, [safetyScores]);
+
   // Expose for history widget compatibility
   if (typeof window !== "undefined") {
     window._h = holdings;
@@ -58,6 +72,9 @@ export default function Dashboard({
         <StatCell label="Annual Income" value={formatCurrency(totalIncome)} sub={`${formatCurrency(monthlyAvg || 0)}/mo`} isMobile={isMobile} tooltip="Total estimated annual dividend income from all holdings, based on current annual dividend rates." />
         <StatCell label="Monthly Avg" value={formatCurrency(monthlyAvg || 0)} sub="estimated" isMobile={isMobile} />
         <StatCell label="Div Growth" value={`${growth.toFixed(1)}%`} sub="5-year avg" isGrowth isMobile={isMobile} tooltip="Weighted average 5-year dividend growth rate across all holdings. Higher growth means your income is increasing faster." />
+        {avgSafetyScore != null && (
+          <StatCell label="Safety Score" value={avgSafetyScore} sub={`Grade: ${safetyGrade}`} isMobile={isMobile} color={safetyColor} tooltip="Portfolio average dividend safety score (0-100). Based on payout ratios, debt, interest coverage, dividend streak, and growth trends." />
+        )}
       </div>
 
       {/* Chart row — side-by-side grid */}
@@ -128,7 +145,7 @@ export default function Dashboard({
   );
 }
 
-function StatCell({ label, value, sub, isMobile, tooltip, isGrowth }) {
+function StatCell({ label, value, sub, isMobile, tooltip, isGrowth, color }) {
   return (
     <div style={{
       flex: isMobile ? "1 1 calc(50% - 6px)" : "1 1 0",
@@ -151,7 +168,7 @@ function StatCell({ label, value, sub, isMobile, tooltip, isGrowth }) {
       </div>
       <div style={{
         fontSize: isMobile ? "1.2rem" : "1.6rem", fontWeight: 700,
-        color: isGrowth ? "var(--green)" : "var(--text-primary)",
+        color: color || (isGrowth ? "var(--green)" : "var(--text-primary)"),
         lineHeight: 1,
         fontFamily: "'JetBrains Mono', monospace",
       }}>
