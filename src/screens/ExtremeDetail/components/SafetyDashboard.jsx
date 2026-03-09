@@ -24,8 +24,8 @@ export default function SafetyDashboard({ holdings, liveData, isMobile }) {
     );
   }
 
-  // Sort by score ascending (worst first)
-  var sorted = tickers.map(function(t) { return scores[t]; }).sort(function(a, b) { return a.score - b.score; });
+  // Sort by score descending (best first)
+  var sorted = tickers.map(function(t) { return scores[t]; }).sort(function(a, b) { return b.score - a.score; });
 
   // Calculate portfolio average
   var totalScore = 0;
@@ -71,7 +71,7 @@ export default function SafetyDashboard({ holdings, liveData, isMobile }) {
       <div>
         <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Dividend Safety</h2>
         <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-dim)' }}>
-          Multi-factor safety analysis for each holding. Sorted by risk (worst first).
+          Multi-factor safety analysis for each holding. Sorted by score (best first).
         </p>
       </div>
 
