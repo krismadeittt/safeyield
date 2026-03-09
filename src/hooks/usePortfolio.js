@@ -401,6 +401,10 @@ export default function usePortfolio(getToken) {
             g5: fd.g5 ?? merged[ticker]?.g5 ?? null,
             streak: fd.streak ?? merged[ticker]?.streak ?? null,
             beta: fd.beta ?? merged[ticker]?.beta ?? null,
+            interestCoverage: fd.interestCoverage ?? null,
+            debtToEquity: fd.debtToEquity ?? null,
+            annualHistory: fd.annualHistory ?? null,
+            eps: fd.eps ?? null,
           };
         }
         return merged;
@@ -464,6 +468,10 @@ export default function usePortfolio(getToken) {
             g5: fd.g5 ?? merged[ticker]?.g5 ?? null,
             streak: fd.streak ?? merged[ticker]?.streak ?? null,
             beta: fd.beta ?? merged[ticker]?.beta ?? null,
+            interestCoverage: fd.interestCoverage ?? null,
+            debtToEquity: fd.debtToEquity ?? null,
+            annualHistory: fd.annualHistory ?? null,
+            eps: fd.eps ?? null,
           };
         }
       }
