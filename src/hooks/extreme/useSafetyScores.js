@@ -7,8 +7,10 @@ import { calcSafetyScore } from '../../utils/safety';
  */
 function calcTrendFromHistory(values) {
   if (!values || !Array.isArray(values) || values.length < 2) return null;
-  var first = values[0];
-  var last = values[values.length - 1];
+  var rawFirst = values[0];
+  var rawLast = values[values.length - 1];
+  var first = (rawFirst && typeof rawFirst === 'object') ? rawFirst.value : rawFirst;
+  var last = (rawLast && typeof rawLast === 'object') ? rawLast.value : rawLast;
   if (!first || first <= 0 || !last || last <= 0) return null;
   var years = values.length - 1;
   return Math.pow(last / first, 1 / years) - 1;

@@ -269,6 +269,14 @@ export function parseFundamentals(raw) {
   var netDebtToEbitda  = (latestNetDebt != null && ebitda) ? latestNetDebt / ebitda : null;
   var lastEbit         = ebitHistory.length ? ebitHistory[ebitHistory.length - 1] : null;
   var latestCoverage   = lastEbit ? lastEbit.coverage : null;
+
+  // Debt-to-Equity from most recent quarterly balance sheet
+  var balQEntries = Object.entries(balQ).sort(function(a, b) { return a[0] < b[0] ? -1 : 1; });
+  var latestBal = balQEntries.length ? balQEntries[balQEntries.length - 1][1] || {} : {};
+  var totalDebt = parseFloat(latestBal.shortLongTermDebtTotal || latestBal.longTermDebt || 0);
+  var totalEquity = parseFloat(latestBal.totalStockholderEquity);
+  var debtToEquity = (!isNaN(totalDebt) && !isNaN(totalEquity) && totalEquity !== 0)
+    ? round(totalDebt / Math.abs(totalEquity), 2) : null;
   var annHist          = buildAnnualHistory(incY, balY, cfY);
 
   if (annualDiv == null && annHist.dps && annHist.dps.length > 0) {
@@ -415,6 +423,7 @@ export function parseFundamentals(raw) {
     netDebt:          latestNetDebt,
     netDebtToEbitda:  round(netDebtToEbitda, 2),
     interestCoverage: round(latestCoverage, 2),
+    debtToEquity:     debtToEquity,
     valuation:        valuation,
     analyst:          analyst,
     technicals:       technicals,
